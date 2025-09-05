@@ -11,7 +11,8 @@ from datasets.stockinfo import StockInfo
 from dataset import StockDataset
 from predicproc.predict import Predict
 from model.lstmmodel import LSTMModel
-from utils.const_def import TOKEN, REL_CODE_LIST, NUM_CLASSES
+from utils.tk import TOKEN
+from utils.const_def import REL_CODE_LIST, NUM_CLASSES
 from utils.const_def import BASE_DIR, MODEL_DIR
 from utils.utils import setup_logging, StockType
 

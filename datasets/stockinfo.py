@@ -11,7 +11,8 @@ o_path = os.getcwd()
 sys.path.append(o_path)
 sys.path.append(str(Path(__file__).resolve().parents[0]))
 from utils.utils import setup_logging
-from utils.const_def import TOKEN, NAN_FILL, MIN_TOTAL_MV, LATEST_DATE, STANDARD_DATE, IS_PRINT_TUSHARE_CALL_INFO
+from utils.tk import TOKEN
+from utils.const_def import NAN_FILL, MIN_TOTAL_MV, LATEST_DATE, STANDARD_DATE, IS_PRINT_TUSHARE_CALL_INFO
 from utils.const_def import BASE_DIR, GLOBAL_DIR
 
 #StockInfo用于存储所有股票、指数的基本信息数据，其中

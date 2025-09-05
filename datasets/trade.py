@@ -12,7 +12,7 @@ sys.path.append(str(Path(__file__).resolve().parents[0]))
 from stock import Stock
 from stockinfo import StockInfo
 from utils.utils import StockType, setup_logging
-from utils.const_def import TOKEN
+from utils.tk import TOKEN
 from utils.const_def import BASE_DIR, TMP_DIR
 
 #数据说明：

@@ -13,7 +13,8 @@ from dataset import StockDataset, StockDatasets
 from predicproc.predict import Predict
 from model.lstmmodel import LSTMModel
 from bins import BinManager
-from utils.const_def import BASE, T1L_SCALE, T2H_SCALE, TOKEN, REL_CODE_LIST, NUM_CLASSES
+from utils.tk import TOKEN
+from utils.const_def import BASE, T1L_SCALE, T2H_SCALE, REL_CODE_LIST, NUM_CLASSES
 
 if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'

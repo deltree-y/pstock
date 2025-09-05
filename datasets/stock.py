@@ -9,7 +9,8 @@ sys.path.append(o_path)
 sys.path.append(str(Path(__file__).resolve().parents[0]))
 from stockinfo import StockInfo
 from utils.const_def import BASE_DIR, STOCK_DIR, INDEX_DIR
-from utils.const_def import TOKEN, STOCK_DATE_DELTA
+from utils.const_def import STOCK_DATE_DELTA
+from utils.tk import TOKEN
 from utils.utils import setup_logging
 pd.set_option('future.no_silent_downcasting', True)
 

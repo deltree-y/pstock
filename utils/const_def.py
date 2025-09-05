@@ -1,5 +1,4 @@
 #-*- coding:UTF-8 -*-
-TOKEN = 'c4ffab8fc0b7c43e5631a59d5faa5df1b99f85895eb15c44cc32a628'
 BASE = '.\\data\\'
 BASE_DIR = 'data'
 STOCK_DIR, INDEX_DIR, MODEL_DIR, SCALER_DIR, BIN_DIR, GLOBAL_DIR, TMP_DIR = 'stock', 'index', 'model', 'scaler', 'bins', 'global', 'temp'

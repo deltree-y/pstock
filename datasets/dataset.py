@@ -14,7 +14,8 @@ from trade import Trade
 from cat import RateCat
 from bins import BinManager
 from utils.utils import setup_logging
-from utils.const_def import TOKEN, CONTINUOUS_DAYS, NUM_CLASSES
+from utils.tk import TOKEN
+from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES
 from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 
 # | 数据来源/阶段                 | 变量名                             | 说明                                                       | 数据格式            | 特点/备注                       |

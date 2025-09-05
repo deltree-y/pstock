@@ -12,3 +12,5 @@ data/bins/*
 data/scaler/*
 data/model/*.h5
 abandoned
+# If you have any local configuration files, you can ignore them here
+utils/tk*

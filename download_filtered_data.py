@@ -1,7 +1,8 @@
 import argparse, datetime
 from datasets.stock import Stocks
 from datasets.stockinfo import StockInfo
-from utils.const_def import TOKEN, LATEST_DATE, MIN_TOTAL_MV
+from utils.const_def import LATEST_DATE, MIN_TOTAL_MV
+from utils.tk import TOKEN
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
