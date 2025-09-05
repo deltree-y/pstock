@@ -2,6 +2,7 @@
 *.csv
 *.pyc
 *.txt
+!requirements.txt
 *.log
 
 data/stock/*.csv
