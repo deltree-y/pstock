@@ -19,7 +19,7 @@ if __name__ == "__main__":
     setup_logging()
     
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    epo_list = [100]
+    epo_list = [200]
     #epo_list = [10,50,100]
     p_list = [4]
     #p_list = [2,16]
@@ -29,8 +29,9 @@ if __name__ == "__main__":
 
     si = StockInfo(TOKEN)
     primary_stock_code = '600036.SH'
+    index_code_list = ['000001.SH', '399001.SZ', '399006.SZ']  #上证指数,深证成指,创业板指
     related_stock_list = REL_CODE_LIST
-    ds = StockDataset(primary_stock_code, si, start_date='20070101',end_date='20250903', train_size=0.9)
+    ds = StockDataset(primary_stock_code, index_code_list, si, start_date='20100601',end_date='20250903', train_size=0.9)
 
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     for batch_size in batch_size_list:

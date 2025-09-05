@@ -3,6 +3,7 @@ import sys,os,time,logging,joblib
 import numpy as np
 import pandas as pd
 from pathlib import Path
+from numpy.lib import recfunctions
 from sklearn.preprocessing import StandardScaler, RobustScaler
 o_path = os.getcwd()
 sys.path.append(o_path)
@@ -30,22 +31,29 @@ from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 # | 归一化, 窗口化后的x            | self.normalized_windowed_train_x  | 归一化, 窗口化后的训练集x, 三维数组                             | numpy.array        |                                  |
 # |                             | self.normalized_windowed_test_x   | 归一化, 窗口化后的测试集x, 三维数组                             | numpy.array        |                                  |
 class StockDataset():
-    def __init__(self, ts_code, si, start_date=None, end_date=None, window_size=CONTINUOUS_DAYS, train_size=0.8, if_update_scaler=False):
-        logging.debug(f"StockDataset.init - start_date:{start_date}, end_date:{end_date}")
-        self.trade = Trade(ts_code, si, start_date=start_date, end_date=end_date)
-        self.stock = self.trade.stock
+    def __init__(self, ts_code, idx_code_list, si, start_date=None, end_date=None, window_size=CONTINUOUS_DAYS, train_size=0.8, if_update_scaler=False):
+        #logging.debug(f"StockDataset.init - start_date:{start_date}, end_date:{end_date}")
+        self.p_trade = Trade(ts_code, si, start_date=start_date, end_date=end_date)
+        self.idx_trade_list = [Trade(idx_code, si, start_date=start_date, end_date=end_date) for idx_code in idx_code_list]
+        self.stock = self.p_trade.stock
         self.window_size = window_size
         self.train_size = train_size
         self.if_update_scaler = if_update_scaler
         self.scaler, self.bins1, self.bins2 = None, None, None
         
-        #dataset所需的所有数据,都由此方法获取,并存入下列3个变量
-        self.raw_dataset, self.full_raw_data = self.get_trade_data(self.trade.trade_df)  #raw_dataset包含日期, full_raw_data不含日期
+        #dataset所需的所有数据,都由此方法获取,并存入下列变量
+        self.raw_dataset, self.full_raw_data = self.get_trade_data(self.p_trade)  #raw_dataset包含日期, full_raw_data不含日期
         self.date_list = self.raw_dataset[:,0]
+        #处理指数数据
+        self.idx_raw_dataset_list, self.idx_full_raw_data_list = zip(*[self.get_trade_data(idx_trade) for idx_trade in self.idx_trade_list])
+        self.full_raw_data = self.left_merge_np_list(self.full_raw_data, self.idx_full_raw_data_list, col=0)
+        self.idx_raw_dataset_list = [self.filter_by_col(self.raw_dataset, idx_raw_data, 0) for idx_raw_data in self.idx_raw_dataset_list]
 
         #开始对获取的数据进行加工处理,形成训练及预测用数据集
         # 1. 分离数据集的x和y
         self.raw_dataset_x, self.raw_y = self.get_dataset_xy(self.raw_dataset)  #数据集的x和y(注意此处还未按窗口处理)
+        self.raw_dataset_x_list, _ = zip(*[self.get_dataset_xy(idx_raw_data) for idx_raw_data in self.idx_raw_dataset_list])    #取出指数数据的x
+        self.raw_dataset_x = np.hstack(([self.raw_dataset_x] + list(self.raw_dataset_x_list))) if len(self.raw_dataset_x_list) > 0 else self.raw_dataset_x #合并指数数据与主股票数据
 
         # 2. 对所有的y一起进行分箱处理
         self.dataset_y = self.get_binned_y(self.raw_y)  #y已分箱,但还未按窗口处理
@@ -67,8 +75,8 @@ class StockDataset():
         logging.info(f"test  x/y shape - <{self.normalized_windowed_test_x.shape}/{self.test_y.shape}>")
 
     #所有从trade获取的数据都由此方法返回
-    def get_trade_data(self, trade_df):
-        return trade_df.combine_data_np, trade_df.raw_data_np
+    def get_trade_data(self, trade):
+        return trade.combine_data_np, trade.raw_data_np
 
     #返回数据集的x和y(注意此处还未按窗口处理)
     #格式:
@@ -176,6 +184,41 @@ class StockDataset():
         raw_x = self.full_raw_data[idx:idx+self.window_size, 1:]#取出对应日期及之后window_size天的数据
         x = self.get_normalized_windowed_x(raw_x) #归一化,窗口化
         return x, closed_price
+    
+    #按指定列进行左连接
+    # on - 指定连接的列,如['trade_date']
+    def left_merge_np(self, left, right, col):
+        df_left, df_right = pd.DataFrame(left), pd.DataFrame(right)
+        left_col_name, right_col_name = df_left.columns[col], df_right.columns[col]
+        df_merged = pd.merge(df_left, df_right, left_on=left_col_name, right_on=right_col_name, how='left')
+        col_to_drop = df_merged.columns[df_left.shape[1]]  #取出左表中用于连接的列名
+        df_merged = df_merged.drop(columns=[col_to_drop])  if left_col_name != right_col_name else df_merged
+        return df_merged.to_numpy()
+
+    #按指定列对一批数据进行左连接
+    # on - 指定连接的列,如['trade_date']
+    def left_merge_np_list(self, left, data_list, col):
+        #pd.set_option('display.max_columns', None)
+        if len(data_list) < 1:
+            logging.error("Invalid parameters.")
+            exit()
+        left_df = pd.DataFrame(left)
+        for right in data_list:
+            left = self.left_merge_np(left, right, col)
+        return left
+
+    def filter_by_col(self, a: np.ndarray, b: np.ndarray, col_no: int) -> np.ndarray:
+        """
+        以 a 的指定列(col_no)为基准, 过滤 b, 只保留 b 指定列与 a 指定列匹配的行。
+        参数:
+            a: numpy二维数组, 作为基准
+            b: numpy二维数组, 被过滤
+        返回:
+            筛选后的b (np.ndarray)
+        """
+        base_col = a[:, col_no]
+        mask = np.isin(b[:, col_no], base_col)
+        return b[mask]
 
     #打印归一化前后的数据对比
     def print_comp_data(self, i=0, col=47):
@@ -191,8 +234,9 @@ if __name__ == "__main__":
     setup_logging()
     si = StockInfo(TOKEN)
     #download_list = si.get_filtered_stock_list(mmv=3000000)
-    primary_stock = '600036.SH'
-    ds = StockDataset(primary_stock, si, start_date='20250101', end_date='20250903', train_size=0.8)
+    primary_stock_code = '600036.SH'
+    idx_code_list = ['000001.SH','399001.SZ']#,'000300.SH','000905.SH']
+    ds = StockDataset(primary_stock_code, idx_code_list, si, start_date='20250104', end_date='20250903', train_size=0.7)
     #ds.print_comp_data()
     #logging.info(f"SHAPE - train_y:{ds.train_y.shape}, test_y:{ds.test_y.shape}")
     #logging.info(ds.test_y)
