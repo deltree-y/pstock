@@ -1,0 +1,13 @@
+*.xlsx
+*.csv
+*.pyc
+*.txt
+*.log
+
+data/stock/*.csv
+data/index/*.csv
+data/global/*.csv
+data/temp/*
+data/bins/*
+data/scaler/*
+data/model/*.h5
