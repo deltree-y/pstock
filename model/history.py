@@ -15,11 +15,19 @@ class LossHistory(Callback):
         self.val_losses.append(logs.get('val_loss'))
         self.t1_accu.append(logs.get('accuracy')*100)
         self.val_t1_accu.append(logs.get('val_accuracy')*100)
-        #self.t2_accu.append(logs.get('val_output2_accuracy')*100)
-        # epoch 是从0开始计数的，所以用 (epoch+1)
-        if (epoch + 1) % 1 == 0:
-            logging.info(f"Epoch {epoch + 1}: loss={logs.get('loss'):.4f}, val_loss={logs.get('val_loss'):.4f}, accu={logs.get('accuracy')*100:.2f}%, val_accu={logs.get('val_accuracy')*100:.2f}%" if logs else f"Epoch {epoch + 1}")
-            pass
+        
+        # 改进的日志记录 - 每个epoch都记录，便于监控训练过程
+        if logs:
+            logging.info(f"Epoch {epoch + 1}: "
+                        f"loss={logs.get('loss'):.4f}, "
+                        f"val_loss={logs.get('val_loss'):.4f}, "
+                        f"acc={logs.get('accuracy')*100:.2f}%, "
+                        f"val_acc={logs.get('val_accuracy')*100:.2f}%")
+            
+            # 添加验证损失改善检测
+            if epoch > 0 and logs.get('val_loss') < min(self.val_losses[:-1]):
+                logging.info(f"  --> Validation loss improved!")
+        
         return super().on_epoch_end(epoch, logs)
 
     def on_batch_end(self, batch, logs={}):

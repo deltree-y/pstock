@@ -20,21 +20,35 @@ if __name__ == "__main__":
     setup_logging()
     
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-    epo_list = [200]
-    #epo_list = [10,50,100]
+    
+    # 优化后的训练参数 - 使用更多的epoch和更好的batch size
+    epo_list = [300]  # 增加epochs，早停会自动停止
     p_list = [4]
-    #p_list = [2,16]
-    batch_size_list = [32]
-    #batch_size_list = [8,128,512,32]
-    if_print_detail =False
+    batch_size_list = [64]  # 增加batch size以提高训练稳定性
+    if_print_detail = False
 
     si = StockInfo(TOKEN)
     primary_stock_code = '600036.SH'
     index_code_list = ['000001.SH', '399001.SZ', '399006.SZ']  #上证指数,深证成指,创业板指
     related_stock_list = REL_CODE_LIST
-    ds = StockDataset(primary_stock_code, index_code_list, si, start_date='20100601',end_date='20250903', train_size=0.9)
+    # 改善数据集配置 - 使用更好的train/validation分割比例
+    ds = StockDataset(primary_stock_code, index_code_list, si, start_date='20100601',end_date='20250903', train_size=0.85)  # 85%/15%分割提供更多验证数据
 
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
+    
+    # 添加类别分布分析
+    logging.info("=== Training Data Class Distribution ===")
+    train_counts = np.bincount(ty[:,0], minlength=NUM_CLASSES)
+    train_percent = train_counts / train_counts.sum()
+    for i in range(NUM_CLASSES):
+        logging.info(f"Class {i}: {train_counts[i]} samples ({train_percent[i]*100:.2f}%)")
+    
+    logging.info("=== Validation Data Class Distribution ===")
+    val_counts = np.bincount(vy[:,0], minlength=NUM_CLASSES)
+    val_percent = val_counts / val_counts.sum()
+    for i in range(NUM_CLASSES):
+        logging.info(f"Class {i}: {val_counts[i]} samples ({val_percent[i]*100:.2f}%)")
+    
     for batch_size in batch_size_list:
         for p in p_list:
             for epo in epo_list:
