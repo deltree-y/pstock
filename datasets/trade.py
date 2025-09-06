@@ -58,8 +58,8 @@ class Trade():
         #4. 统一对齐所有后续需要使用的数据(剪切头尾数据)
         self.combine_data_np, self.raw_data_np = self.get_aligned_trade_dates(max_cut_days)
 
-        logging.debug(f"combine_data_np head -\n{pd.DataFrame(self.combine_data_np).head(5)}\ncombine_data_np tail -\n{pd.DataFrame(self.combine_data_np).tail(5)}")
-        logging.debug(f"raw_data_np head -\n{pd.DataFrame(self.raw_data_np).head(5)}\nraw_data_np tail -\n{pd.DataFrame(self.raw_data_np).tail(5)}")
+        #logging.debug(f"combine_data_np head -\n{pd.DataFrame(self.combine_data_np).head(5)}\ncombine_data_np tail -\n{pd.DataFrame(self.combine_data_np).tail(5)}")
+        #logging.debug(f"raw_data_np head -\n{pd.DataFrame(self.raw_data_np).head(5)}\nraw_data_np tail -\n{pd.DataFrame(self.raw_data_np).tail(5)}")
         logging.info(f"[{self.stock.name}({self.ts_code})]最终可用数据行数:<{self.__trade_datas.shape[0]}>，特征列数:<{self.raw_data_np.shape[1]-1}>")
 
     #新增特征列
@@ -107,11 +107,14 @@ class Trade():
     def drop_features_by_type(self, stock_type):
         #drop_list = ['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'pre_close', 'vol', 'turnover_rate_f', 'volume_ratio', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'buy_sm_vol', 'sell_sm_vol', 'buy_md_vol', 'sell_md_vol',  'buy_lg_vol', 'sell_lg_vol', 'buy_elg_vol', 'sell_elg_vol',  'net_mf_vol', 'rsi_14', 'macd', 'macd_signal', 'macd_hist', 'atr_14',  'cci_20', 'BBL_20_2.0', 'BBM_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0',  'BBP_20_2.0', 'date_mmdd', 'weekday']
         if stock_type == StockType.PRIMARY:
-            remain_list = self.trade_df.columns.to_list()
+            #remain_list = self.trade_df.columns.to_list()
+            remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'net_mf_vol', 'rsi_14', 'macd']
+            self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2
         elif stock_type == StockType.RELATED:
             remain_list = ['ts_code', 'trade_date', 'close', 'open', 'high', 'low', 'pre_close', 'change', 'pct_chg', 'vol', 'turnover_rate_f', 'volume_ratio', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'buy_sm_vol', 'sell_sm_vol', 'buy_md_vol', 'sell_md_vol',  'buy_lg_vol', 'sell_lg_vol', 'buy_elg_vol', 'sell_elg_vol',  'net_mf_vol', 'rsi_14', 'macd', 'macd_signal', 'macd_hist', 'atr_14',  'cci_20', 'BBL_20_2.0', 'BBM_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0',  'BBP_20_2.0']
         elif stock_type == StockType.INDEX:
-            remain_list = ['ts_code', 'trade_date', 'close', 'open', 'high', 'low', 'pre_close', 'change', 'pct_chg', 'vol']
+            #remain_list = ['ts_code', 'trade_date', 'close', 'open', 'high', 'low', 'pre_close', 'change', 'pct_chg', 'vol']
+            remain_list = ['ts_code', 'trade_date', 'pct_chg', 'vol']
         else:
             logging.error(f"Unknown stock type:{stock_type}, no features dropped!")
             return
@@ -143,7 +146,7 @@ class Trade():
         if self.trade_count < 2:
             logging.error("Not enough data to calculate T1 change rate.")
             return
-        self.__t1_change_rate = (self.__raw_data_pure_np[:-1, 2] - self.__raw_data_pure_np[1:, 3]) / self.__raw_data_pure_np[1:, 3]
+        self.__t1_change_rate = (self.__raw_data_pure_np[:-1, self.col_low] - self.__raw_data_pure_np[1:, self.col_close]) / self.__raw_data_pure_np[1:, self.col_close] if self.stock_type == StockType.PRIMARY else self.__raw_data_pure_np[:-1, 0]-self.__raw_data_pure_np[:-1, 0]
         #self.t1_change_rate = np.array([RateCat(rate=x,scale=T1L_SCALE).get_label() for x in self.t1_change_rate])
     
     #t2_change_rate表示T2高值的变化率
@@ -152,7 +155,7 @@ class Trade():
         if self.trade_count < 3:
             logging.error("Not enough data to calculate T2 change rate.")
             return
-        self.__t2_change_rate = (self.__raw_data_pure_np[:-2, 1] - self.__raw_data_pure_np[2:, 3]) / self.__raw_data_pure_np[2:, 3]
+        self.__t2_change_rate = (self.__raw_data_pure_np[:-2, self.col_high] - self.__raw_data_pure_np[2:, self.col_close]) / self.__raw_data_pure_np[2:, self.col_close] if self.stock_type == StockType.PRIMARY else self.__raw_data_pure_np[:-2, 0]-self.__raw_data_pure_np[:-2, 0]
         #self.t2_change_rate = np.array([RateCat(rate=x,scale=T2H_SCALE).get_label() for x in self.t2_change_rate])
 
 

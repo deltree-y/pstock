@@ -50,7 +50,7 @@ class StockDataset():
         self.full_raw_data = self.left_merge_np_list(self.full_raw_data, self.idx_full_raw_data_list, col=0)
         self.idx_raw_dataset_list = [self.filter_by_col(self.raw_dataset, idx_raw_data, 0) for idx_raw_data in self.idx_raw_dataset_list]
 
-        #开始对获取的数据进行加工处理,形成训练及预测用数据集
+        #开始对获取的数据进行加工处理, 形成训练及预测用数据集
         # 1. 分离数据集的x和y
         self.raw_dataset_x, self.raw_y = self.get_dataset_xy(self.raw_dataset)  #数据集的x和y(注意此处还未按窗口处理)
         self.raw_dataset_x_list, _ = zip(*[self.get_dataset_xy(idx_raw_data) for idx_raw_data in self.idx_raw_dataset_list])    #取出指数数据的x
@@ -181,7 +181,8 @@ class StockDataset():
         except Exception as e:
             logging.error(f"StockDataset.get_predictable_dataset_by_date() - Invalid date: {e}")
             exit()
-        closed_price = self.full_raw_data[idx, 4]
+        closed_price = self.full_raw_data[idx, self.p_trade.col_close+1] #取出对应日期的收盘价, +1是因为full_raw_data含日期列
+        #logging.info(f"full_raw_data \n{pd.DataFrame(self.full_raw_data[idx])}")
         raw_x = self.full_raw_data[idx:idx+self.window_size, 1:]#取出对应日期及之后window_size天的数据
         x = self.get_normalized_windowed_x(raw_x) #归一化,窗口化
         return x, closed_price
@@ -220,6 +221,16 @@ class StockDataset():
         base_col = a[:, col_no]
         mask = np.isin(b[:, col_no], base_col)
         return b[mask]
+
+    def get_feature_names(self):
+        """
+        返回主股票和指数合并后的特征名列表（不包含日期、ts_code）。
+        """
+        feature_names = []
+        feature_names += list(self.p_trade.trade_df.columns.drop(['ts_code','trade_date'], errors='ignore'))
+        for idx_trade in getattr(self, 'idx_trade_list', []):
+            feature_names += list(idx_trade.trade_df.columns.drop(['ts_code','trade_date'], errors='ignore'))
+        return feature_names
 
     #打印归一化前后的数据对比
     def print_comp_data(self, i=0, col=47):

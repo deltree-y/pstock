@@ -18,15 +18,15 @@ class LossHistory(Callback):
         
         # 改进的日志记录 - 每个epoch都记录，便于监控训练过程
         if logs:
-            logging.info(f"Epoch {epoch + 1}: "
+            print(f"\nEpoch {epoch + 1}: "
                         f"loss={logs.get('loss'):.4f}, "
                         f"val_loss={logs.get('val_loss'):.4f}, "
                         f"acc={logs.get('accuracy')*100:.2f}%, "
-                        f"val_acc={logs.get('val_accuracy')*100:.2f}%")
+                        f"val_acc={logs.get('val_accuracy')*100:.2f}%",end="")
             
             # 添加验证损失改善检测
             if epoch > 0 and logs.get('val_loss') < min(self.val_losses[:-1]):
-                logging.info(f"  --> Validation loss improved!")
+                print(f"  <-- Validation loss improved!", end="")
         
         return super().on_epoch_end(epoch, logs)
 

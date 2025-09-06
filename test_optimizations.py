@@ -26,12 +26,12 @@ def create_dummy_data(samples=1000, window_size=25, features=50):
     X = np.random.randn(samples, window_size, features).astype(np.float32)
     
     # 创建目标数据，确保类别分布
-    y = np.random.randint(0, NUM_CLASSES, size=(samples,))
+    y = np.random.randint(0, NUM_CLASSES, size=(samples,2))
     
     # 创建验证数据
     val_samples = samples // 5  # 20% 用于验证
     X_val = np.random.randn(val_samples, window_size, features).astype(np.float32)
-    y_val = np.random.randint(0, NUM_CLASSES, size=(val_samples,))
+    y_val = np.random.randint(0, NUM_CLASSES, size=(val_samples,2))
     
     return X, y, X_val, y_val
 
@@ -44,12 +44,13 @@ def test_model_architecture():
     
     print(f"训练数据形状: {X_train.shape}")
     print(f"验证数据形状: {X_val.shape}")
+    print(f"预测数据形状: {y_train.shape}")
     print(f"类别数量: {NUM_CLASSES}")
     
     # 创建模型
     try:
-        model = LSTMModel(x=X_train, y=y_train.reshape(-1, 1), 
-                         test_x=X_val, test_y=y_val.reshape(-1, 1), p=2)
+        model = LSTMModel(x=X_train, y=y_train,#.reshape(-1, 1), 
+                         test_x=X_val, test_y=y_val, p=2)
         print("✓ 模型创建成功")
         
         # 显示模型架构

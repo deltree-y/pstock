@@ -1,8 +1,9 @@
-import numpy as np
-import pandas as pd
 import json
 import os
 import matplotlib.pyplot as plt
+import seaborn as sns
+import numpy as np
+import pandas as pd
 
 class BinManager:
     """
@@ -52,7 +53,6 @@ class BinManager:
     def prop_bins(self):
         return self._bins.copy()[1:-1] if self._bins is not None else None
 
-
     @property
     def n_bins(self):
         return self._n_bins
@@ -87,7 +87,7 @@ class BinManager:
             pandas.IntervalIndex,每个分组对应的区间
         """
         if self._bins is None:
-            raise ValueError("请先生成或读取 bins.")
+            raise ValueError("bins 为空,请先生成分界点.")
         return pd.IntervalIndex.from_breaks(self._bins, closed='right' if right else 'left')
 
     def save_bins_json(self, filepath):
@@ -145,3 +145,38 @@ class BinManager:
     @n_bins.setter
     def n_bins(self, value):
         raise AttributeError("n_bins 属性为只读,不允许直接赋值.")
+
+    def plot_bin_feature_correlation(self, bin_labels, feature_data, feature_names=None, show=True, save_path=None):
+        """
+        绘制分箱与特征均值的相关性热力图
+        参数:
+            bin_labels: 一维分箱编号数组（如 [0,1,1,2,...]），长度为样本数
+            feature_data: 二维特征数组（shape: [样本数, 特征数]）
+            feature_names: 特征名列表（如 ['close', 'volume', ...]）
+            show: 是否显示图像
+            save_path: 保存路径
+        """
+        import numpy as np
+        import pandas as pd
+
+        if feature_names is None:
+            feature_names = [f"f{i}" for i in range(feature_data.shape[1])]
+        df = pd.DataFrame(feature_data, columns=feature_names)
+        df['bin'] = bin_labels
+
+        # 统计每个分箱的各特征均值
+        mean_df = df.groupby('bin').mean().T
+
+        plt.figure(figsize=(max(10, feature_data.shape[1]//2), 6))
+        sns.heatmap(mean_df, annot=True, fmt=".2f", cmap='viridis')
+        plt.title('Feature Mean by Bin')
+        plt.xlabel('Bin')
+        plt.ylabel('Feature')
+
+        plt.tight_layout()
+        if save_path:
+            plt.savefig(save_path, dpi=200)
+        if show:
+            plt.show()
+        else:
+            plt.close()

@@ -11,10 +11,12 @@ from datasets.stockinfo import StockInfo
 from dataset import StockDataset
 from predicproc.predict import Predict
 from model.lstmmodel import LSTMModel
+from sklearn.metrics import confusion_matrix
 from utils.tk import TOKEN
 from utils.const_def import REL_CODE_LIST, NUM_CLASSES
 from utils.const_def import BASE_DIR, MODEL_DIR
 from utils.utils import setup_logging, StockType
+import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
     setup_logging()
@@ -23,16 +25,16 @@ if __name__ == "__main__":
     
     # 优化后的训练参数 - 使用更多的epoch和更好的batch size
     epo_list = [300]  # 增加epochs，早停会自动停止
-    p_list = [4]
+    p_list = [8]
     batch_size_list = [64]  # 增加batch size以提高训练稳定性
     if_print_detail = False
 
     si = StockInfo(TOKEN)
     primary_stock_code = '600036.SH'
-    index_code_list = ['000001.SH', '399001.SZ', '399006.SZ']  #上证指数,深证成指,创业板指
+    index_code_list = ['000001.SH']#, '399001.SZ', '399006.SZ']  #上证指数,深证成指,创业板指
     related_stock_list = REL_CODE_LIST
     # 改善数据集配置 - 使用更好的train/validation分割比例
-    ds = StockDataset(primary_stock_code, index_code_list, si, start_date='20100601',end_date='20250903', train_size=0.85)  # 85%/15%分割提供更多验证数据
+    ds = StockDataset(primary_stock_code, index_code_list, si, start_date='20070101',end_date='20250903', train_size=0.8)  # 85%/15%分割提供更多验证数据
 
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     
@@ -71,8 +73,19 @@ if __name__ == "__main__":
                     Predict(pred_data, bp, ds.bins1.prop_bins, ds.bins2.prop_bins).print_predict_result()
                     print()
 
-                if True:
+                if False:
                     tm.plot()
+
+                # 训练模型后
+                y_pred = tm.model.predict(vx)
+                y_pred_label = np.argmax(y_pred, axis=1)
+                cm = confusion_matrix(vy[:, 0], y_pred_label)
+                plt.imshow(cm, cmap='Blues')
+                plt.title('Confusion Matrix')
+                plt.xlabel('Predicted')
+                plt.ylabel('True')
+                plt.colorbar()
+                plt.show()
 
                 del tm
 

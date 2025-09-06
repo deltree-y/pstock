@@ -10,7 +10,7 @@ from keras.callbacks import ModelCheckpoint, Callback, ReduceLROnPlateau, EarlyS
 from keras.regularizers import l2
 from keras.optimizers import Adam
 from model.history import LossHistory
-from keras.utils import class_weight
+from sklearn.utils.class_weight import compute_class_weight
 from utils.const_def import BASE, NUM_CLASSES
 
 o_path = os.getcwd()
@@ -27,39 +27,47 @@ class LSTMModel():
             self.x,self.y1,self.y2 = x.astype(float),y[:,0].astype(int),y[:,1].astype(int)
             self.test_x, self.test_y1, self.test_y2 = test_x.astype(float), test_y[:,0].astype(int), test_y[:,1].astype(int)
             self.history = LossHistory()
-            logging.debug(f"input shape is - <{x.shape}>")
-            self.create_model(x[0].shape)
+            logging.info(f"input shape is - <{x.shape}>, output shape is - <{y.shape}>")
+            #self.create_model(x[0].shape)
+            self.create_model_mini(x[0].shape)
             self.model.summary()
         else:
             logging.error("LSTMModel init fail, no fn or x/y input!")
             exit()
 
+    def create_model_mini(self, shape):
+        inputs = Input(shape)
+        x = LSTM(16, return_sequences=False)(inputs)
+        x = Dense(8, activation='relu')(x)
+        out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(x)
+        self.model = Model(inputs=inputs, outputs=out1)
+
     def create_model(self, shape):
-            inputs = Input(shape)
-            
-            # 第一层 Bidirectional LSTM - 减少正则化强度
-            x = Bidirectional(LSTM(self.p*32, return_sequences=True, kernel_regularizer=l2(1e-5)))(inputs)
-            x = LayerNormalization()(x)
-            x = Dropout(0.2)(x)  # 降低dropout率
+        inputs = Input(shape)
+        
+        # 第一层 Bidirectional LSTM - 减少正则化强度
+        x = Bidirectional(LSTM(self.p*32, return_sequences=True, kernel_regularizer=l2(1e-5)))(inputs)
+        x = LayerNormalization()(x)
+        x = Dropout(0.2)(x)  # 降低dropout率
 
-            # 第二层 Bidirectional LSTM
-            x = Bidirectional(LSTM(self.p*16, return_sequences=False, kernel_regularizer=l2(1e-5)))(x)
-            x = LayerNormalization()(x)
-            x = Dropout(0.3)(x)  # 降低dropout率
+        # 第二层 Bidirectional LSTM
+        x = Bidirectional(LSTM(self.p*16, return_sequences=False, kernel_regularizer=l2(1e-5)))(x)
+        x = LayerNormalization()(x)
+        x = Dropout(0.3)(x)  # 降低dropout率
 
-            # 减少Dense层复杂度，防止过拟合
-            shared = Dense(self.p*64, activation='relu', kernel_regularizer=l2(1e-5))(x)  # 从256减少到64
-            shared = Dropout(0.3)(shared)
+        # 减少Dense层复杂度，防止过拟合
+        shared = Dense(self.p*64, activation='relu', kernel_regularizer=l2(1e-5))(x)  # 从256减少到64
+        shared = Dropout(0.3)(shared)
 
-            shared = Dense(self.p*32, activation='relu', kernel_regularizer=l2(1e-5))(shared)  # 从64减少到32
-            shared = Dropout(0.2)(shared)
+        shared = Dense(self.p*32, activation='relu', kernel_regularizer=l2(1e-5))(shared)  # 从64减少到32
+        shared = Dropout(0.2)(shared)
 
-            # 输出层
-            out1 = Dense(self.p*16, activation='relu', kernel_regularizer=l2(1e-5))(shared)  # 从32减少到16
-            out1 = Dropout(0.1)(out1)  # 最后一层使用更低的dropout
-            out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(out1)
+        # 输出层
+        out1 = Dense(self.p*16, activation='relu', kernel_regularizer=l2(1e-5))(shared)  # 从32减少到16
+        out1 = Dropout(0.1)(out1)  # 最后一层使用更低的dropout
+        out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(out1)
 
-            self.model = Model(inputs=inputs, outputs=out1)
+        self.model = Model(inputs=inputs, outputs=out1)
 
     def train(self, epochs=100, batch_size=32):
         model_path = os.path.join(BASE, "model", f"stocks_{epochs}_best.h5")
@@ -69,7 +77,7 @@ class LSTMModel():
             model_path,
             monitor='val_loss',
             verbose=0,
-            save_best_only=True,
+            save_best_only=False,
             save_weights_only=False,
             mode='auto',
             save_freq='epoch'
@@ -79,7 +87,7 @@ class LSTMModel():
         lr_scheduler = ReduceLROnPlateau(
             monitor='val_loss', 
             factor=0.5, 
-            patience=8,  # 增加patience，避免过早降低学习率
+            patience=15,  # 增加patience，避免过早降低学习率
             min_lr=1e-7,  # 设置最小学习率
             verbose=1
         )
@@ -87,14 +95,14 @@ class LSTMModel():
         # 早停机制 - 防止过拟合
         early_stopping = EarlyStopping(
             monitor='val_loss',
-            patience=15,  # 15个epoch没有改善就停止
+            patience=30,  # 30个epoch没有改善就停止
             restore_best_weights=True,
             verbose=1
         )
 
         # 改进的优化器配置
         self.model.compile(
-            optimizer=Adam(learning_rate=0.001, clipnorm=1.0),  # 添加梯度裁剪，使用适中的学习率
+            optimizer=Adam(learning_rate=0.0005, clipnorm=1.0),  # 添加梯度裁剪，使用适中的学习率
             loss={'output1': 'sparse_categorical_crossentropy'},
             metrics={'output1': 'accuracy'},
             weighted_metrics=[]
@@ -103,7 +111,7 @@ class LSTMModel():
         start_time = datetime.now()
         
         # 计算类别权重以处理类别不平衡问题
-        class_weights = class_weight.compute_class_weight(
+        class_weights = compute_class_weight(
             'balanced',
             classes=np.unique(self.y1),
             y=self.y1
@@ -116,14 +124,14 @@ class LSTMModel():
         
         self.model.fit(
             x=self.x,
-            y={'output1': self.y1},
+            y=self.y1,#{'output1': self.y1},
             batch_size=batch_size,
             validation_data=(self.test_x, self.test_y1), 
             validation_freq=1, 
             callbacks=callbacks,
             epochs=epochs, 
             shuffle=True, 
-            verbose=1,  # 改为1以便观察训练过程
+            verbose=0,  # 改为1以便观察训练过程
             class_weight=class_weight_dict  # 添加类别权重
         )
         
