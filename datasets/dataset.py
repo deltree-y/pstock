@@ -97,15 +97,25 @@ class StockDataset():
         dataset_y = dataset_all[:, -2:] #取最后2列
         return np.array(dataset_x).astype(float), np.array(dataset_y).astype(float)
 
+
     #按本dataset的y数据,生成对应的分箱器,并返回分箱后的y数据
+    #直接返回原始y数据(涨跌幅),不进行分箱
     def get_binned_y(self, raw_y):
-        y1,y2 = raw_y[:, 0], raw_y[:, 1]
-        #self.bins1 = BinManager(y1, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y1_bins.json"))
-        #self.bins2 = BinManager(y2, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y2_bins.json"))
-        #y1_binned = np.array([RateCat(rate=x,scale=self.bins1.prop_bins,right=True).get_label() for x in y1])
-        #y2_binned = np.array([RateCat(rate=x,scale=self.bins2.prop_bins,right=True).get_label() for x in y2])
+        return raw_y*100
     
-        # 直接用业务阈值分箱，不用qcut
+    #按本dataset的y数据,生成对应的分箱器,并返回分箱后的y数据
+    #此处提供两种分箱方法,可选其一
+    def get_binned_y_use_qcut(self, raw_y):
+        y1,y2 = raw_y[:, 0], raw_y[:, 1]
+        self.bins1 = BinManager(y1, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y1_bins.json"))
+        self.bins2 = BinManager(y2, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y2_bins.json"))
+        y1_binned = np.array([RateCat(rate=x,scale=self.bins1.prop_bins,right=True).get_label() for x in y1])
+        y2_binned = np.array([RateCat(rate=x,scale=self.bins2.prop_bins,right=True).get_label() for x in y2])
+        return (np.array([y1_binned, y2_binned]).astype(int)).transpose()
+    #按手工生成具体的分箱,并返回分箱后的y数据
+    #此处提供两种分箱方法,可选其一
+    def get_binned_y_use_scale(self, raw_y):
+        y1,y2 = raw_y[:, 0], raw_y[:, 1]
         self.bins1 = np.array([-np.inf] + T1L_SCALE + [np.inf])
         self.bins2 = np.array([-np.inf] + T2H_SCALE + [np.inf])
         y1_binned = np.digitize(y1, bins=T1L_SCALE, right=True)

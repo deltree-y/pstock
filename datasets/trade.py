@@ -107,11 +107,15 @@ class Trade():
     def drop_features_by_type(self, stock_type):
         #drop_list = ['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'pre_close', 'vol', 'turnover_rate_f', 'volume_ratio', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'buy_sm_vol', 'sell_sm_vol', 'buy_md_vol', 'sell_md_vol',  'buy_lg_vol', 'sell_lg_vol', 'buy_elg_vol', 'sell_elg_vol',  'net_mf_vol', 'rsi_14', 'macd', 'macd_signal', 'macd_hist', 'atr_14',  'cci_20', 'BBL_20_2.0', 'BBM_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0',  'BBP_20_2.0', 'date_mmdd', 'weekday']
         if stock_type == StockType.PRIMARY:
-            remain_list = self.trade_df.columns.to_list()
-            #下面是皮尔逊0.15筛选结果
+            #remain_list = self.trade_df.columns.to_list()
+            #下面是皮尔逊筛选结果(上0.15多分类,下0.15回归)
             #remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'pb', 'dv_ratio', 'atr_14', 'BBB_20_2.0', 'natr_14']
-            #下面是互信息0.03筛选结果
-            remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'macd_signal', 'atr_14', 'BBL_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0', 'obv', 'natr_14']
+            #remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'pe', 'pb', 'ps', 'dv_ratio', 'atr_14', 'BBB_20_2.0', 'obv', 'natr_14']
+            #下面是互信息筛选结果(上0.03多分类,下0.03回归)
+            #remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'macd_signal', 'atr_14', 'BBL_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0', 'obv', 'natr_14']
+            #remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'macd_signal', 'atr_14', 'BBL_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0', 'obv', 'natr_14']
+            #皮尔逊+互信息+树模型交集特征
+            remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'sell_elg_vol', 'pb', 'obv', 'turnover_rate_f', 'dv_ratio', 'buy_sm_vol', 'close', 'stddev_10', 'natr_14', 'buy_md_vol', 'BBB_20_2.0', 'amount', 'atr_14']
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2
         elif stock_type == StockType.RELATED:
             remain_list = ['ts_code', 'trade_date', 'close', 'open', 'high', 'low', 'pre_close', 'change', 'pct_chg', 'vol', 'turnover_rate_f', 'volume_ratio', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'buy_sm_vol', 'sell_sm_vol', 'buy_md_vol', 'sell_md_vol',  'buy_lg_vol', 'sell_lg_vol', 'buy_elg_vol', 'sell_elg_vol',  'net_mf_vol', 'rsi_14', 'macd', 'macd_signal', 'macd_hist', 'atr_14',  'cci_20', 'BBL_20_2.0', 'BBM_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0',  'BBP_20_2.0']

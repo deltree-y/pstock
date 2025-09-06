@@ -2,8 +2,11 @@
 from datetime import datetime, timedelta
 from math import ceil
 from enum import Enum, auto
-import logging.config
-
+from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
+from sklearn.ensemble import RandomForestRegressor
+from scipy.stats import pearsonr
+import numpy as np
+import logging, logging.config
 
 def setup_logging():
     logging.basicConfig(
@@ -61,6 +64,84 @@ def get_mind_value(value, base_value):
             return int(value) - 0.03
     return value
 
+def select_features_by_stat_corr(bin_labels, feature_data, feature_names, method='pearson', threshold=0.1):
+    scores = []
+    for i, fname in enumerate(feature_names):
+        x = feature_data[:, i]
+        if method == 'pearson':
+            # 皮尔逊相关
+            corr, _ = pearsonr(x, bin_labels)
+            scores.append(abs(corr))
+        elif method == 'mi':
+            # 互信息
+            mi = mutual_info_classif(x.reshape(-1, 1), bin_labels, discrete_features=False)
+            scores.append(mi[0])
+    scores = np.array(scores)
+    selected_features = [feature_names[i] for i, s in enumerate(scores) if s > threshold]
+    print("相关性得分:")
+    for fname, score in zip(feature_names, scores):
+        print(f"{fname}: {score:.3f}")
+    print("筛选出的强相关特征:", selected_features)
+    return selected_features
+
+def auto_select_features(feature_data, target, feature_names,
+                        pearson_threshold=0.15, mi_threshold=0.03,
+                        print_detail=True):
+    """
+    自动筛选与回归目标相关性强的特征
+    :param feature_data: shape [n_samples, n_features]
+    :param target: shape [n_samples]
+    :param feature_names: list of feature names
+    :param pearson_threshold: 皮尔逊相关系数筛选阈值（绝对值）
+    :param mi_threshold: 互信息筛选阈值
+    :param print_detail: 是否打印全部特征得分
+    :return: dict, 包含皮尔逊强相关、互信息强相关特征列表
+    """
+    pearson_scores = []
+    for i in range(feature_data.shape[1]):
+        corr, _ = pearsonr(feature_data[:, i], target)
+        pearson_scores.append(abs(corr))
+    mi_scores = mutual_info_regression(feature_data, target)
+    
+    pearson_selected = [feature_names[i] for i, s in enumerate(pearson_scores) if s > pearson_threshold]
+    mi_selected = [feature_names[i] for i, s in enumerate(mi_scores) if s > mi_threshold]
+
+    if print_detail:
+        print("=== 皮尔逊相关系数 ===")
+        for fname, score in zip(feature_names, pearson_scores):
+            print(f"{fname}: {score:.3f}")
+        print("皮尔逊强相关特征:", pearson_selected)
+        print("\n=== 互信息 ===")
+        for fname, score in zip(feature_names, mi_scores):
+            print(f"{fname}: {score:.3f}")
+        print("互信息强相关特征:", mi_selected)
+    return {
+        "pearson_selected": pearson_selected,
+        "mi_selected": mi_selected,
+        "pearson_scores": pearson_scores,
+        "mi_scores": mi_scores
+    }
+
+def select_features_by_tree_importance(feature_data, target, feature_names, importance_threshold=0.01, print_detail=True):
+    """
+    用随机森林回归筛选与目标相关性强的特征
+    :param feature_data: shape [n_samples, n_features]
+    :param target: shape [n_samples]
+    :param feature_names: list of feature names
+    :param importance_threshold: 特征重要性阈值
+    :param print_detail: 是否打印全部特征得分
+    :return: list, 强相关特征名
+    """
+    rf = RandomForestRegressor(n_estimators=100, random_state=42)
+    rf.fit(feature_data, target)
+    importances = rf.feature_importances_
+    selected = [feature_names[i] for i, imp in enumerate(importances) if imp > importance_threshold]
+    if print_detail:
+        print("=== 随机森林特征重要性 ===")
+        for fname, score in zip(feature_names, importances):
+            print(f"{fname}: {score:.4f}")
+        print("随机森林强相关特征:", selected)
+    return selected, importances
     
 class SuperList(list):
     def append(self, item):
