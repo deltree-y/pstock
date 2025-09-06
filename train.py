@@ -13,10 +13,32 @@ from predicproc.predict import Predict
 from model.lstmmodel import LSTMModel
 from sklearn.metrics import confusion_matrix
 from utils.tk import TOKEN
-from utils.const_def import REL_CODE_LIST, NUM_CLASSES
+from utils.const_def import REL_CODE_LIST, NUM_CLASSES, T1L_SCALE, T2H_SCALE
 from utils.const_def import BASE_DIR, MODEL_DIR
 from utils.utils import setup_logging, StockType
 import matplotlib.pyplot as plt
+from sklearn.feature_selection import mutual_info_classif
+from scipy.stats import pearsonr
+
+def select_features_by_stat_corr(bin_labels, feature_data, feature_names, method='pearson', threshold=0.1):
+    scores = []
+    for i, fname in enumerate(feature_names):
+        x = feature_data[:, i]
+        if method == 'pearson':
+            # 皮尔逊相关
+            corr, _ = pearsonr(x, bin_labels)
+            scores.append(abs(corr))
+        elif method == 'mi':
+            # 互信息
+            mi = mutual_info_classif(x.reshape(-1, 1), bin_labels, discrete_features=False)
+            scores.append(mi[0])
+    scores = np.array(scores)
+    selected_features = [feature_names[i] for i, s in enumerate(scores) if s > threshold]
+    print("相关性得分:")
+    for fname, score in zip(feature_names, scores):
+        print(f"{fname}: {score:.3f}")
+    print("筛选出的强相关特征:", selected_features)
+    return selected_features
 
 if __name__ == "__main__":
     setup_logging()
@@ -24,9 +46,11 @@ if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     
     # 优化后的训练参数 - 使用更多的epoch和更好的batch size
-    epo_list = [300]  # 增加epochs，早停会自动停止
-    p_list = [8]
+    epo_list = [10000]  # 增加epochs，早停会自动停止
+    p_list = [2]
     batch_size_list = [64]  # 增加batch size以提高训练稳定性
+    learning_rate = 0.00005  # 使用更高的初始学习率
+    patience = 100  # 提高早停的耐心值，允许更多epoch的波动
     if_print_detail = False
 
     si = StockInfo(TOKEN)
@@ -51,12 +75,23 @@ if __name__ == "__main__":
     for i in range(NUM_CLASSES):
         logging.info(f"Class {i}: {val_counts[i]} samples ({val_percent[i]*100:.2f}%)")
     
+    if False:# 计算并打印特征相关性
+        feature_data = ds.raw_train_x[-len(ds.train_y):]  # 裁剪到和train_y一致
+        bin_labels = ds.train_y[:, 0]
+        feature_names = ds.get_feature_names()
+        selected = select_features_by_stat_corr(bin_labels, feature_data, feature_names, method='pearson', threshold=0.15)
+        logging.info(f"皮尔逊筛选项: {selected}")
+        selected = select_features_by_stat_corr(bin_labels, feature_data, feature_names, method='mi', threshold=0.03)
+        logging.info(f"互信息筛选项: {selected}")
+        bmgr = ds.bins1
+        #bmgr.plot_bin_feature_correlation(bin_labels, feature_data, feature_names, save_path="bin_feature_corr.png")
+
     for batch_size in batch_size_list:
         for p in p_list:
             for epo in epo_list:
                 tm = LSTMModel(x=tx, y=ty, test_x=vx, test_y=vy, p=p)
                 print("################################ ### epo[%d] ### batch[%d] ### p[%d] ### ################################"%(epo, batch_size, p))
-                train_ret_str = tm.train(epochs=epo, batch_size=batch_size)
+                train_ret_str = tm.train(epochs=epo, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
                 tm.save(os.path.join(BASE_DIR, MODEL_DIR, primary_stock_code + "_" + str(epo) + "_" + str(batch_size) + "_" + str(p) + ".h5"))
                 best_val_t1 = tm.history.get_best_val()
                 last_loss, last_val_loss = tm.history.get_last_loss()
@@ -70,7 +105,7 @@ if __name__ == "__main__":
                     print("Predict for T0[%s]"%t0)
                     data, bp = ds.get_predictable_dataset_by_date(t0)
                     pred_data = tm.model(data)
-                    Predict(pred_data, bp, ds.bins1.prop_bins, ds.bins2.prop_bins).print_predict_result()
+                    Predict(pred_data, bp, T1L_SCALE, T2H_SCALE).print_predict_result()
                     print()
 
                 if False:
@@ -88,18 +123,3 @@ if __name__ == "__main__":
                 plt.show()
 
                 del tm
-
-
-
-    if False:
-        #sds.save_raw(BASE + "\\temp\\raw_x.csv")
-        counts = np.bincount(ty[:,0], minlength=NUM_CLASSES)
-        percent = counts / counts.sum()
-        for i in range(NUM_CLASSES):
-            print(f"Label {i}: {counts[i]} ({percent[i]*100:.2f}%)")
-        print()
-        counts = np.bincount(ty[:,1], minlength=NUM_CLASSES)
-        percent = counts / counts.sum()
-        for i in range(NUM_CLASSES):
-            print(f"Label {i}: {counts[i]} ({percent[i]*100:.2f}%)")
-        exit()

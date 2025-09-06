@@ -80,7 +80,7 @@ class Trade():
         self.trade_df['date_mmdd'] = self.trade_df['trade_date'].astype(str).str[4:8].astype(int)
         self.trade_df['weekday'] = pd.to_datetime(self.trade_df['trade_date'], format='%Y%m%d').dt.weekday+1
 
-        if False:   #以下特征效果不好,暂时不启用
+        if True:   #以下特征效果不好,暂时不启用
             self.trade_df['sma_10'], max_cut_days = ta.sma(self.trade_df['close'], length=10), max(max_cut_days, 9)
             self.trade_df['ema_10'], max_cut_days = ta.ema(self.trade_df['close'], length=10), max(max_cut_days, 9)
             self.trade_df['wma_10'], max_cut_days = ta.wma(self.trade_df['close'], length=10), max(max_cut_days, 9)
@@ -107,14 +107,17 @@ class Trade():
     def drop_features_by_type(self, stock_type):
         #drop_list = ['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'pre_close', 'vol', 'turnover_rate_f', 'volume_ratio', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'buy_sm_vol', 'sell_sm_vol', 'buy_md_vol', 'sell_md_vol',  'buy_lg_vol', 'sell_lg_vol', 'buy_elg_vol', 'sell_elg_vol',  'net_mf_vol', 'rsi_14', 'macd', 'macd_signal', 'macd_hist', 'atr_14',  'cci_20', 'BBL_20_2.0', 'BBM_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0',  'BBP_20_2.0', 'date_mmdd', 'weekday']
         if stock_type == StockType.PRIMARY:
-            #remain_list = self.trade_df.columns.to_list()
-            remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'net_mf_vol', 'rsi_14', 'macd']
+            remain_list = self.trade_df.columns.to_list()
+            #下面是皮尔逊0.15筛选结果
+            #remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'pb', 'dv_ratio', 'atr_14', 'BBB_20_2.0', 'natr_14']
+            #下面是互信息0.03筛选结果
+            remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'macd_signal', 'atr_14', 'BBL_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0', 'obv', 'natr_14']
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2
         elif stock_type == StockType.RELATED:
             remain_list = ['ts_code', 'trade_date', 'close', 'open', 'high', 'low', 'pre_close', 'change', 'pct_chg', 'vol', 'turnover_rate_f', 'volume_ratio', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'buy_sm_vol', 'sell_sm_vol', 'buy_md_vol', 'sell_md_vol',  'buy_lg_vol', 'sell_lg_vol', 'buy_elg_vol', 'sell_elg_vol',  'net_mf_vol', 'rsi_14', 'macd', 'macd_signal', 'macd_hist', 'atr_14',  'cci_20', 'BBL_20_2.0', 'BBM_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0',  'BBP_20_2.0']
         elif stock_type == StockType.INDEX:
             #remain_list = ['ts_code', 'trade_date', 'close', 'open', 'high', 'low', 'pre_close', 'change', 'pct_chg', 'vol']
-            remain_list = ['ts_code', 'trade_date', 'pct_chg', 'vol']
+            remain_list = ['ts_code', 'trade_date', 'close', 'open', 'high', 'low', 'pre_close']
         else:
             logging.error(f"Unknown stock type:{stock_type}, no features dropped!")
             return

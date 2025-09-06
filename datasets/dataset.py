@@ -15,7 +15,7 @@ from cat import RateCat
 from bins import BinManager
 from utils.utils import setup_logging
 from utils.tk import TOKEN
-from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES
+from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, T1L_SCALE, T2H_SCALE
 from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 
 # | 数据来源/阶段                 | 变量名                             | 说明                                                       | 数据格式            | 特点/备注                       |
@@ -70,7 +70,9 @@ class StockDataset():
         self.normalized_windowed_test_x = self.get_normalized_windowed_x(self.raw_test_x) if train_size < 1 else None
 
         # 6. 对齐y数据, 因为x按窗口化后会减少数据,所以y也要按窗口大小相应减少
+        self.train_y_no_window, self.test_y_no_window = self.train_y, self.test_y #保存未窗口化的y数据
         self.train_y, self.test_y = self.train_y[:-self.window_size+1], self.test_y[:-self.window_size+1] #由于x按窗口化后会减少数据,所以y也要相应减少
+
 
         logging.info(f"train x/y shape - <{self.normalized_windowed_train_x.shape}/{self.train_y.shape}>")
         logging.info(f"test  x/y shape - <{self.normalized_windowed_test_x.shape}/{self.test_y.shape}>")
@@ -98,10 +100,16 @@ class StockDataset():
     #按本dataset的y数据,生成对应的分箱器,并返回分箱后的y数据
     def get_binned_y(self, raw_y):
         y1,y2 = raw_y[:, 0], raw_y[:, 1]
-        self.bins1 = BinManager(y1, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y1_bins.json"))
-        self.bins2 = BinManager(y2, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y2_bins.json"))
-        y1_binned = np.array([RateCat(rate=x,scale=self.bins1.prop_bins,right=True).get_label() for x in y1])
-        y2_binned = np.array([RateCat(rate=x,scale=self.bins2.prop_bins,right=True).get_label() for x in y2])
+        #self.bins1 = BinManager(y1, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y1_bins.json"))
+        #self.bins2 = BinManager(y2, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y2_bins.json"))
+        #y1_binned = np.array([RateCat(rate=x,scale=self.bins1.prop_bins,right=True).get_label() for x in y1])
+        #y2_binned = np.array([RateCat(rate=x,scale=self.bins2.prop_bins,right=True).get_label() for x in y2])
+    
+        # 直接用业务阈值分箱，不用qcut
+        self.bins1 = np.array([-np.inf] + T1L_SCALE + [np.inf])
+        self.bins2 = np.array([-np.inf] + T2H_SCALE + [np.inf])
+        y1_binned = np.digitize(y1, bins=T1L_SCALE, right=True)
+        y2_binned = np.digitize(y2, bins=T2H_SCALE, right=True)
         return (np.array([y1_binned, y2_binned]).astype(int)).transpose()
 
     #划分数据集(注意此处数据还未按窗口处理)

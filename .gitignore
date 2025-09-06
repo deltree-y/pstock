@@ -3,6 +3,8 @@
 *.pyc
 *.txt
 *.log
+*.png
+*.h5
 
 data/stock/*.csv
 data/index/*.csv

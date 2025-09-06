@@ -37,8 +37,8 @@ class LSTMModel():
 
     def create_model_mini(self, shape):
         inputs = Input(shape)
-        x = LSTM(16, return_sequences=False)(inputs)
-        x = Dense(8, activation='relu')(x)
+        x = LSTM(16*self.p, return_sequences=False)(inputs)
+        x = Dense(8*self.p, activation='relu')(x)
         out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(x)
         self.model = Model(inputs=inputs, outputs=out1)
 
@@ -69,7 +69,7 @@ class LSTMModel():
 
         self.model = Model(inputs=inputs, outputs=out1)
 
-    def train(self, epochs=100, batch_size=32):
+    def train(self, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
         model_path = os.path.join(BASE, "model", f"stocks_{epochs}_best.h5")
         
         # 模型检查点 - 保存最佳模型
@@ -86,23 +86,23 @@ class LSTMModel():
         # 学习率调度器 - 当验证损失停止改善时降低学习率
         lr_scheduler = ReduceLROnPlateau(
             monitor='val_loss', 
-            factor=0.5, 
-            patience=15,  # 增加patience，避免过早降低学习率
-            min_lr=1e-7,  # 设置最小学习率
+            factor=0.9,  # 每次减少10%
+            patience=int(patience/10),  # 增加patience，避免过早降低学习率
+            min_lr=1e-6,  # 设置最小学习率
             verbose=1
         )
         
         # 早停机制 - 防止过拟合
         early_stopping = EarlyStopping(
             monitor='val_loss',
-            patience=30,  # 30个epoch没有改善就停止
+            patience=patience,  # 30个epoch没有改善就停止
             restore_best_weights=True,
             verbose=1
         )
 
         # 改进的优化器配置
         self.model.compile(
-            optimizer=Adam(learning_rate=0.0005, clipnorm=1.0),  # 添加梯度裁剪，使用适中的学习率
+            optimizer=Adam(learning_rate=learning_rate, clipnorm=1.0),  # 添加梯度裁剪，使用适中的学习率
             loss={'output1': 'sparse_categorical_crossentropy'},
             metrics={'output1': 'accuracy'},
             weighted_metrics=[]
@@ -120,7 +120,8 @@ class LSTMModel():
         logging.info(f"Class weights computed: {class_weight_dict}")
         
         # 添加所有callback
-        callbacks = [mc, self.history, lr_scheduler, early_stopping]
+        #callbacks = [mc, self.history, lr_scheduler, early_stopping]
+        callbacks = [self.history, lr_scheduler, early_stopping]
         
         self.model.fit(
             x=self.x,
