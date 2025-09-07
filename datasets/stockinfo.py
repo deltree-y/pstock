@@ -12,7 +12,7 @@ sys.path.append(o_path)
 sys.path.append(str(Path(__file__).resolve().parents[0]))
 from utils.utils import setup_logging
 from utils.tk import TOKEN
-from utils.const_def import NAN_FILL, MIN_TOTAL_MV, LATEST_DATE, STANDARD_DATE, IS_PRINT_TUSHARE_CALL_INFO
+from utils.const_def import NAN_FILL, MIN_TOTAL_MV, LATEST_DATE, STANDARD_DATE, IS_PRINT_TUSHARE_CALL_INFO, INDUSTRY_LIST
 from utils.const_def import BASE_DIR, GLOBAL_DIR
 
 #StockInfo用于存储所有股票、指数的基本信息数据，其中
@@ -128,7 +128,33 @@ class StockInfo():
                 return -1
         else:
             logging.error(f"in StockInfo::get_name().")
-    
+
+    #获取股票所属行业id
+    def get_industry_idx(self, ts_code, asset='E'):
+        self.__update_list() 
+        if asset == 'E':
+            try:
+                return INDUSTRY_LIST.index(str(self.stock_list.loc[self.stock_list['ts_code']==ts_code].industry.values[0]))
+            except:
+                logging.error(f"in StockInfo::get_industry().")
+                return -1
+        else:
+            logging.error(f"in StockInfo::get_industry() - 指数不存在所属行业.")
+            return -1
+
+    #获取股票id
+    def get_stock_idx(self, ts_code, asset='E'):
+        self.__update_list() 
+        if asset == 'E':
+            try:
+                return self.stock_list[self.stock_list['ts_code']==ts_code].index[0]
+            except:
+                raise ValueError(f"未找到目标股票 - <{ts_code}>")
+                return -1
+        else:
+            logging.error(f"in StockInfo::get_stock_idx() - 指数不提供此功能.")
+            return -1
+
     #通用行情接口
     def get_pro_bar(self, ts_code, start_date='', end_date='', asset='E', adj=None):
         start_date, end_date = str(start_date), str(end_date)
@@ -215,7 +241,7 @@ class StockInfo():
             ret = self.pro.moneyflow(ts_code=ts_code)[cols]
         else:
             ret = self.pro.moneyflow(ts_code=ts_code, start_date=start_date, end_date=end_date)[cols]
-        logging.info("INFO: Tushare interface - <pro.moneyflow> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        logging.info("Tushare interface - <pro.moneyflow> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
         return ret
     
     #融资融券交易明细
@@ -228,7 +254,7 @@ class StockInfo():
             ret = self.pro.margin_detail(ts_code=ts_code)[cols]
         else:
             ret = self.pro.margin_detail(ts_code=ts_code, start_date=start_date, end_date=end_date)[cols]
-        logging.info("INFO: Tushare interface - <pro.margin_detail> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        logging.info("Tushare interface - <pro.margin_detail> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
         return ret
 
     #大宗交易数据
@@ -240,7 +266,7 @@ class StockInfo():
             block_trade = self.pro.block_trade(ts_code=ts_code)
         else:
             block_trade = self.pro.block_trade(ts_code=ts_code, start_date=start_date, end_date=end_date)
-        logging.info("INFO: Tushare interface - <pro.block_trade> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        logging.info("Tushare interface - <pro.block_trade> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
 
         df = pd.DataFrame(columns=['trade_date','ts_code','block_trade_price', 'block_trade_vol'])
         for row in block_trade.iterrows():
@@ -263,7 +289,7 @@ class StockInfo():
             ret = self.pro.stk_holdertrade(ts_code=ts_code)
         else:
             ret = self.pro.stk_holdertrade(ts_code=ts_code, start_date=start_date, end_date=end_date)
-        logging.info("INFO: Tushare interface - <pro.stk_holdertrade> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        logging.info("Tushare interface - <pro.stk_holdertrade> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
 
         df = pd.DataFrame(columns=['trade_date','ts_code', 'change_vol_G', 'change_vol_P', 'change_vol_C'])
         for row in ret.iterrows():
@@ -305,7 +331,7 @@ class StockInfo():
             share_float = self.pro.share_float(ts_code=ts_code)
         else:
             share_float = self.pro.share_float(ts_code=ts_code, start_date=start_date, end_date=end_date)
-        logging.info("INFO: Tushare interface - <pro.share_float> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        logging.info("Tushare interface - <pro.share_float> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
 
         df = pd.DataFrame(columns=['trade_date','ts_code', 'float_share_open'])
         for row in share_float.iterrows():
@@ -355,7 +381,7 @@ class StockInfo():
         try:
             ret = daily_basic['total_mv'][0]
         except:
-            logging.error("ERROR: in StockInfo::get_total_mv().")
+            logging.error("in StockInfo::get_total_mv().")
             ret = -1
         return ret
 
@@ -407,6 +433,10 @@ class StockInfo():
             drop_column = 'ts_code'
             #data_basic = self.get_trade_open_dates(start_date=start_date, end_date=end_date)
             data_basic = self.get_daily(ts_code=ts_code, start_date=start_date, end_date=end_date)
+            #data_basic.insert(column='industry_idx', value=self.get_industry_idx(ts_code))
+            #data_basic.insert(column='stock_idx', value=self.get_stock_idx(ts_code))
+            data_basic['industry_idx'] = self.get_industry_idx(ts_code)
+            data_basic['stock_idx'] = self.get_stock_idx(ts_code)
             data_part0 = pd.DataFrame(columns=['trade_date'])
         elif spec_date is not None: #若spec_date不为空，则默认为取指定日期的所有stock数据
             spec_colunm = 'ts_code'

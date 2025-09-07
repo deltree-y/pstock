@@ -6,13 +6,9 @@
 *.png
 *.h5
 
-data/stock/*.csv
-data/index/*.csv
-data/global/*.csv
-data/temp/*
-data/bins/*
-data/scaler/*
-data/model/*.h5
+data
 abandoned
+.vscode
+__pycache__
 # If you have any local configuration files, you can ignore them here
 utils/tk*

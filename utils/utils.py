@@ -7,6 +7,7 @@ from sklearn.ensemble import RandomForestRegressor
 from scipy.stats import pearsonr
 import numpy as np
 import logging, logging.config
+import matplotlib.pyplot as plt
 
 def setup_logging():
     logging.basicConfig(
@@ -142,7 +143,46 @@ def select_features_by_tree_importance(feature_data, target, feature_names, impo
             print(f"{fname}: {score:.4f}")
         print("随机森林强相关特征:", selected)
     return selected, importances
-    
+
+def plot_regression_result(y_true, y_pred, title="回归预测结果", save_path=None):
+    """
+    可视化回归预测结果
+    :param y_true: 测试集真实标签 (一维数组)
+    :param y_pred: 测试集预测值 (一维数组)
+    :param title: 图标题
+    :param save_path: 若指定则保存图片
+    """
+    plt.figure(figsize=(10,5))
+    plt.plot(y_true, label="real", marker='o', linestyle='-', alpha=0.7)
+    plt.plot(y_pred, label="pred", marker='x', linestyle='--', alpha=0.7)
+    plt.title(title)
+    plt.xlabel("sn")
+    plt.ylabel("chg_pct(%)")
+    plt.legend()
+    plt.grid(True)
+    if save_path:
+        plt.savefig(save_path, dpi=150)
+    plt.show()
+
+def plot_error_distribution(y_true, y_pred, title="mae/rmse distribution", save_path=None):
+    """
+    可视化预测误差分布
+    :param y_true: 测试集真实标签 (一维数组)
+    :param y_pred: 测试集预测值 (一维数组)
+    :param title: 图标题
+    :param save_path: 若指定则保存图片
+    """
+    errors = y_pred - y_true
+    plt.figure(figsize=(8,5))
+    plt.hist(errors, bins=30, edgecolor='black', alpha=0.7)
+    plt.title(title)
+    plt.xlabel("mae(pred-real,%)")
+    plt.ylabel("sample count")
+    plt.grid(True)
+    if save_path:
+        plt.savefig(save_path, dpi=150)
+    plt.show()
+
 class SuperList(list):
     def append(self, item):
         super().append(item)

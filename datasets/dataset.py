@@ -3,24 +3,23 @@ import sys,os,time,logging,joblib
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from numpy.lib import recfunctions
 from sklearn.preprocessing import StandardScaler, RobustScaler
 o_path = os.getcwd()
 sys.path.append(o_path)
 sys.path.append(str(Path(__file__).resolve().parents[0]))
-from stock import Stock
 from stockinfo import StockInfo
 from trade import Trade
 from cat import RateCat
 from bins import BinManager
-from utils.utils import setup_logging
 from utils.tk import TOKEN
-from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, T1L_SCALE, T2H_SCALE
+from utils.utils import setup_logging
+from utils.utils import StockType
+from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, T1L_SCALE, T2H_SCALE, BANK_CODE_LIST
 from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 
 # | 数据来源/阶段                 | 变量名                             | 说明                                                       | 数据格式            | 特点/备注                       |
 # |-----------------------------|-----------------------------------|-----------------------------------------------------------|--------------------|----------------------------------|
-# | T2开始的数据                  | self.full_raw_data                | T2开始的原始数据, 第一列为ts_code, 第二列为日期                 | numpy.array        | 不含y1, y2                      |
+# | T2开始的数据                  | self.full_raw_data                | T2开始的原始数据, 第一列为日期,数据(x)                         | numpy.array        | 不含y1, y2                      |
 # | 不含T2的数据                  |                                   |                                                           |                    |                                  |
 # | 未分箱, 未窗口化的数据          | self.date_list                    | 只有数据集日期的一维数组                                      | numpy.array        |                                  |
 # |                             | self.raw_dataset                  | 包含日期(第一列), 数据(x), 训练预测值(y)的二维数组               | numpy.array        |                                  |
@@ -32,35 +31,49 @@ from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 # | 归一化, 窗口化后的x            | self.normalized_windowed_train_x  | 归一化, 窗口化后的训练集x, 三维数组                             | numpy.array        |                                  |
 # |                             | self.normalized_windowed_test_x   | 归一化, 窗口化后的测试集x, 三维数组                             | numpy.array        |                                  |
 class StockDataset():
-    def __init__(self, ts_code, idx_code_list, si, start_date=None, end_date=None, window_size=CONTINUOUS_DAYS, train_size=0.8, if_update_scaler=False):
+    def __init__(self, ts_code, idx_code_list, rel_code_list, si, start_date=None, end_date=None, window_size=CONTINUOUS_DAYS, train_size=0.8, if_update_scaler=False):
         #logging.debug(f"StockDataset.init - start_date:{start_date}, end_date:{end_date}")
         self.p_trade = Trade(ts_code, si, start_date=start_date, end_date=end_date)
-        self.idx_trade_list = [Trade(idx_code, si, start_date=start_date, end_date=end_date) for idx_code in idx_code_list]
+        self.idx_trade_list = [Trade(idx_code, si, stock_type=StockType.INDEX, start_date=start_date, end_date=end_date) for idx_code in idx_code_list]
+        self.rel_trade_list = [Trade(rel_code, si, stock_type=StockType.RELATED, start_date=start_date, end_date=end_date) for rel_code in rel_code_list]
+        self.if_has_index, self.if_has_related = len(self.idx_trade_list) > 0, len(self.rel_trade_list) > 0
         self.stock = self.p_trade.stock
         self.window_size = window_size
         self.train_size = train_size
         self.if_update_scaler = if_update_scaler
         self.scaler, self.bins1, self.bins2 = None, None, None
+        #logging.info(f"if_has_index:{self.if_has_index}, if_has_related:{self.if_has_related}")
         
         #dataset所需的所有数据,都由此方法获取,并存入下列变量
-        self.raw_dataset, self.full_raw_data = self.get_trade_data(self.p_trade)  #raw_dataset包含日期, full_raw_data不含日期
+        self.raw_dataset, self.full_raw_data = self.get_trade_data(self.p_trade)  #raw_dataset包含y不含t1t2数据, full_raw_data包含t1t2数据不含y
         self.date_list = self.raw_dataset[:,0]
+        #处理关联股票数据
+        self.rel_raw_dataset_list, self.rel_full_raw_data_list = zip(*[self.get_trade_data(rel_trade) for rel_trade in self.rel_trade_list]) if self.if_has_related else ([], [])
+        logging.info(f"self.raw_dataset shape:{self.raw_dataset.shape}, self.full_raw_data shape:{self.full_raw_data.shape}")
+        self.raw_dataset = np.vstack(([self.raw_dataset] + list(self.rel_raw_dataset_list)) if self.if_has_related else self.raw_dataset)
+        self.full_raw_data = np.vstack(([self.full_raw_data] + list(self.rel_full_raw_data_list)) if self.if_has_related else self.full_raw_data)
+        logging.info(f"self.raw_dataset shape:{self.raw_dataset.shape}, self.full_raw_data shape:{self.full_raw_data.shape}")
+
         #处理指数数据
-        self.idx_raw_dataset_list, self.idx_full_raw_data_list = zip(*[self.get_trade_data(idx_trade) for idx_trade in self.idx_trade_list])
-        self.full_raw_data = self.left_merge_np_list(self.full_raw_data, self.idx_full_raw_data_list, col=0)
-        self.idx_raw_dataset_list = [self.filter_by_col(self.raw_dataset, idx_raw_data, 0) for idx_raw_data in self.idx_raw_dataset_list]
+        self.idx_raw_dataset_list, self.idx_full_raw_data_list = zip(*[self.get_trade_data(idx_trade) for idx_trade in self.idx_trade_list]) if self.if_has_index else ([], [])
+        self.full_raw_data = self.left_merge_np_list(self.full_raw_data, self.idx_full_raw_data_list, col=0) if self.if_has_index else self.full_raw_data
+        #过滤指数数据, 只保留与主股票数据日期匹配的行
+        self.idx_raw_dataset_list = [self.filter_by_col(self.raw_dataset, idx_raw_data, 0) for idx_raw_data in self.idx_raw_dataset_list] if self.if_has_index else []
 
         #开始对获取的数据进行加工处理, 形成训练及预测用数据集
         # 1. 分离数据集的x和y
-        self.raw_dataset_x, self.raw_y = self.get_dataset_xy(self.raw_dataset)  #数据集的x和y(注意此处还未按窗口处理)
-        self.raw_dataset_x_list, _ = zip(*[self.get_dataset_xy(idx_raw_data) for idx_raw_data in self.idx_raw_dataset_list])    #取出指数数据的x
-        self.raw_dataset_x = np.hstack(([self.raw_dataset_x] + list(self.raw_dataset_x_list))) if len(self.raw_dataset_x_list) > 0 else self.raw_dataset_x #合并指数数据与主股票数据
+        #   1.1 主股票数据,分离x和y(注意此处还未按窗口处理)
+        self.raw_dataset_x, self.raw_y = self.get_dataset_xy(self.raw_dataset)  
+        #   1.2 指数数据,分离x和y(注意此处还未按窗口处理)
+        self.raw_dataset_x_list, _ = zip(*[self.get_dataset_xy(idx_raw_data) for idx_raw_data in self.idx_raw_dataset_list]) if self.if_has_index else ([], [])
+        #   1.3 合并主股票数据和指数数据的x
+        self.raw_dataset_x = np.hstack(([self.raw_dataset_x] + list(self.raw_dataset_x_list))) if self.if_has_index else self.raw_dataset_x 
 
-        # 2. 对所有的y一起进行分箱处理
-        self.dataset_y = self.get_binned_y(self.raw_y)  #y已分箱,但还未按窗口处理
+        # 2. 对所有的y一起进行加工处理, 若是多分类模型, 则进行分箱处理, 注意此处未进行窗口化
+        self.dataset_y = self.get_binned_y(self.raw_y)  
 
         # 3. 分离train及test数据
-        (self.raw_train_x, self.train_y), (self.raw_test_x, self.test_y) = self.split_train_test_dataset()
+        (self.raw_train_x, self.train_y), (self.raw_test_x, self.test_y) = self.split_train_test_dataset(self.train_size)
 
         # 4. 根据train_x的数据,生成并保存\读取归一化参数, #根据输入参数判断是否需要更新归一化参数配置,如果更新的话,就保存新的参数配置
         self.scaler = self.get_scaler(new_data=self.raw_train_x, if_update=self.if_update_scaler, if_save=True)  
@@ -70,7 +83,7 @@ class StockDataset():
         self.normalized_windowed_test_x = self.get_normalized_windowed_x(self.raw_test_x) if train_size < 1 else None
 
         # 6. 对齐y数据, 因为x按窗口化后会减少数据,所以y也要按窗口大小相应减少
-        self.train_y_no_window, self.test_y_no_window = self.train_y, self.test_y #保存未窗口化的y数据
+        self.train_y_no_window, self.test_y_no_window = self.train_y, self.test_y #保存未窗口化的y数据,供有需要的使用
         self.train_y, self.test_y = self.train_y[:-self.window_size+1], self.test_y[:-self.window_size+1] #由于x按窗口化后会减少数据,所以y也要相应减少
 
 
@@ -125,12 +138,12 @@ class StockDataset():
     #划分数据集(注意此处数据还未按窗口处理)
     #返回格式:
     # (train_x, train_y), (test_x, test_y) 
-    def split_train_test_dataset(self):
-        test_size = 1-self.train_size
+    def split_train_test_dataset(self, train_size):
+        test_size = 1-train_size
         test_count = int(len(self.raw_dataset_x) * test_size)
         raw_test_x, raw_train_x = np.array(self.raw_dataset_x[:test_count]).astype(float), np.array(self.raw_dataset_x[test_count:]).astype(float)
         test_y, train_y = self.dataset_y[:test_count,:], self.dataset_y[test_count:,:]
-        logging.debug(f"{len(self.raw_dataset_x)} rows of data, train_size:{self.train_size:.2f}, test_size:{test_size:.2f}, test_count:{test_count:d}")
+        logging.debug(f"{len(self.raw_dataset_x)} rows of data, train_size:{train_size:.2f}, test_size:{test_size:.2f}, test_count:{test_count:d}")
         return (raw_train_x, train_y), (raw_test_x, test_y)
 
     #归一化处理数据
@@ -236,8 +249,8 @@ class StockDataset():
         返回:
             筛选后的b (np.ndarray)
         """
-        base_col = a[:, col_no]
-        mask = np.isin(b[:, col_no], base_col)
+        base_col = a[:, col_no].astype(np.int64)  #确保类型一致
+        mask = np.isin(b[:, col_no].astype(np.int64), base_col)
         return b[mask]
 
     def get_feature_names(self):
@@ -265,8 +278,11 @@ if __name__ == "__main__":
     si = StockInfo(TOKEN)
     #download_list = si.get_filtered_stock_list(mmv=3000000)
     primary_stock_code = '600036.SH'
-    idx_code_list = ['000001.SH','399001.SZ']#,'000300.SH','000905.SH']
-    ds = StockDataset(primary_stock_code, idx_code_list, si, start_date='20250104', end_date='20250903', train_size=0.7)
+    idx_code_list = []#'000001.SH','399001.SZ']#,'000300.SH','000905.SH']
+    rel_code_list = BANK_CODE_LIST
+    ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20070104', end_date='20250903', train_size=0.8)
+    pd.set_option('display.max_columns', None)
+    print(pd.DataFrame(ds.normalized_windowed_train_x[0]).head(5))
     #ds.print_comp_data()
     #logging.info(f"SHAPE - train_y:{ds.train_y.shape}, test_y:{ds.test_y.shape}")
     #logging.info(ds.test_y)
