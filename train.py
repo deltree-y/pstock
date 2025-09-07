@@ -22,11 +22,14 @@ if __name__ == "__main__":
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     
     # 优化后的训练参数 - 使用更多的epoch和更好的batch size
-    epo_list = [100]  # 增加epochs，早停会自动停止
+    epo_list = [500]  # 增加epochs，早停会自动停止
     p_list = [2]
     batch_size_list = [64]  # 增加batch size以提高训练稳定性
-    learning_rate = 0.0001  # 使用更高的初始学习率
-    patience = 50  # 提高早停的耐心值，允许更多epoch的波动
+    learning_rate = 0.001  # 使用更高的初始学习率
+    patience = 60  # 提高早停的耐心值，允许更多epoch的波动
+    nb_filters = 96
+    kernel_size = 6
+    dropout_rate = 0.5
     if_print_detail = False
 
     si = StockInfo(TOKEN)
@@ -34,13 +37,18 @@ if __name__ == "__main__":
     index_code_list = []#'000001.SH']#, '399001.SZ', '399006.SZ']  #上证指数,深证成指,创业板指
     related_stock_list = BANK_CODE_LIST  # 关联股票列表
     # 改善数据集配置 - 使用更好的train/validation分割比例
-    ds = StockDataset(primary_stock_code, index_code_list, related_stock_list, si, start_date='20070104',end_date='20250903', train_size=0.85)  # 85%/15%分割提供更多验证数据
+    ds = StockDataset(primary_stock_code, index_code_list, related_stock_list, si, start_date='20070104',end_date='20250903', train_size=0.95)  # 90%/10%分割提供更多验证数据
 
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     ### 只用T1 low的涨跌幅为回归目标 ###
     ty_reg = ty[:, 0].astype(float)
     vy_reg = vy[:, 0].astype(float)
-    
+
+    mean_y, std_y = np.mean(ty_reg), np.std(ty_reg)
+    ty_reg_scaled = (ty_reg - mean_y) / std_y
+    vy_reg_scaled = (vy_reg - mean_y) / std_y
+
+
     if False:   #多分类时启用
         # 添加类别分布分析
         logging.info("=== Training Data Class Distribution ===")
@@ -70,11 +78,11 @@ if __name__ == "__main__":
         target = ds.train_y[:, 0]  # 回归目标（涨跌幅）
         feature_names = ds.get_feature_names()
         selected = auto_select_features(feature_data, target, feature_names,
-                                    pearson_threshold=0.03, mi_threshold=0.01,
+                                    pearson_threshold=0.025, mi_threshold=0.008,
                                     print_detail=True)
         selected_rf, rf_scores = select_features_by_tree_importance(
             feature_data, target, feature_names,
-            importance_threshold=0.01,
+            importance_threshold=0.008,
             print_detail=True
         )
         selected_intersection = set(selected['pearson_selected']) & set(selected['mi_selected']) & set(selected_rf)
@@ -85,7 +93,7 @@ if __name__ == "__main__":
         for p in p_list:
             for epo in epo_list:
                 #tm = LSTMModel(x=tx, y=ty, test_x=vx, test_y=vy, p=p)
-                tm = TCNModel(x=tx, y=ty_reg, test_x=vx, test_y=vy_reg, p=p)  # 回归
+                tm = TCNModel(x=tx, y=ty_reg_scaled, test_x=vx, test_y=vy_reg_scaled, nb_filters=nb_filters, kernel_size=kernel_size, dropout_rate=dropout_rate)
 
                 print("################################ ### epo[%d] ### batch[%d] ### p[%d] ### ################################"%(epo, batch_size, p))
                 train_ret_str = tm.train(epochs=epo, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
@@ -105,7 +113,7 @@ if __name__ == "__main__":
                 logging.info(f"回归评估: MAE={mae:.5f}, RMSE={rmse:.5f}")
                 print("*************************************************************************************************************************\n\n")
 
-                y_pred = tm.model.predict(vx).reshape(-1)
+                y_pred = tm.model.predict(vx).reshape(-1) * std_y + mean_y
                 plot_regression_result(vy_reg, y_pred, title="test vs. real")
                 plot_error_distribution(vy_reg, y_pred, title="mae/rmse distribution")
 
@@ -115,7 +123,7 @@ if __name__ == "__main__":
                     print("Predict for T0[%s]"%t0)
                     data, bp = ds.get_predictable_dataset_by_date(t0)
                     pred_data = tm.model(data)
-                    RegPredict(pred_data, bp).print_predict_result()
+                    RegPredict(pred_data, bp, std_y, mean_y).print_predict_result()
                     print()
 
                 # 训练模型后,输出训练曲线

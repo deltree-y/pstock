@@ -6,77 +6,88 @@ from keras.layers import Input, Conv1D, BatchNormalization, Activation, Dropout,
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
 from keras.optimizers import Adam
 from model.history import LossHistory
+from tcn import TCN
 
 class TCNModel():
-    def __init__(self, x=None, y=None, test_x=None, test_y=None, fn=None, p=2):
+    def __init__(self, x=None, y=None, test_x=None, test_y=None, fn=None, p=2,
+                 nb_filters=64, kernel_size=8, nb_stacks=1,
+                 dilations=[1, 2, 4, 8, 16, 32], dropout_rate=0.3):
         if fn != None:
             self.load(fn)
             self.model.summary()
         elif x is not None and y is not None:
-            self.x, self.y = x, y
-            self.test_x, self.test_y = test_x, test_y
             self.p = p
+            self.nb_filters = nb_filters
+            self.kernel_size = kernel_size
+            self.nb_stacks = nb_stacks
+            self.dilations = dilations
+            self.dropout_rate = dropout_rate
+
+            self.x, self.y = x.astype(float), y.astype(float)
+            self.test_x, self.test_y = test_x.astype(float), test_y.astype(float)
             self.history = LossHistory()
-            self.create_model(x.shape[1:], num_filters=32*p, kernel_size=3, num_blocks=3)
+            logging.info(f"TCN input shape: {x.shape}, output shape: {y.shape}")
+
+            self.create_model(x[0].shape)
+            self.model.summary()
         else:
             logging.error("RCNModel init fail, no fn or x/y input!")
             exit()
 
-    def residual_block(self, x, filters, kernel_size, dilation_rate, dropout_rate):
-        # Causal Conv1D
-        conv = Conv1D(filters, kernel_size, padding='causal', dilation_rate=dilation_rate)(x)
-        conv = BatchNormalization()(conv)
-        conv = Activation('relu')(conv)
-        conv = Dropout(dropout_rate)(conv)
-        # 1x1 Conv to match dimensions
-        res = Conv1D(filters, 1, padding='same')(x)
-        out = Add()([conv, res])
-        return out
-
-    def create_model(self, input_shape, num_filters=32, kernel_size=3, num_blocks=3, dropout_rate=0.2):
-        inputs = Input(shape=input_shape)
-        x = inputs
-        for i in range(num_blocks):
-            x = self.residual_block(
-                x, filters=num_filters, kernel_size=kernel_size,
-                dilation_rate=2**i, dropout_rate=dropout_rate
-            )
+    def create_model(self, shape):
+        from keras.regularizers import l2
+        inputs = Input(shape)
+        x = TCN(
+            nb_filters=self.nb_filters,
+            kernel_size=self.kernel_size,
+            nb_stacks=self.nb_stacks,
+            dilations=self.dilations,
+            dropout_rate=self.dropout_rate,
+            return_sequences=False
+        )(inputs)
         x = BatchNormalization()(x)
-        x = Activation('relu')(x)
-        x = Lambda(lambda t: t[:, -1, :])(x)  # 只用最后一步特征
-        x = Dense(32, activation='relu')(x)
-        x = Dropout(0.2)(x)
+        x = Dropout(self.dropout_rate)(x)
+        x = Dense(32, activation='relu', kernel_regularizer=l2(1e-4))(x)
+        x = Dropout(0.5)(x)
         out = Dense(1, activation='linear')(x)
         self.model = Model(inputs=inputs, outputs=out)
 
-    def train(self, epochs=100, batch_size=64, learning_rate=0.001, patience=30):
-        self.model.compile(
-            optimizer=Adam(learning_rate=learning_rate, clipnorm=1.0),
-            loss='mse',
-            metrics=['mae']
-        )
-        lr_scheduler = ReduceLROnPlateau(
-            monitor='val_loss', factor=0.9, patience=int(patience/5), min_lr=1e-6, verbose=0
-        )
-        early_stopping = EarlyStopping(
-            monitor='val_loss', patience=patience, restore_best_weights=True, verbose=0
-        )
-        callbacks = [self.history, lr_scheduler, early_stopping]
+    def train(self, epochs=120, batch_size=256, learning_rate=0.001, patience=20):
+        optimizer = Adam(learning_rate=learning_rate, clipnorm=1.0)
+        self.model.compile(optimizer=optimizer, loss='mse', metrics=['mae'])
+
+        early_stopping = EarlyStopping(monitor='val_loss', patience=patience, restore_best_weights=True, verbose=1)
+        lr_scheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.8, patience=int(patience/4) if patience>=50 else int(patience/2), min_lr=1e-5, verbose=1)
+
+        callbacks = [self.history, early_stopping, lr_scheduler]
 
         self.model.fit(
-            x=self.x, y=self.y,
+            self.x, self.y,
             batch_size=batch_size,
-            validation_data=(self.test_x, self.test_y),
-            validation_freq=1, 
             epochs=epochs,
+            validation_data=(self.test_x, self.test_y),
             callbacks=callbacks,
             shuffle=True,
-            verbose=0
+            verbose=0,
+            workers=4,  # 多线程加速
+            use_multiprocessing=True
         )
 
+
     def save(self, filename):
-        self.model.save(filename)
+        try:
+            self.model.save(filename)
+            logging.info(f"model file saved: {filename}")
+        except Exception as e:
+            logging.error(f"model file save failed! {e}")
+            exit()
 
     def load(self, filename):
         from keras.models import load_model
-        self.model = load_model(filename)
+        try:
+            print(f"loading model file: {filename} ...", end="", flush=True)
+            self.model = load_model(filename, custom_objects={'TCN': TCN})
+            print("complete!")
+        except Exception as e:
+            logging.error(f"model file load failed! {e}")
+            exit()

@@ -116,7 +116,7 @@ class Trade():
             #remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'macd_signal', 'atr_14', 'BBL_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0', 'obv', 'natr_14']
             #remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'macd_signal', 'atr_14', 'BBL_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0', 'obv', 'natr_14']
             #皮尔逊+互信息+树模型交集特征
-            remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'stock_idx', 'industry_idx', 'BBB_20_2.0', 'buy_md_vol', 'natr_14', 'atr_14', 'stddev_10', 'net_mf_vol', 'buy_sm_vol', 'obv', 'sell_elg_vol', 'BBU_20_2.0', 'macd', 'pre_close', 'turnover_rate_f', 'sell_md_vol', 'macd_signal', 'amount', 'pb', 'dv_ratio', 'sell_lg_vol', 'vol']
+            remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'stock_idx', 'industry_idx', 'ps', 'buy_elg_vol', 'rsi_14', 'DMP_14', 'buy_lg_vol', 'atr_14', 'buy_md_vol', 'pb', 'vol', 'willr_14', 'sell_elg_vol', 'stddev_10', 'mfi_14', 'sell_sm_vol', 'pe', 'sell_lg_vol', 'obv', 'amount', 'natr_14', 'dv_ratio', 'STOCHd_3_3_3', 'total_mv', 'buy_sm_vol', 'BBB_20_2.0', 'ADX_14', 'roc_10', 'cmf_20', 'turnover_rate_f', 'sell_md_vol', 'date_mmdd']
             logging.info(f"After feature selection, remain {len(remain_list)}")
             self.col_low, self.col_high, self.col_close, self.col_code_idx = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2, remain_list.index('stock_idx')-2
         elif stock_type == StockType.RELATED:
@@ -155,7 +155,8 @@ class Trade():
         if self.trade_count < 2:
             logging.error("Not enough data to calculate T1 change rate.")
             return
-        self.__t1_change_rate = (self.__raw_data_pure_np[:-1, self.col_low] - self.__raw_data_pure_np[1:, self.col_close]) / self.__raw_data_pure_np[1:, self.col_close] if self.stock_type == StockType.PRIMARY else self.__raw_data_pure_np[:-1, 0]-self.__raw_data_pure_np[:-1, 0]
+        self.__t1_change_rate = (self.__raw_data_pure_np[:-1, self.col_low] - self.__raw_data_pure_np[1:, self.col_close]) / self.__raw_data_pure_np[1:, self.col_close] \
+            if self.stock_type != StockType.INDEX else self.__raw_data_pure_np[:-1, 0]-self.__raw_data_pure_np[:-1, 0]
         #self.t1_change_rate = np.array([RateCat(rate=x,scale=T1L_SCALE).get_label() for x in self.t1_change_rate])
     
     #t2_change_rate表示T2高值的变化率
@@ -164,7 +165,8 @@ class Trade():
         if self.trade_count < 3:
             logging.error("Not enough data to calculate T2 change rate.")
             return
-        self.__t2_change_rate = (self.__raw_data_pure_np[:-2, self.col_high] - self.__raw_data_pure_np[2:, self.col_close]) / self.__raw_data_pure_np[2:, self.col_close] if self.stock_type == StockType.PRIMARY else self.__raw_data_pure_np[:-2, 0]-self.__raw_data_pure_np[:-2, 0]
+        self.__t2_change_rate = (self.__raw_data_pure_np[:-2, self.col_high] - self.__raw_data_pure_np[2:, self.col_close]) / self.__raw_data_pure_np[2:, self.col_close] \
+            if self.stock_type != StockType.INDEX else self.__raw_data_pure_np[:-2, 0]-self.__raw_data_pure_np[:-2, 0]
         #self.t2_change_rate = np.array([RateCat(rate=x,scale=T2H_SCALE).get_label() for x in self.t2_change_rate])
 
 

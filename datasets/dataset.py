@@ -49,10 +49,8 @@ class StockDataset():
         self.date_list = self.raw_dataset[:,0]
         #处理关联股票数据
         self.rel_raw_dataset_list, self.rel_full_raw_data_list = zip(*[self.get_trade_data(rel_trade) for rel_trade in self.rel_trade_list]) if self.if_has_related else ([], [])
-        logging.info(f"self.raw_dataset shape:{self.raw_dataset.shape}, self.full_raw_data shape:{self.full_raw_data.shape}")
         self.raw_dataset = np.vstack(([self.raw_dataset] + list(self.rel_raw_dataset_list)) if self.if_has_related else self.raw_dataset)
         self.full_raw_data = np.vstack(([self.full_raw_data] + list(self.rel_full_raw_data_list)) if self.if_has_related else self.full_raw_data)
-        logging.info(f"self.raw_dataset shape:{self.raw_dataset.shape}, self.full_raw_data shape:{self.full_raw_data.shape}")
 
         #处理指数数据
         self.idx_raw_dataset_list, self.idx_full_raw_data_list = zip(*[self.get_trade_data(idx_trade) for idx_trade in self.idx_trade_list]) if self.if_has_index else ([], [])
@@ -74,7 +72,7 @@ class StockDataset():
 
         # 3. 分离train及test数据
         (self.raw_train_x, self.train_y), (self.raw_test_x, self.test_y) = self.split_train_test_dataset(self.train_size)
-
+        
         # 4. 根据train_x的数据,生成并保存\读取归一化参数, #根据输入参数判断是否需要更新归一化参数配置,如果更新的话,就保存新的参数配置
         self.scaler = self.get_scaler(new_data=self.raw_train_x, if_update=self.if_update_scaler, if_save=True)  
 
@@ -142,8 +140,7 @@ class StockDataset():
         test_size = 1-train_size
         test_count = int(len(self.raw_dataset_x) * test_size)
         raw_test_x, raw_train_x = np.array(self.raw_dataset_x[:test_count]).astype(float), np.array(self.raw_dataset_x[test_count:]).astype(float)
-        test_y, train_y = self.dataset_y[:test_count,:], self.dataset_y[test_count:,:]
-        logging.debug(f"{len(self.raw_dataset_x)} rows of data, train_size:{train_size:.2f}, test_size:{test_size:.2f}, test_count:{test_count:d}")
+        test_y, train_y = self.dataset_y[:test_count].astype(float), self.dataset_y[test_count:].astype(float)
         return (raw_train_x, train_y), (raw_test_x, test_y)
 
     #归一化处理数据
@@ -282,7 +279,9 @@ if __name__ == "__main__":
     rel_code_list = BANK_CODE_LIST
     ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20070104', end_date='20250903', train_size=0.8)
     pd.set_option('display.max_columns', None)
-    print(pd.DataFrame(ds.normalized_windowed_train_x[0]).head(5))
-    #ds.print_comp_data()
-    #logging.info(f"SHAPE - train_y:{ds.train_y.shape}, test_y:{ds.test_y.shape}")
-    #logging.info(ds.test_y)
+    #print(pd.DataFrame(ds.dataset_y[:,0]).head(500))
+    tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
+    ### 只用T1 low的涨跌幅为回归目标 ###
+    ty_reg = ty[:, 0].astype(float)
+    vy_reg = vy[:, 0].astype(float)
+

@@ -17,10 +17,12 @@ class LossHistory(Callback):
         # 只输出回归损失
         if logs:
             print(f"\nEpoch {epoch + 1}: "
-                  f"loss={logs.get('loss'):.4f}, "
-                  f"val_loss={logs.get('val_loss'):.4f}", end="")
+                  f"loss={logs.get('loss'):.5f}, "
+                  f"mae={logs.get('mae'):.5f}, "
+                  f"val_loss={logs.get('val_loss'):.5f}, "
+                  f"val_mae={logs.get('val_mae'):.5f}", end="", flush=True)
             if epoch > 0 and logs.get('val_loss') < min(self.val_losses[:-1]):
-                print(f"  <-- Validation loss improved!", end="")                
+                print(f"  <-- Validation loss improved!", end="", flush=True)                
 
         ### 以下所有行多分类时使用 ###
         if False:
