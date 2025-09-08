@@ -1,4 +1,5 @@
 import logging
+from datetime import datetime, timedelta
 from keras.callbacks import Callback
 
 class LossHistory(Callback):
@@ -14,15 +15,21 @@ class LossHistory(Callback):
         self.losses.append(logs.get('loss'))
         self.val_losses.append(logs.get('val_loss'))
 
+        loss_diff = self.val_losses[-1] - self.val_losses[-2] if epoch > 0 else self.val_losses[-1]
+        spend_time = datetime.now() - self.start_time
+        speed = spend_time.seconds / (epoch + 1)
+        min_remaining = speed * (self.epoch - epoch - 1) / 60
+        finished_time = (timedelta(seconds=(speed * (self.epoch - epoch - 1))) + datetime.now()).strftime('%H:%M')
         # 只输出回归损失
         if logs:
-            print(f"\nEpoch {epoch + 1}: "
-                  f"loss={logs.get('loss'):.5f}, "
-                  f"mae={logs.get('mae'):.5f}, "
-                  f"val_loss={logs.get('val_loss'):.5f}, "
-                  f"val_mae={logs.get('val_mae'):.5f}", end="", flush=True)
+            print(f"\n{epoch + 1}/{self.epoch}: "
+                  f"l/m=[{logs.get('loss'):.5f}/{logs.get('mae'):.5f}], "
+                  f"val l/m=[{logs.get('val_loss'):.5f}/{logs.get('val_mae'):.5f}]({loss_diff:+.5f}), ",
+                  f"{speed:.1f}s/epo,ed:{finished_time}({min_remaining/60:.1f}h)", end="", flush=True)
+                    
             if epoch > 0 and logs.get('val_loss') < min(self.val_losses[:-1]):
-                print(f"  <-- Validation loss improved!", end="", flush=True)                
+                print(f" <-- improved[{min(self.val_losses[:-1])-logs.get('val_loss'):.5f}]", end="", flush=True)
+        
 
         ### 以下所有行多分类时使用 ###
         if False:
@@ -61,3 +68,7 @@ class LossHistory(Callback):
             print("DEBUG: %s"%str(self.model.history.history[key]))
             print()
         return self.model.history
+    
+    def set_para(self, epoch, start_time):
+        self.epoch = epoch
+        self.start_time = start_time

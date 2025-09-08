@@ -503,14 +503,15 @@ class InDe():
 if __name__ == "__main__":
     setup_logging()
     ts_code1 = '600036.SH'
-    ts_code2 = '000001.SH'
+    ts_code2 = '600155.SH'
     si = StockInfo(TOKEN)
-    si.test()
+    print(si.get_name(ts_code2), si.get_start_date(ts_code2))
+    #print(si.get_daily(ts_code=ts_code2, start_date='20060104', end_date='20250903').tail(10))
 
     #print("code:<%s>, name:<%s>, open date:<%s>. "%(ts_code1, si.get_name(ts_code1), si.get_start_date(ts_code1)))
     #print("code:<%s>, name:<%s>, open date:<%s>. "%(ts_code2, si.get_name(ts_code2,asset='I'), si.get_start_date(ts_code2,asset='I')))
     #daily_basic = si.get_total_mv(ts_code1)
-    if 0:
+    if False:
         d = {'ts_code':[], 'total_mv':[]}
         df = pd.DataFrame(data=d)
 

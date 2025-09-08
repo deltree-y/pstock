@@ -14,7 +14,7 @@ from bins import BinManager
 from utils.tk import TOKEN
 from utils.utils import setup_logging
 from utils.utils import StockType
-from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, T1L_SCALE, T2H_SCALE, BANK_CODE_LIST
+from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, T1L_SCALE, T2H_SCALE, BANK_CODE_LIST, ALL_CODE_LIST
 from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 
 # | 数据来源/阶段                 | 变量名                             | 说明                                                       | 数据格式            | 特点/备注                       |
@@ -42,14 +42,13 @@ class StockDataset():
         self.train_size = train_size
         self.if_update_scaler = if_update_scaler
         self.scaler, self.bins1, self.bins2 = None, None, None
-        #logging.info(f"if_has_index:{self.if_has_index}, if_has_related:{self.if_has_related}")
         
         #dataset所需的所有数据,都由此方法获取,并存入下列变量
         self.raw_dataset, self.full_raw_data = self.get_trade_data(self.p_trade)  #raw_dataset包含y不含t1t2数据, full_raw_data包含t1t2数据不含y
         self.date_list = self.raw_dataset[:,0]
         #处理关联股票数据
         self.rel_raw_dataset_list, self.rel_full_raw_data_list = zip(*[self.get_trade_data(rel_trade) for rel_trade in self.rel_trade_list]) if self.if_has_related else ([], [])
-        self.raw_dataset = np.vstack(([self.raw_dataset] + list(self.rel_raw_dataset_list)) if self.if_has_related else self.raw_dataset)
+        #self.raw_dataset = np.vstack(([self.raw_dataset] + list(self.rel_raw_dataset_list)) if self.if_has_related else self.raw_dataset)
         self.full_raw_data = np.vstack(([self.full_raw_data] + list(self.rel_full_raw_data_list)) if self.if_has_related else self.full_raw_data)
 
         #处理指数数据
@@ -58,20 +57,28 @@ class StockDataset():
         #过滤指数数据, 只保留与主股票数据日期匹配的行
         self.idx_raw_dataset_list = [self.filter_by_col(self.raw_dataset, idx_raw_data, 0) for idx_raw_data in self.idx_raw_dataset_list] if self.if_has_index else []
 
-        #开始对获取的数据进行加工处理, 形成训练及预测用数据集
+        ###############      ***********************************      ########################################
+        ### 方案一:直接按照顺序对数据取测试集和验证集(可能导致少量的股票数据全部被用来做测试，大部分的股票数据全部被用来做训练) ###
+        #开始对获取的数据进行加工处理, 分离形成训练及预测用数据集
         # 1. 分离数据集的x和y
         #   1.1 主股票数据,分离x和y(注意此处还未按窗口处理)
-        self.raw_dataset_x, self.raw_y = self.get_dataset_xy(self.raw_dataset)  
+        #self.raw_dataset_x, self.raw_y = self.get_dataset_xy(self.raw_dataset)
         #   1.2 指数数据,分离x和y(注意此处还未按窗口处理)
-        self.raw_dataset_x_list, _ = zip(*[self.get_dataset_xy(idx_raw_data) for idx_raw_data in self.idx_raw_dataset_list]) if self.if_has_index else ([], [])
+        #self.raw_dataset_x_list, _ = zip(*[self.get_dataset_xy(idx_raw_data) for idx_raw_data in self.idx_raw_dataset_list]) if self.if_has_index else ([], [])
         #   1.3 合并主股票数据和指数数据的x
-        self.raw_dataset_x = np.hstack(([self.raw_dataset_x] + list(self.raw_dataset_x_list))) if self.if_has_index else self.raw_dataset_x 
-
+        #self.raw_dataset_x = np.hstack(([self.raw_dataset_x] + list(self.raw_dataset_x_list))) if self.if_has_index else self.raw_dataset_x 
         # 2. 对所有的y一起进行加工处理, 若是多分类模型, 则进行分箱处理, 注意此处未进行窗口化
-        self.dataset_y = self.get_binned_y(self.raw_y)  
-
+        #self.dataset_y = self.get_binned_y(self.raw_y)  
         # 3. 分离train及test数据
-        (self.raw_train_x, self.train_y), (self.raw_test_x, self.test_y) = self.split_train_test_dataset(self.train_size)
+        #(self.raw_train_x, self.train_y), (self.raw_test_x, self.test_y) = self.split_train_test_dataset(self.train_size)
+
+        ###########      ********************      #################
+        ### 方案二:每只股票单独切分训练/测试，再合并 ###
+        # 1. 合并主股票与相关联股票的原始数据
+        raw_dataset_list = [self.raw_dataset] + list(self.rel_raw_dataset_list) if self.if_has_related else [self.raw_dataset]
+
+        # 2. 按股票分离测试集与验证集,并返回对应的y
+        (self.raw_train_x, self.train_y), (self.raw_test_x, self.test_y) = self.split_train_test_dataset_by_stock(raw_dataset_list, self.train_size)
         
         # 4. 根据train_x的数据,生成并保存\读取归一化参数, #根据输入参数判断是否需要更新归一化参数配置,如果更新的话,就保存新的参数配置
         self.scaler = self.get_scaler(new_data=self.raw_train_x, if_update=self.if_update_scaler, if_save=True)  
@@ -113,7 +120,7 @@ class StockDataset():
     #直接返回原始y数据(涨跌幅),不进行分箱
     def get_binned_y(self, raw_y):
         return raw_y*100
-    
+
     #按本dataset的y数据,生成对应的分箱器,并返回分箱后的y数据
     #此处提供两种分箱方法,可选其一
     def get_binned_y_use_qcut(self, raw_y):
@@ -141,6 +148,30 @@ class StockDataset():
         test_count = int(len(self.raw_dataset_x) * test_size)
         raw_test_x, raw_train_x = np.array(self.raw_dataset_x[:test_count]).astype(float), np.array(self.raw_dataset_x[test_count:]).astype(float)
         test_y, train_y = self.dataset_y[:test_count].astype(float), self.dataset_y[test_count:].astype(float)
+        return (raw_train_x, train_y), (raw_test_x, test_y)
+
+    # 新增：每只股票单独切分训练/测试集，再合并
+    def split_train_test_dataset_by_stock(self, raw_dataset_list, train_size):
+        train_x_list, train_y_list, test_x_list, test_y_list = [], [], [], []
+        for raw_data in raw_dataset_list:
+            raw_x, raw_y = self.get_dataset_xy(raw_data)
+            dataset_y = self.get_binned_y(raw_y)
+            train_count = int(len(raw_x) * train_size)
+            if train_count == len(raw_x):
+                # 数据太少时，全部划分到训练集
+                train_x_list.append(raw_x)
+                train_y_list.append(dataset_y)
+            else:
+                train_x_list.append(raw_x[:train_count])
+                train_y_list.append(dataset_y[:train_count])
+                test_x_list.append(raw_x[train_count:])
+                test_y_list.append(dataset_y[train_count:])
+
+        # 合并所有股票的训练集和测试集
+        raw_train_x = np.vstack(train_x_list) if train_x_list else np.array([])
+        train_y = np.vstack(train_y_list) if train_y_list else np.array([])
+        raw_test_x = np.vstack(test_x_list) if test_x_list else np.array([])
+        test_y = np.vstack(test_y_list) if test_y_list else np.array([])
         return (raw_train_x, train_y), (raw_test_x, test_y)
 
     #归一化处理数据
@@ -276,12 +307,13 @@ if __name__ == "__main__":
     #download_list = si.get_filtered_stock_list(mmv=3000000)
     primary_stock_code = '600036.SH'
     idx_code_list = []#'000001.SH','399001.SZ']#,'000300.SH','000905.SH']
-    rel_code_list = BANK_CODE_LIST
+    rel_code_list = ['000001.SZ']#ALL_CODE_LIST
     ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20070104', end_date='20250903', train_size=0.8)
     pd.set_option('display.max_columns', None)
-    #print(pd.DataFrame(ds.dataset_y[:,0]).head(500))
-    tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
+    #print(pd.DataFrame(ds.raw_train_x).iloc[5000:5050])
+    print(pd.DataFrame(ds.train_y).iloc[5000:5050])
+    #tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     ### 只用T1 low的涨跌幅为回归目标 ###
-    ty_reg = ty[:, 0].astype(float)
-    vy_reg = vy[:, 0].astype(float)
+    #ty_reg = ty[:, 0].astype(float)
+    #vy_reg = vy[:, 0].astype(float)
 
