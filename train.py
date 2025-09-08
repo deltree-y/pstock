@@ -1,6 +1,7 @@
 # coding=utf-8
 import os, sys, time, argparse, datetime, logging
 import numpy as np
+import pandas as pd
 from pathlib import Path
 o_path = os.getcwd()
 sys.path.append(o_path)
@@ -21,30 +22,32 @@ import matplotlib.pyplot as plt
 if __name__ == "__main__":
     setup_logging()
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    if_print_detail = False
     
     # 优化后的训练参数 - 使用更多的epoch和更好的batch size
-    epo_list = [500]  # 增加epochs，早停会自动停止
+    epo_list = [400]  # 增加epochs，早停会自动停止
     p_list = [2]
     batch_size_list = [1024]  # 增加batch size以提高训练稳定性
-    learning_rate = 0.0007  # 使用更高的初始学习率
-    patience = 60  # 提高早停的耐心值，允许更多epoch的波动
-    dropout_rate = 0.2
+    learning_rate = 0.0001  # 使用更高的初始学习率
+    patience = 50  # 提高早停的耐心值，允许更多epoch的波动
+    dropout_rate = 0.3
     
     #以下2个为TCN参数
     nb_filters = 128
     kernel_size = 8
     
-    #以下1个为Transformer参数
-    num_layers = 6  #4-8层,越高越复杂
+    #以下3个为Transformer参数
+    num_layers = 4  #4-8层,越高越复杂
+    d_model=128
+    ff_dim=256
 
-    if_print_detail = False
 
     si = StockInfo(TOKEN)
     primary_stock_code = '600036.SH'
     index_code_list = []#'000001.SH']#, '399001.SZ', '399006.SZ']  #上证指数,深证成指,创业板指
     related_stock_list = ALL_CODE_LIST  # 关联股票列表
     # 改善数据集配置 - 使用更好的train/validation分割比例
-    ds = StockDataset(primary_stock_code, index_code_list, related_stock_list, si, start_date='20070104',end_date='20250903', train_size=0.95)  # 95%/5%分割提供更多验证数据
+    ds = StockDataset(primary_stock_code, index_code_list, related_stock_list, si, start_date='20070104',end_date='20250903', train_size=0.9)  # 90%/10%分割提供更多验证数据
 
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     ### 只用T1 low的涨跌幅为回归目标 ###
@@ -101,7 +104,7 @@ if __name__ == "__main__":
             for epo in epo_list:
                 #tm = LSTMModel(x=tx, y=ty, test_x=vx, test_y=vy, p=p)
                 #tm = TCNModel(x=tx, y=ty_reg, test_x=vx, test_y=vy_reg, nb_filters=nb_filters, kernel_size=kernel_size, dropout_rate=dropout_rate)
-                tm = TransformerModel(tx, ty_reg, vx, vy_reg, num_layers=num_layers, dropout_rate=dropout_rate)
+                tm = TransformerModel(tx, ty_reg_scaled, vx, vy_reg_scaled, d_model=d_model, num_layers=num_layers, ff_dim=ff_dim, dropout_rate=dropout_rate)
                 print("################################ ### epo[%d] ### batch[%d] ### p[%d] ### ################################"%(epo, batch_size, p))
                 train_ret_str = tm.train(epochs=epo, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
                 tm.save(os.path.join(BASE_DIR, MODEL_DIR, primary_stock_code + "_" + str(epo) + "_" + str(batch_size) + "_" + str(p) + ".h5"))
@@ -120,7 +123,7 @@ if __name__ == "__main__":
                 logging.info(f"回归评估: MAE={mae:.5f}, RMSE={rmse:.5f}")
                 print("*************************************************************************************************************************\n\n")
 
-                y_pred = tm.model.predict(vx).reshape(-1)# * std_y + mean_y
+                y_pred = tm.model.predict(vx).reshape(-1) * std_y + mean_y
                 plot_regression_result(vy_reg, y_pred, title="test vs. real")
                 plot_error_distribution(vy_reg, y_pred, title="mae/rmse distribution")
 
