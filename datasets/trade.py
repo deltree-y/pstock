@@ -69,6 +69,9 @@ class Trade():
         self.trade_df = self.raw_data_df.copy().sort_index(ascending=False).reset_index(drop=True) #按日期升序排列,方便计算
 
         #2. 通过计算,新增特征数据(新增列)
+        #补充日期\星期特征
+        self.trade_df['date_full'] = self.trade_df['trade_date'].astype(str).astype(int)
+        self.trade_df['weekday'] = pd.to_datetime(self.trade_df['trade_date'], format='%Y%m%d').dt.weekday+1
         #5个基本的技术指标
         self.trade_df['rsi_14'], max_cut_days = ta.rsi(self.trade_df['close'], length=14), max(max_cut_days, 13)
         self.trade_df['macd'], self.trade_df['macd_signal'], self.trade_df['macd_hist'] = ta.macd(self.trade_df['close'])['MACD_12_26_9'], ta.macd(self.trade_df['close'])['MACDs_12_26_9'], ta.macd(self.trade_df['close'])['MACDh_12_26_9']
@@ -76,9 +79,6 @@ class Trade():
         self.trade_df['atr_14'], max_cut_days = ta.atr(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14), max(max_cut_days, 14)
         self.trade_df['cci_20'], max_cut_days = ta.cci(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=20), max(max_cut_days, 19)
         self.trade_df, max_cut_days = self.trade_df.join(ta.bbands(self.trade_df['close'], length=20, std=2)), max(max_cut_days, 20)
-        #补充日期\星期特征
-        self.trade_df['date_mmdd'] = self.trade_df['trade_date'].astype(str).str[4:8].astype(int)
-        self.trade_df['weekday'] = pd.to_datetime(self.trade_df['trade_date'], format='%Y%m%d').dt.weekday+1
 
         if True:   #以下特征效果不好,暂时不启用
             self.trade_df['sma_10'], max_cut_days = ta.sma(self.trade_df['close'], length=10), max(max_cut_days, 9)
@@ -116,7 +116,7 @@ class Trade():
             #remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'macd_signal', 'atr_14', 'BBL_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0', 'obv', 'natr_14']
             #remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv', 'macd_signal', 'atr_14', 'BBL_20_2.0', 'BBU_20_2.0', 'BBB_20_2.0', 'obv', 'natr_14']
             #皮尔逊+互信息+树模型交集特征
-            remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'ps', 'buy_elg_vol', 'rsi_14', 'DMP_14', 'buy_lg_vol', 'atr_14', 'buy_md_vol', 'pb', 'vol', 'willr_14', 'sell_elg_vol', 'stddev_10', 'mfi_14', 'sell_sm_vol', 'pe', 'sell_lg_vol', 'obv', 'amount', 'natr_14', 'dv_ratio', 'STOCHd_3_3_3', 'total_mv', 'buy_sm_vol', 'BBB_20_2.0', 'ADX_14', 'roc_10', 'cmf_20', 'turnover_rate_f', 'sell_md_vol', 'date_mmdd']
+            remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'date_full', 'ps', 'buy_elg_vol', 'rsi_14', 'DMP_14', 'buy_lg_vol', 'atr_14', 'buy_md_vol', 'pb', 'vol', 'willr_14', 'sell_elg_vol', 'stddev_10', 'mfi_14', 'sell_sm_vol', 'pe', 'sell_lg_vol', 'obv', 'amount', 'natr_14']#, 'dv_ratio', 'STOCHd_3_3_3', 'total_mv']#, 'buy_sm_vol', 'BBB_20_2.0', 'ADX_14', 'roc_10', 'cmf_20', 'turnover_rate_f', 'sell_md_vol']
             logging.info(f"After feature selection, remain {len(remain_list)}")
             #self.col_low, self.col_high, self.col_close, self.col_code_idx = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2, remain_list.index('stock_idx')-2
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2

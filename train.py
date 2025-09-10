@@ -25,16 +25,16 @@ if __name__ == "__main__":
     if_print_detail = False
     
     # 优化后的训练参数 - 使用更多的epoch和更好的batch size
-    epo_list = [400]  # 增加epochs，早停会自动停止
+    epo_list = [500]  # 增加epochs，早停会自动停止
     p_list = [2]
     batch_size_list = [1024]  # 增加batch size以提高训练稳定性
-    learning_rate = 0.0001  # 使用更高的初始学习率
-    patience = 50  # 提高早停的耐心值，允许更多epoch的波动
+    learning_rate = 0.002  # 使用更高的初始学习率
+    patience = 500  # 提高早停的耐心值，允许更多epoch的波动
     dropout_rate = 0.3
     
     #以下2个为TCN参数
-    nb_filters = 128
-    kernel_size = 8
+    nb_filters = 128  #64~256,越大越复杂
+    kernel_size = 12   #3~16,越大越复杂
     
     #以下3个为Transformer参数
     num_layers = 4  #4-8层,越高越复杂
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     index_code_list = []#'000001.SH']#, '399001.SZ', '399006.SZ']  #上证指数,深证成指,创业板指
     related_stock_list = ALL_CODE_LIST  # 关联股票列表
     # 改善数据集配置 - 使用更好的train/validation分割比例
-    ds = StockDataset(primary_stock_code, index_code_list, related_stock_list, si, start_date='20070104',end_date='20250903', train_size=0.9)  # 90%/10%分割提供更多验证数据
+    ds = StockDataset(primary_stock_code, index_code_list, related_stock_list, si, start_date='20200901',end_date='20250903', train_size=0.9)  # 90%/10%分割提供更多验证数据
 
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     ### 只用T1 low的涨跌幅为回归目标 ###
@@ -88,11 +88,11 @@ if __name__ == "__main__":
         target = ds.train_y[:, 0]  # 回归目标（涨跌幅）
         feature_names = ds.get_feature_names()
         selected = auto_select_features(feature_data, target, feature_names,
-                                    pearson_threshold=0.025, mi_threshold=0.008,
+                                    pearson_threshold=0.03, mi_threshold=0.01,
                                     print_detail=True)
         selected_rf, rf_scores = select_features_by_tree_importance(
             feature_data, target, feature_names,
-            importance_threshold=0.008,
+            importance_threshold=0.01,
             print_detail=True
         )
         selected_intersection = set(selected['pearson_selected']) & set(selected['mi_selected']) & set(selected_rf)
@@ -103,8 +103,8 @@ if __name__ == "__main__":
         for p in p_list:
             for epo in epo_list:
                 #tm = LSTMModel(x=tx, y=ty, test_x=vx, test_y=vy, p=p)
-                #tm = TCNModel(x=tx, y=ty_reg, test_x=vx, test_y=vy_reg, nb_filters=nb_filters, kernel_size=kernel_size, dropout_rate=dropout_rate)
-                tm = TransformerModel(tx, ty_reg_scaled, vx, vy_reg_scaled, d_model=d_model, num_layers=num_layers, ff_dim=ff_dim, dropout_rate=dropout_rate)
+                tm = TCNModel(x=tx, y=ty_reg_scaled, test_x=vx, test_y=vy_reg_scaled, nb_filters=nb_filters, kernel_size=kernel_size, dropout_rate=dropout_rate)
+                #tm = TransformerModel(tx, ty_reg_scaled, vx, vy_reg_scaled, d_model=d_model, num_layers=num_layers, ff_dim=ff_dim, dropout_rate=dropout_rate)
                 print("################################ ### epo[%d] ### batch[%d] ### p[%d] ### ################################"%(epo, batch_size, p))
                 train_ret_str = tm.train(epochs=epo, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
                 tm.save(os.path.join(BASE_DIR, MODEL_DIR, primary_stock_code + "_" + str(epo) + "_" + str(batch_size) + "_" + str(p) + ".h5"))

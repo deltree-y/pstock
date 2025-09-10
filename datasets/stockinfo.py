@@ -30,6 +30,8 @@ class StockInfo():
         self.stock_list_fn = os.path.join(BASE_DIR, GLOBAL_DIR, "stock_all.csv")
         self.index_list_fn = os.path.join(BASE_DIR, GLOBAL_DIR, "index_all.csv")
         self.trade_date_list_fn = os.path.join(BASE_DIR, GLOBAL_DIR, "trade_date_all.csv")
+        self.stock_list_with_total_mv_fn = os.path.join(BASE_DIR, GLOBAL_DIR, "stock_list_with_total_mv.xlsx")
+        self.__update_list()
 
     def __update_list(self):
         if self.stock_list is not None and self.index_list is not None and self.trade_date_list is not None:
@@ -157,7 +159,9 @@ class StockInfo():
 
     #通用行情接口
     def get_pro_bar(self, ts_code, start_date='', end_date='', asset='E', adj=None):
-        start_date, end_date = str(start_date), str(end_date)
+        start_date = str(start_date) if start_date is not None else None
+        end_date = str(end_date) if end_date is not None else None
+
         if asset == 'I':
             ret = self.ts.pro_bar(ts_code=ts_code, asset='I', start_date=start_date, end_date=end_date)
         elif asset == 'E':
@@ -171,8 +175,11 @@ class StockInfo():
     #A股日线行情
     #取['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'pre_close', 'vol']
     def get_daily(self, ts_code=None, start_date=None, end_date=None, trade_date=None):
-        start_date, end_date = str(start_date), str(end_date)
+        start_date = str(start_date) if start_date is not None else None
+        end_date = str(end_date) if end_date is not None else None
+        
         #cols = ['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'pre_close', 'vol']
+
         if trade_date is not None:
             #ret = self.pro.daily(trade_date=trade_date)[cols]
             ret = self.pro.daily(trade_date=trade_date)
@@ -188,7 +195,9 @@ class StockInfo():
 
     #每日指标， 如换手率、市盈率、市净率、总股本、总市值等
     def get_daily_basic(self, ts_code=None, trade_date=None, start_date=None, end_date=None):
-        start_date, end_date = str(start_date), str(end_date)
+        start_date = str(start_date) if start_date is not None else None
+        end_date = str(end_date) if end_date is not None else None
+        
         #cols = ['ts_code', 'trade_date', 'turnover_rate_f', 'volume_ratio', 'pe', 'pb', 'ps', 'dv_ratio', 'total_share', 'float_share', 'free_share', 'total_mv', 'circ_mv']
         cols = ['ts_code', 'trade_date', 'turnover_rate_f', 'volume_ratio', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv']
         if trade_date is not None:
@@ -233,7 +242,9 @@ class StockInfo():
     #个股资金流向， 如大/中/小单买入量/金额等
     #数据开始于2010年
     def get_moneyflow(self, ts_code=None, trade_date=None, start_date=None, end_date=None):
-        start_date, end_date = str(start_date), str(end_date)
+        start_date = str(start_date) if start_date is not None else None
+        end_date = str(end_date) if end_date is not None else None
+        
         cols = ['trade_date', 'ts_code', 'buy_sm_vol','sell_sm_vol','buy_md_vol','sell_md_vol','buy_lg_vol','sell_lg_vol','buy_elg_vol','sell_elg_vol','net_mf_vol']
         if trade_date is not None:
             ret = self.pro.moneyflow(trade_date=trade_date)[cols]
@@ -246,7 +257,9 @@ class StockInfo():
     
     #融资融券交易明细
     def get_margin_detail(self, ts_code=None, trade_date=None, start_date=None, end_date=None):
-        start_date, end_date = str(start_date), str(end_date)
+        start_date = str(start_date) if start_date is not None else None
+        end_date = str(end_date) if end_date is not None else None
+        
         cols = ['trade_date', 'ts_code', 'rzye', 'rqye', 'rzmre', 'rqyl', 'rzche', 'rqchl', 'rqmcl', 'rzrqye']
         if trade_date is not None:
             ret = self.pro.margin_detail(trade_date=trade_date)[cols]
@@ -259,7 +272,9 @@ class StockInfo():
 
     #大宗交易数据
     def get_block_trade(self, ts_code=None, trade_date=None, start_date=None, end_date=None):
-        start_date, end_date = str(start_date), str(end_date)
+        start_date = str(start_date) if start_date is not None else None
+        end_date = str(end_date) if end_date is not None else None
+        
         if trade_date is not None:
             block_trade = self.pro.block_trade(trade_date=trade_date)
         elif start_date is None and end_date is None:
@@ -282,7 +297,9 @@ class StockInfo():
     
     #获取股东增减持数据
     def get_stk_holdertrade(self, ts_code=None, trade_date=None, start_date=None, end_date=None):
-        start_date, end_date = str(start_date), str(end_date)
+        start_date = str(start_date) if start_date is not None else None
+        end_date = str(end_date) if end_date is not None else None
+        
         if trade_date is not None:
             ret = self.pro.stk_holdertrade(trade_date=trade_date)
         elif start_date is None and end_date is None:
@@ -324,7 +341,9 @@ class StockInfo():
 
     #获取限售股解禁数据
     def get_share_float(self, ts_code=None, float_date=None, start_date=None, end_date=None):
-        start_date, end_date = str(start_date), str(end_date)
+        start_date = str(start_date) if start_date is not None else None
+        end_date = str(end_date) if end_date is not None else None
+        
         if float_date is not None:
             share_float = self.pro.share_float(float_date=float_date)
         elif start_date is None and end_date is None:
@@ -381,7 +400,7 @@ class StockInfo():
         try:
             ret = daily_basic['total_mv'][0]
         except:
-            logging.error("in StockInfo::get_total_mv().")
+            logging.error(f"in StockInfo::get_total_mv(). ts_code not found - <{ts_code}>")
             ret = -1
         return ret
 
@@ -426,7 +445,30 @@ class StockInfo():
         ret.columns = ['trade_date']
         return ret
 
+    def save_stock_list_with_total_mv(self):
+        self.__update_list()
+        total_mv_list = []
+        for ts_code in self.stock_list['ts_code']:
+            total_mv_list.append(self.get_total_mv(ts_code))
+            logging.info(f"get total_mv for stock - <{ts_code} : {total_mv_list[-1]}> [{len(total_mv_list)}/{len(self.stock_list['ts_code'])}]")
+        tdf = self.stock_list
+        tdf['total_mv'] = total_mv_list
+        tdf.to_excel(self.stock_list_with_total_mv_fn, sheet_name='stocks')
 
+    def get_top_n_code_group_by_industry(self, n=3):
+        # 读取CSV
+        df = pd.read_csv(os.path.join(BASE_DIR, GLOBAL_DIR, "stock_list_with_total_mv.csv"), encoding='gbk')
+
+        # 分组并获取每组B列的TOP5
+        df['total_mv'] = pd.to_numeric(df['total_mv'], errors='coerce')
+        top5 = df[['industry', 'total_mv', 'ts_code']].groupby('industry', group_keys=False).apply(lambda x: x.nlargest(n, 'total_mv'))
+
+        # 获取对应的C列值
+        result = top5['ts_code'].tolist()
+
+        print(result)
+
+    #获取股票的综合数据
     def get_stock_detail(self, asset='E', ts_code=None, spec_date=None, start_date=None, end_date=None):
         if ts_code is not None: #若ts_code不为空，则默认为取指定stock的数据
             spec_colunm = 'trade_date'
@@ -503,33 +545,5 @@ class InDe():
 if __name__ == "__main__":
     setup_logging()
     ts_code1 = '600036.SH'
-    ts_code2 = '600155.SH'
     si = StockInfo(TOKEN)
-    print(si.get_name(ts_code2), si.get_start_date(ts_code2))
-    #print(si.get_daily(ts_code=ts_code2, start_date='20060104', end_date='20250903').tail(10))
-
-    #print("code:<%s>, name:<%s>, open date:<%s>. "%(ts_code1, si.get_name(ts_code1), si.get_start_date(ts_code1)))
-    #print("code:<%s>, name:<%s>, open date:<%s>. "%(ts_code2, si.get_name(ts_code2,asset='I'), si.get_start_date(ts_code2,asset='I')))
-    #daily_basic = si.get_total_mv(ts_code1)
-    if False:
-        d = {'ts_code':[], 'total_mv':[]}
-        df = pd.DataFrame(data=d)
-
-        total_mv_list = []
-        for ts_code in si.stock_list['ts_code']:
-            total_mv_list.append(si.get_total_mv(ts_code))
-            print(ts_code)
-        tdf = si.stock_list
-        tdf.insert(10,'total_mv',total_mv_list)
-
-        #print(tdf)
-        tdf.to_excel("data\\stocks.xlsx", sheet_name='stocks')
-    
-
-    #ret = si.get_daily_basic(trade_date='20250821')
-    #ret = si.get_trade_open_dates('20250701','20250822')
-    #ret = ret['trade_date'].values
-    
-    #print(ret)
-    #print(type(ret))
-    #si.print_filtered_stock_list()
+    si.get_top_n_code_group_by_industry(3)

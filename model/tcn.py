@@ -2,9 +2,10 @@
 import os, sys, logging
 import numpy as np
 from keras.models import Model
-from keras.layers import Input, Conv1D, BatchNormalization, Activation, Dropout, Dense, Add, Lambda
+from keras.layers import Input, BatchNormalization, Dropout, Dense
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
 from keras.optimizers import Adam
+from datetime import datetime
 from model.history import LossHistory
 from tcn import TCN
 
@@ -60,6 +61,8 @@ class TCNModel():
         lr_scheduler = ReduceLROnPlateau(monitor='val_loss', factor=0.8, patience=int(patience/4) if patience>=50 else int(patience/2), min_lr=1e-5, verbose=1)
 
         callbacks = [self.history, early_stopping, lr_scheduler]
+        start_time = datetime.now()
+        self.history.set_para(epochs, start_time)
 
         self.model.fit(
             self.x, self.y,
