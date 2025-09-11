@@ -546,4 +546,4 @@ if __name__ == "__main__":
     setup_logging()
     ts_code1 = '600036.SH'
     si = StockInfo(TOKEN)
-    si.get_top_n_code_group_by_industry(3)
+    si.get_top_n_code_group_by_industry(1)

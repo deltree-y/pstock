@@ -16,7 +16,7 @@ from sklearn.metrics import confusion_matrix
 from utils.tk import TOKEN
 from utils.const_def import NUM_CLASSES, BANK_CODE_LIST, ALL_CODE_LIST
 from utils.const_def import BASE_DIR, MODEL_DIR
-from utils.utils import setup_logging, select_features_by_tree_importance, auto_select_features, select_features_by_stat_corr, plot_regression_result, plot_error_distribution
+from utils.utils import feature_importance_analysis, setup_logging, select_features_by_tree_importance, auto_select_features, select_features_by_stat_corr, plot_regression_result, plot_error_distribution
 import matplotlib.pyplot as plt
 
 if __name__ == "__main__":
@@ -25,11 +25,11 @@ if __name__ == "__main__":
     if_print_detail = False
     
     # 优化后的训练参数 - 使用更多的epoch和更好的batch size
-    epo_list = [500]  # 增加epochs，早停会自动停止
+    epo_list = [100]  # 增加epochs，早停会自动停止
     p_list = [2]
     batch_size_list = [1024]  # 增加batch size以提高训练稳定性
     learning_rate = 0.002  # 使用更高的初始学习率
-    patience = 500  # 提高早停的耐心值，允许更多epoch的波动
+    patience = 20  # 提高早停的耐心值，允许更多epoch的波动
     dropout_rate = 0.3
     
     #以下2个为TCN参数
@@ -47,7 +47,7 @@ if __name__ == "__main__":
     index_code_list = []#'000001.SH']#, '399001.SZ', '399006.SZ']  #上证指数,深证成指,创业板指
     related_stock_list = ALL_CODE_LIST  # 关联股票列表
     # 改善数据集配置 - 使用更好的train/validation分割比例
-    ds = StockDataset(primary_stock_code, index_code_list, related_stock_list, si, start_date='20200901',end_date='20250903', train_size=0.9)  # 90%/10%分割提供更多验证数据
+    ds = StockDataset(primary_stock_code, index_code_list, related_stock_list, si, start_date='20180101',end_date='20250903', train_size=0.9)  # 90%/10%分割提供更多验证数据
 
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     ### 只用T1 low的涨跌幅为回归目标 ###
@@ -58,6 +58,8 @@ if __name__ == "__main__":
     ty_reg_scaled = (ty_reg - mean_y) / std_y
     vy_reg_scaled = (vy_reg - mean_y) / std_y
 
+    # 训练时使用增强数据
+    x_aug, y_aug = ds.time_series_augmentation(tx, ty_reg_scaled, noise_level=0.01)
 
     if False:   #多分类时启用
         # 添加类别分布分析
@@ -87,15 +89,16 @@ if __name__ == "__main__":
         feature_data = ds.raw_train_x[-len(ds.train_y):]  # shape [n_samples, n_features]
         target = ds.train_y[:, 0]  # 回归目标（涨跌幅）
         feature_names = ds.get_feature_names()
-        selected = auto_select_features(feature_data, target, feature_names,
-                                    pearson_threshold=0.03, mi_threshold=0.01,
-                                    print_detail=True)
-        selected_rf, rf_scores = select_features_by_tree_importance(
-            feature_data, target, feature_names,
-            importance_threshold=0.01,
-            print_detail=True
-        )
-        selected_intersection = set(selected['pearson_selected']) & set(selected['mi_selected']) & set(selected_rf)
+        selected_intersection, _ = feature_importance_analysis(ds, feature_names, n_features=25)
+        #selected = auto_select_features(feature_data, target, feature_names,
+        #                            pearson_threshold=0.03, mi_threshold=0.01,
+        #                            print_detail=True)
+        #selected_rf, rf_scores = select_features_by_tree_importance(
+        #    feature_data, target, feature_names,
+        #    importance_threshold=0.01,
+        #    print_detail=True
+        #)
+        #selected_intersection = set(selected['pearson_selected']) & set(selected['mi_selected']) & set(selected_rf)
         print("皮尔逊+互信息+树模型交集特征:", selected_intersection)
         exit()
 
@@ -103,7 +106,8 @@ if __name__ == "__main__":
         for p in p_list:
             for epo in epo_list:
                 #tm = LSTMModel(x=tx, y=ty, test_x=vx, test_y=vy, p=p)
-                tm = TCNModel(x=tx, y=ty_reg_scaled, test_x=vx, test_y=vy_reg_scaled, nb_filters=nb_filters, kernel_size=kernel_size, dropout_rate=dropout_rate)
+                #tm = TCNModel(x=tx, y=ty_reg_scaled, test_x=vx, test_y=vy_reg_scaled, nb_filters=nb_filters, kernel_size=kernel_size, dropout_rate=dropout_rate)
+                tm = TCNModel(x=x_aug, y=y_aug, test_x=vx, test_y=vy_reg_scaled, nb_filters=nb_filters, kernel_size=kernel_size, dropout_rate=dropout_rate)
                 #tm = TransformerModel(tx, ty_reg_scaled, vx, vy_reg_scaled, d_model=d_model, num_layers=num_layers, ff_dim=ff_dim, dropout_rate=dropout_rate)
                 print("################################ ### epo[%d] ### batch[%d] ### p[%d] ### ################################"%(epo, batch_size, p))
                 train_ret_str = tm.train(epochs=epo, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
@@ -131,7 +135,10 @@ if __name__ == "__main__":
                 t_list = ['20250829', '20250901', '20250902', '20250903']
                 for t0 in t_list:
                     print("Predict for T0[%s]"%t0)
-                    data, bp = ds.get_predictable_dataset_by_date(t0)
+                    # Ensure t0 matches the type of dataset dates
+                    date_type = type(ds.full_raw_data[0, 0])
+                    t0_converted = date_type(t0)
+                    data, bp = ds.get_predictable_dataset_by_date(t0_converted)
                     pred_data = tm.model(data)
                     RegPredict(pred_data, bp, std_y, mean_y).print_predict_result()
                     print()

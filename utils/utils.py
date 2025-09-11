@@ -65,6 +65,46 @@ def get_mind_value(value, base_value):
             return int(value) - 0.03
     return value
 
+def feature_importance_analysis(ds, feature_names, n_features=25):
+    """分析并选择最重要的特征"""
+    feature_data = ds.raw_train_x[-len(ds.train_y):]  # 对齐数据
+    target = ds.train_y[:, 0]  # 回归目标
+    
+    # 结合多种特征选择方法
+    results = auto_select_features(feature_data, target, feature_names,
+                              pearson_threshold=0.03, mi_threshold=0.01,
+                              print_detail=True)
+    
+    # 使用随机森林获取特征重要性
+    selected_rf, rf_scores = select_features_by_tree_importance(
+        feature_data, target, feature_names,
+        importance_threshold=0.01,
+        print_detail=True
+    )
+    
+    # 找出所有方法共同选出的特征
+    common_features = set(results['pearson_selected']) & set(results['mi_selected']) & set(selected_rf)
+    print(f"所有方法共同选出的特征 ({len(common_features)}):", common_features)
+    
+    # 找出至少被两种方法选出的特征
+    features_selected_by_at_least_two = set()
+    for f in set(feature_names):
+        count = 0
+        if f in results['pearson_selected']: count += 1
+        if f in results['mi_selected']: count += 1
+        if f in selected_rf: count += 1
+        if count >= 2:
+            features_selected_by_at_least_two.add(f)
+    
+    print(f"至少被两种方法选出的特征 ({len(features_selected_by_at_least_two)}):", 
+          features_selected_by_at_least_two)
+    
+    # 使用这些特征的索引
+    selected_indices = [i for i, name in enumerate(feature_names) 
+                        if name in features_selected_by_at_least_two]
+    
+    return list(features_selected_by_at_least_two), selected_indices
+
 def select_features_by_stat_corr(bin_labels, feature_data, feature_names, method='pearson', threshold=0.1):
     scores = []
     for i, fname in enumerate(feature_names):

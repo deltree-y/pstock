@@ -3,7 +3,7 @@ import sys,os,time,logging,joblib
 import numpy as np
 import pandas as pd
 from pathlib import Path
-from sklearn.preprocessing import StandardScaler, RobustScaler
+from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
 o_path = os.getcwd()
 sys.path.append(o_path)
 sys.path.append(str(Path(__file__).resolve().parents[0]))
@@ -187,7 +187,9 @@ class StockDataset():
     #获取归一化参数
     def get_scaler(self, new_data=None, if_update=False, if_save=True):
         is_modified = False
-        self.scaler = RobustScaler()#StandardScaler()
+        #self.scaler = RobustScaler()#StandardScaler()
+        self.scaler = MinMaxScaler(feature_range=(-1, 1))  # 替换RobustScaler
+
 
         if new_data is not None or not os.path.exists(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + "_scaler.save")):    #如果有新的数据,则更新归一化的参数配置
             df = pd.DataFrame(new_data)
@@ -234,6 +236,16 @@ class StockDataset():
     
     #获取某一天的模型输入数据(已归一化,可以获取T2的数据)
     def get_predictable_dataset_by_date(self, date):
+        """
+        根据指定日期，获取归一化且窗口化的数据集及该日期的收盘价。
+        参数:
+            date: 要检索数据集的日期。类型应与数据集中日期列的类型一致。
+        返回:
+                x (np.ndarray): 从指定日期开始的归一化、窗口化特征数据。
+                closed_price (float): 指定日期的收盘价。
+        异常:
+            如果在数据集中未找到指定日期，则记录错误日志并退出程序。
+        """
         date = type(self.full_raw_data[0, 0])(date)
         try:
             idx = np.where(self.full_raw_data[:, 0] == date)[0][0]
@@ -249,6 +261,22 @@ class StockDataset():
     #按指定列进行左连接
     # on - 指定连接的列,如['trade_date']
     def left_merge_np(self, left, right, col):
+        """
+        Performs a left merge (join) of two numpy arrays using a specified column index.
+
+        Args:
+            left (np.ndarray): The left numpy array to merge.
+            right (np.ndarray): The right numpy array to merge.
+            col (int): The column index to use as the key for merging in both arrays.
+
+        Returns:
+            np.ndarray: The merged result as a numpy array.
+
+        Notes:
+            - The function converts the input numpy arrays to pandas DataFrames for merging.
+            - If the column names used for merging are different, the redundant column from the right DataFrame is dropped after the merge.
+            - The output is converted back to a numpy array.
+        """
         df_left, df_right = pd.DataFrame(left), pd.DataFrame(right)
         left_col_name, right_col_name = df_left.columns[col], df_right.columns[col]
         df_merged = pd.merge(df_left, df_right, left_on=left_col_name, right_on=right_col_name, how='left')
@@ -291,6 +319,48 @@ class StockDataset():
             feature_names += list(idx_trade.trade_df.columns.drop(['ts_code','trade_date'], errors='ignore'))
         return feature_names
 
+    def time_series_augmentation(self, x_data, y_data, noise_level=0.01):
+        """
+        通过添加微小的高斯噪声进行时间序列数据增强
+        """
+        augmented_x = x_data.copy()
+        # 添加高斯噪声
+        noise = np.random.normal(0, noise_level, augmented_x.shape)
+        augmented_x = augmented_x + noise
+        return augmented_x, y_data
+
+    def time_series_augmentation_4x(self, X, y, noise_level=0.005):
+        """
+        时间序列数据增强，包含多种增强方法
+        """
+        X_aug = X.copy()
+        y_aug = y.copy()
+        
+        # 1. 添加高斯噪声
+        X_noise = X + np.random.normal(0, noise_level, X.shape)
+        X_aug = np.concatenate([X_aug, X_noise])
+        y_aug = np.concatenate([y_aug, y])
+        
+        # 2. 时间扭曲 (Time Warping)
+        X_warp = []
+        for i in range(X.shape[0]):
+            if i > 0 and i < X.shape[0] - 1:
+                warped = 0.5 * X[i-1] + 0.5 * X[i]
+                X_warp.append(warped)
+        if X_warp:
+            X_warp = np.array(X_warp)
+            y_warp = y[:len(X_warp)]
+            X_aug = np.concatenate([X_aug, X_warp])
+            y_aug = np.concatenate([y_aug, y_warp])
+        
+        # 3. 缩放变换
+        scale_factor = np.random.uniform(0.95, 1.05)
+        X_scaled = X * scale_factor
+        X_aug = np.concatenate([X_aug, X_scaled])
+        y_aug = np.concatenate([y_aug, y])
+        
+        return X_aug, y_aug
+    
     #打印归一化前后的数据对比
     def print_comp_data(self, i=0, col=47):
         tx = self.normalized_windowed_train_x
