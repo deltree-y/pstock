@@ -12,6 +12,8 @@ from predicproc.predict import Predict, RegPredict
 from model.lstmmodel import LSTMModel
 from model.tcn import TCNModel
 from model.transformer import TransformerModel
+from model.residual_tcn import ResidualTCN
+from model.residual_lstm import ResidualLSTMModel
 from sklearn.metrics import confusion_matrix
 from utils.tk import TOKEN
 from utils.const_def import NUM_CLASSES, BANK_CODE_LIST, ALL_CODE_LIST
@@ -19,16 +21,26 @@ from utils.const_def import BASE_DIR, MODEL_DIR
 from utils.utils import feature_importance_analysis, setup_logging, select_features_by_tree_importance, auto_select_features, select_features_by_stat_corr, plot_regression_result, plot_error_distribution
 import matplotlib.pyplot as plt
 
+def parse_args():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--use_vol_norm", action="store_true", help="Use window-level volatility normalization targets from StockDataset")
+    ap.add_argument("--start_date", type=str, default='20180101')
+    ap.add_argument("--end_date", type=str, default='20250903')
+    ap.add_argument("--train_size", type=float, default=0.9)
+    return ap.parse_args()
+
 if __name__ == "__main__":
     setup_logging()
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    args = parse_args()
+    use_vol_norm = args.use_vol_norm
     if_print_detail = False
     
     # 优化后的训练参数 - 使用更多的epoch和更好的batch size
     epo_list = [100]  # 增加epochs，早停会自动停止
     p_list = [2]
     batch_size_list = [1024]  # 增加batch size以提高训练稳定性
-    learning_rate = 0.002  # 使用更高的初始学习率
+    learning_rate = 0.001  # 使用更高的初始学习率
     patience = 20  # 提高早停的耐心值，允许更多epoch的波动
     dropout_rate = 0.3
     
@@ -57,6 +69,47 @@ if __name__ == "__main__":
     mean_y, std_y = np.mean(ty_reg), np.std(ty_reg)
     ty_reg_scaled = (ty_reg - mean_y) / std_y
     vy_reg_scaled = (vy_reg - mean_y) / std_y
+    ty_reg_scaled_default = (ty_reg - mean_y) / std_y
+    vy_reg_scaled_default = (vy_reg - mean_y) / std_y if vy_reg.size>0 else np.array([])
+
+    # ------------------ VOL NORM handling ------------------
+    if use_vol_norm:
+        # Check dataset has precomputed vol-norm targets
+        has_vol_fields = all(hasattr(ds, k) for k in ("train_y_vol_norm_scaled", "train_volnorm_mean", "train_volnorm_std", "windowed_train_vol_pct"))
+        if not has_vol_fields or ds.train_y_vol_norm_scaled is None or ds.train_y_vol_norm_scaled.size == 0:
+            logging.warning("Dataset does not provide vol-normalized targets. Falling back to raw z-scored targets.")
+            use_vol_norm = False
+        else:
+            logging.info("Using dataset-provided volatility-normalized targets (train_y_vol_norm_scaled).")
+            # use dataset's scaled targets for training
+            ty_reg_scaled = ds.train_y_vol_norm_scaled
+            vy_reg_scaled = getattr(ds, "test_y_vol_norm_scaled", np.array([]))
+            # store for inverse transform later
+            volnorm_mean = ds.train_volnorm_mean
+            volnorm_std = ds.train_volnorm_std
+            train_vol_pct = getattr(ds, "windowed_train_vol_pct", np.array([]))
+            test_vol_pct = getattr(ds, "windowed_test_vol_pct", np.array([]))
+
+            # Align lengths between tx and ty_reg_scaled if necessary
+            if len(ty_reg_scaled) != tx.shape[0]:
+                minlen = min(len(ty_reg_scaled), tx.shape[0])
+                logging.warning(f"[ALIGN] vol-norm train y / x length mismatch (y:{len(ty_reg_scaled)} vs x:{tx.shape[0]}), trimming to {minlen}")
+                ty_reg_scaled = ty_reg_scaled[:minlen]
+                tx = tx[:minlen]
+            if vx is not None and vx.size>0 and vy_reg_scaled is not None and vy_reg_scaled.size>0 and len(vy_reg_scaled) != vx.shape[0]:
+                minlen = min(len(vy_reg_scaled), vx.shape[0])
+                logging.warning(f"[ALIGN] vol-norm val y / x length mismatch (y:{len(vy_reg_scaled)} vs x:{vx.shape[0]}), trimming to {minlen}")
+                vy_reg_scaled = vy_reg_scaled[:minlen]
+                vx = vx[:minlen]
+    # if not using vol-norm, use default z-scored targets
+    if not use_vol_norm:
+        ty_reg_scaled = ty_reg_scaled_default
+        vy_reg_scaled = vy_reg_scaled_default
+        volnorm_mean = None
+        volnorm_std = None
+        train_vol_pct = None
+        test_vol_pct = None
+
 
     # 训练时使用增强数据
     x_aug, y_aug = ds.time_series_augmentation(tx, ty_reg_scaled, noise_level=0.01)
@@ -106,8 +159,9 @@ if __name__ == "__main__":
         for p in p_list:
             for epo in epo_list:
                 #tm = LSTMModel(x=tx, y=ty, test_x=vx, test_y=vy, p=p)
+                tm = ResidualLSTMModel(x=tx, y=ty_reg_scaled, test_x=vx, test_y=vy_reg_scaled, p=p)
                 #tm = TCNModel(x=tx, y=ty_reg_scaled, test_x=vx, test_y=vy_reg_scaled, nb_filters=nb_filters, kernel_size=kernel_size, dropout_rate=dropout_rate)
-                tm = TCNModel(x=x_aug, y=y_aug, test_x=vx, test_y=vy_reg_scaled, nb_filters=nb_filters, kernel_size=kernel_size, dropout_rate=dropout_rate)
+                #tm = TCNModel(x=x_aug, y=y_aug, test_x=vx, test_y=vy_reg_scaled, nb_filters=nb_filters, kernel_size=kernel_size, dropout_rate=dropout_rate)
                 #tm = TransformerModel(tx, ty_reg_scaled, vx, vy_reg_scaled, d_model=d_model, num_layers=num_layers, ff_dim=ff_dim, dropout_rate=dropout_rate)
                 print("################################ ### epo[%d] ### batch[%d] ### p[%d] ### ################################"%(epo, batch_size, p))
                 train_ret_str = tm.train(epochs=epo, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
@@ -121,15 +175,38 @@ if __name__ == "__main__":
                     logging.info(f"INFO: last train/test/best_test loss - [{last_loss:.3f}]/[{last_val_loss:.3f}]/[{best_val_loss:.3f}],  best_test_accu T1 - [{best_val_t1:.1f}%]")
                 print("*************************************************************************************************************************\n\n")
                 # 训练模型后,下面5行为回归评估
-                y_pred = tm.model.predict(vx).reshape(-1)
-                mae = np.mean(np.abs(y_pred - vy_reg))
-                rmse = np.sqrt(np.mean((y_pred - vy_reg) ** 2))
-                logging.info(f"回归评估: MAE={mae:.5f}, RMSE={rmse:.5f}")
-                print("*************************************************************************************************************************\n\n")
+                pred_scaled = tm.model.predict(vx).reshape(-1)
 
-                y_pred = tm.model.predict(vx).reshape(-1) * std_y + mean_y
-                plot_regression_result(vy_reg, y_pred, title="test vs. real")
-                plot_error_distribution(vy_reg, y_pred, title="mae/rmse distribution")
+                if use_vol_norm:
+                    # pred_scaled is z-score of (target_pct / vol_pct)
+                    pred_volnorm = pred_scaled * volnorm_std + volnorm_mean  # target / vol_pct
+                    # try to multiply back by per-window vol pct
+                    if test_vol_pct is not None and test_vol_pct.size == pred_volnorm.size:
+                        pred_pct = pred_volnorm * test_vol_pct
+                    else:
+                        avg_train_vol = np.mean(train_vol_pct) if (train_vol_pct is not None and train_vol_pct.size>0) else 1.0
+                        logging.warning("test vol pct unavailable or length mismatch -> using avg train vol for scaling back")
+                        pred_pct = pred_volnorm * avg_train_vol
+                    # ground-truth percentage values:
+                    y_true_pct = vy_reg[:len(pred_pct)] if vy_reg.size>0 else np.array([])
+                else:
+                    # original path - pred_scaled is z-scored of raw percentage target
+                    pred_pct = pred_scaled * std_y + mean_y
+                    y_true_pct = vy_reg[:len(pred_pct)] if vy_reg.size>0 else np.array([])
+
+                # metrics
+                if y_true_pct.size > 0:
+                    mae = np.mean(np.abs(pred_pct - y_true_pct))
+                    rmse = np.sqrt(np.mean((pred_pct - y_true_pct) ** 2))
+                    logging.info(f"回归评估 (最终百分比空间): MAE={mae:.5f}, RMSE={rmse:.5f}")
+                    try:
+                        plot_regression_result(y_true_pct, pred_pct, title="test vs. real (pct)")
+                        plot_error_distribution(y_true_pct, pred_pct, title="mae/rmse distribution (pct)")
+                    except Exception:
+                        pass
+                else:
+                    logging.warning("No ground truth percentages for evaluation.")
+                print("*************************************************************************************************************************\n\n")
 
                 # 训练模型后,输出给定日期的预测结果
                 t_list = ['20250829', '20250901', '20250902', '20250903']

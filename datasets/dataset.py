@@ -87,6 +87,68 @@ class StockDataset():
         self.normalized_windowed_train_x = self.get_normalized_windowed_x(self.raw_train_x)
         self.normalized_windowed_test_x = self.get_normalized_windowed_x(self.raw_test_x) if train_size < 1 else None
 
+
+        # ---------------- MOD VOL NORM: 计算窗口级别波动（percent）并生成 vol-normalized targets ----------
+        # 说明：raw_train_x/raw_test_x 为未归一化的原始日度特征矩阵，shape [N_days, F]
+        # get_windowed_x_by_raw(raw_train_x) 会返回 shape [N_windows, W, F]
+        try:
+            # 生成原始窗口（未归一化）
+            raw_windowed_train_x = self.get_windowed_x_by_raw(self.raw_train_x) if (hasattr(self, 'raw_train_x') and self.raw_train_x is not None and self.raw_train_x.size>0) else np.array([])
+            raw_windowed_test_x = self.get_windowed_x_by_raw(self.raw_test_x) if (hasattr(self, 'raw_test_x') and self.raw_test_x is not None and self.raw_test_x.size>0) else np.array([])
+
+            # 计算每个窗口的波动（std of returns）并转为百分比（vol_pct）
+            self.windowed_train_vol_pct = self.get_windowed_vol_pct_from_raw_windows(raw_windowed_train_x)
+            self.windowed_test_vol_pct = self.get_windowed_vol_pct_from_raw_windows(raw_windowed_test_x) if raw_windowed_test_x.size>0 else np.array([])
+
+            # 对齐 train_y 与窗口（train_y 还未被后面裁剪）：
+            # normalized_windowed_train_x 长度 = len(raw_train_x) - window_size + 1
+            # 我们需要与 dataset 原来的 y 对齐：后续逻辑会 do self.train_y = self.train_y[:-self.window_size+1]
+            # 因此此处构造 aligned_train_y = self.train_y[:-window_size+1] 与 windowed_vol_pct 对齐
+            if self.train_y is not None and self.train_y.size>0 and self.windowed_train_vol_pct.size>0:
+                # train_y shape: [M, 2] (y1,y2) ; get y1 column
+                y1_all = self.train_y[:, 0].astype(float)  # 注意 dataset.get_binned_y 已乘以100
+                # 截断以与窗口数对齐
+                aligned_y1 = y1_all[: self.windowed_train_vol_pct.shape[0]] if len(y1_all) >= self.windowed_train_vol_pct.shape[0] else y1_all
+                # 计算 vol-normalized target: target / vol_pct (保持两者单位均为百分比)
+                # 防止除0
+                eps = 1e-9
+                self.train_y_vol_norm = aligned_y1 / (self.windowed_train_vol_pct + eps)
+                # z-score 标准化
+                self.train_volnorm_mean = np.mean(self.train_y_vol_norm) if self.train_y_vol_norm.size>0 else 0.0
+                self.train_volnorm_std = np.std(self.train_y_vol_norm) + 1e-9 if self.train_y_vol_norm.size>0 else 1.0
+                self.train_y_vol_norm_scaled = (self.train_y_vol_norm - self.train_volnorm_mean) / self.train_volnorm_std
+            else:
+                self.train_y_vol_norm = np.array([])
+                self.train_y_vol_norm_scaled = np.array([])
+                self.train_volnorm_mean = 0.0
+                self.train_volnorm_std = 1.0
+
+            # test side
+            if self.test_y is not None and self.test_y.size>0 and self.windowed_test_vol_pct.size>0:
+                y1_test_all = self.test_y[:, 0].astype(float)
+                aligned_y1_test = y1_test_all[: self.windowed_test_vol_pct.shape[0]] if len(y1_test_all) >= self.windowed_test_vol_pct.shape[0] else y1_test_all
+                eps = 1e-9
+                self.test_y_vol_norm = aligned_y1_test / (self.windowed_test_vol_pct + eps)
+                # 使用训练集均值/方差进行 z-score（推理一致性）
+                self.test_y_vol_norm_scaled = (self.test_y_vol_norm - self.train_volnorm_mean) / self.train_volnorm_std
+            else:
+                self.test_y_vol_norm = np.array([])
+                self.test_y_vol_norm_scaled = np.array([])
+
+            logging.info(f"[VOL NORM] windowed_train_vol_pct shape: {self.windowed_train_vol_pct.shape}, train_y_vol_norm shape: {self.train_y_vol_norm.shape}")
+            if self.windowed_test_vol_pct is not None:
+                logging.info(f"[VOL NORM] windowed_test_vol_pct shape: {self.windowed_test_vol_pct.shape}, test_y_vol_norm shape: {self.test_y_vol_norm.shape}")
+        except Exception as e:
+            logging.warning(f"[VOL NORM] compute vol norm failed: {e}")
+            self.windowed_train_vol_pct = np.array([])
+            self.windowed_test_vol_pct = np.array([])
+            self.train_y_vol_norm = np.array([])
+            self.train_y_vol_norm_scaled = np.array([])
+            self.test_y_vol_norm = np.array([])
+            self.test_y_vol_norm_scaled = np.array([])
+            self.train_volnorm_mean = 0.0
+            self.train_volnorm_std = 1.0
+
         # 6. 对齐y数据, 因为x按窗口化后会减少数据,所以y也要按窗口大小相应减少
         self.train_y_no_window, self.test_y_no_window = self.train_y, self.test_y #保存未窗口化的y数据,供有需要的使用
         self.train_y, self.test_y = self.train_y[:-self.window_size+1], self.test_y[:-self.window_size+1] #由于x按窗口化后会减少数据,所以y也要相应减少
@@ -187,8 +249,9 @@ class StockDataset():
     #获取归一化参数
     def get_scaler(self, new_data=None, if_update=False, if_save=True):
         is_modified = False
-        #self.scaler = RobustScaler()#StandardScaler()
-        self.scaler = MinMaxScaler(feature_range=(-1, 1))  # 替换RobustScaler
+        self.scaler = StandardScaler()
+        #self.scaler = RobustScaler()#
+        #self.scaler = MinMaxScaler(feature_range=(-1, 1))  # 替换RobustScaler
 
 
         if new_data is not None or not os.path.exists(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + "_scaler.save")):    #如果有新的数据,则更新归一化的参数配置
@@ -218,6 +281,32 @@ class StockDataset():
             x.append(x_window)
         return np.array(x).astype(float)
     
+    def get_windowed_vol_pct_from_raw_windows(self, raw_windowed_x):
+        """
+        计算每个窗口的收益率标准差并返回百分比表示（例如 1.23 表示 1.23%）
+        raw_windowed_x: np.ndarray shape [N_windows, W, F]（未归一化）
+        使用 feature name 列表定位 'close' 列
+        """
+        if raw_windowed_x is None or raw_windowed_x.size == 0:
+            return np.array([])
+        feature_names = self.get_feature_names()
+        # 找 close 在 feature_names 中的位置
+        try:
+            close_idx = feature_names.index('close')
+        except ValueError:
+            # 若无法找到 'close'，使用一个保守的默认索引 2（许多实现中 close 在第三列）
+            close_idx = 2
+        close_series = raw_windowed_x[:, :, close_idx].astype(float)  # shape [N, W]
+        # returns shape [N, W-1]
+        with np.errstate(divide='ignore', invalid='ignore'):
+            returns = (close_series[:, 1:] - close_series[:, :-1]) / (close_series[:, :-1] + 1e-12)
+        vol = np.std(returns, axis=1)
+        vol = np.nan_to_num(vol, nan=0.0, posinf=0.0, neginf=0.0)
+        vol_pct = vol * 100.0
+        # 最小阈值避免除0
+        vol_pct = np.maximum(vol_pct, 1e-9)
+        return vol_pct
+
     #获取归一化,窗口化后的x数据
     def get_normalized_windowed_x(self, raw_x):
         self.get_scaler() if self.scaler is None else None
@@ -386,4 +475,3 @@ if __name__ == "__main__":
     ### 只用T1 low的涨跌幅为回归目标 ###
     #ty_reg = ty[:, 0].astype(float)
     #vy_reg = vy[:, 0].astype(float)
-
