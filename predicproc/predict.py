@@ -21,7 +21,7 @@ class Predict():
 
 
 class RegPredict():
-    def __init__(self, predicted_data, base_price, std_y, mean_y):
+    def __init__(self, predicted_data, base_price, std_y=1, mean_y=0):
         self.predicted_data = predicted_data  # shape: [n, 1]
         self.bp = base_price
         self.std_y = std_y

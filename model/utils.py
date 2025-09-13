@@ -39,12 +39,3 @@ class WarmUpCosineDecayScheduler(tf.keras.callbacks.Callback):
         return lr
 
 
-def direction_weighted_mse(y_true, y_pred):
-    # 基础MSE
-    mse = tf.keras.losses.mean_squared_error(y_true, y_pred)
-    
-    # 方向一致性权重
-    same_direction = tf.cast(tf.math.sign(y_true) == tf.math.sign(y_pred), tf.float32)
-    direction_weight = 0.7 + 0.3 * same_direction  # 方向正确时给予更低权重
-    
-    return direction_weight * mse

@@ -467,10 +467,11 @@ if __name__ == "__main__":
     primary_stock_code = '600036.SH'
     idx_code_list = []#'000001.SH','399001.SZ']#,'000300.SH','000905.SH']
     rel_code_list = ALL_CODE_LIST
-    ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
+    #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
+    ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20180104', end_date='20250903', train_size=0.8)
     pd.set_option('display.max_columns', None)
-    print(pd.DataFrame(ds.raw_train_x).iloc[5000:5050])
-    print(pd.DataFrame(ds.train_y).iloc[5000:5050])
+    #print(pd.DataFrame(ds.raw_train_x).iloc[5000:5050])
+    #print(pd.DataFrame(ds.train_y).iloc[5000:5050])
     #tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     ### 只用T1 low的涨跌幅为回归目标 ###
     #ty_reg = ty[:, 0].astype(float)

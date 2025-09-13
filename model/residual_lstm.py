@@ -90,7 +90,9 @@ class ResidualLSTMModel:
                  dropout_rate=0.2,
                  use_se=True,
                  se_ratio=8,
-                 l2_reg=1e-5):
+                 l2_reg=1e-5,
+                 loss_fn=None
+                 ):
         """
         p: 放大尺度(向后兼容)
         depth: 残差块个数
@@ -118,6 +120,7 @@ class ResidualLSTMModel:
         self.use_se = use_se
         self.se_ratio = se_ratio
         self.l2_reg = l2_reg
+        self.loss_fn = loss_fn  # 保存传入的自定义损失（可为 None）
 
         logging.info(f"ResidualLSTMModel: input shape={self.x.shape}, y shape={self.y.shape}")
         self._build(self.x.shape[1:])
@@ -158,9 +161,10 @@ class ResidualLSTMModel:
 
     def train(self, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
         # Huber损失函数，对异常值更鲁棒
+        loss_to_use = self.loss_fn if getattr(self, 'loss_fn', None) is not None else Huber(delta=0.1) #'mse'
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss=Huber(delta=0.1),  # 使用Huber损失而不是MSE
+            loss=loss_to_use, #Huber(delta=0.1),  # 使用Huber损失而不是MSE
             metrics=['mae']
         )        
         

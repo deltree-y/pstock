@@ -32,6 +32,7 @@ class Stock():
         self.load()
         self.load(if_force_load_from_tushare=True) if self.if_need_re_update() else None
         self.df_filtered = self.get_df_between(self.start_date, self.end_date)
+        #logging.info(f"[{self.name}({self.ts_code})]要求获取[{start_date}]-[{end_date}], 实际获取[{self.df_filtered['trade_date'].min()}]-[{self.df_filtered['trade_date'].max()}], 共<{self.df_filtered.shape[0]}>行")
 
     #根据csv文件是否存在,选择是从文件加载还是从tushare获取
     def load(self, if_force_load_from_tushare=False):
@@ -83,7 +84,7 @@ class Stock():
     def get_df_between(self, start_date, end_date):
         if self.df_raw is not None:
             mask = (self.df_raw['trade_date'].astype(int) >= int(start_date)) & (self.df_raw['trade_date'].astype(int) <= int(end_date))
-            logging.info(f"[{self.name}({self.ts_code})]要求获取[{start_date}]-[{end_date}], 实际获取[{self.df_raw[mask]['trade_date'].min()}]-[{self.df_raw[mask]['trade_date'].max()}], 共<{self.df_raw[mask].shape[0]}>行")
+            #logging.info(f"[{self.name}({self.ts_code})]要求获取[{start_date}]-[{end_date}], 实际获取[{self.df_raw[mask]['trade_date'].min()}]-[{self.df_raw[mask]['trade_date'].max()}], 共<{self.df_raw[mask].shape[0]}>行")
             return self.df_raw[mask]
         else:
             logging.error(f"[{self.name}({self.ts_code})] - 数据为空，无法获取指定日期范围的数据.")

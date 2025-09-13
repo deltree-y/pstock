@@ -58,9 +58,10 @@ class Trade():
         #4. 统一对齐所有后续需要使用的数据(剪切头尾数据)
         self.combine_data_np, self.raw_data_np = self.get_aligned_trade_dates(max_cut_days)
 
-        #logging.debug(f"combine_data_np head -\n{pd.DataFrame(self.combine_data_np).head(5)}\ncombine_data_np tail -\n{pd.DataFrame(self.combine_data_np).tail(5)}")
-        #logging.debug(f"raw_data_np head -\n{pd.DataFrame(self.raw_data_np).head(5)}\nraw_data_np tail -\n{pd.DataFrame(self.raw_data_np).tail(5)}")
-        logging.info(f"[{self.stock.name}({self.ts_code})]Trade处理完毕! 最终可用数据行数:<{self.__trade_datas.shape[0]}>，特征列数:<{self.raw_data_np.shape[1]-1}>")
+        #logging.info(f"combine_data_np head -\n{pd.DataFrame(self.combine_data_np).head(5)}\ncombine_data_np tail -\n{pd.DataFrame(self.combine_data_np).tail(5)}")
+        #logging.info(f"raw_data_np head -\n{pd.DataFrame(self.raw_data_np).head(5)}\nraw_data_np tail -\n{pd.DataFrame(self.raw_data_np).tail(5)}")
+        #logging.info(f"combine_data_np shape: {self.combine_data_np.shape}, raw_data_np shape: {self.raw_data_np.shape}")
+        #logging.info(f"[{self.stock.name}({self.ts_code})]Trade处理完毕! 最终可用数据行数:<{self.__trade_datas.shape[0]}>，特征列数:<{self.raw_data_np.shape[1]-1}>")
 
     #新增特征列
     def update_new_feature(self):
@@ -110,7 +111,7 @@ class Trade():
             #皮尔逊+互信息+树模型交集特征
             #remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'date_full', 'ps', 'buy_elg_vol', 'rsi_14', 'DMP_14', 'buy_lg_vol', 'atr_14', 'buy_md_vol', 'pb', 'vol', 'willr_14', 'sell_elg_vol', 'stddev_10', 'mfi_14', 'sell_sm_vol', 'pe', 'sell_lg_vol', 'obv', 'amount', 'natr_14']#, 'dv_ratio', 'STOCHd_3_3_3', 'total_mv']#, 'buy_sm_vol', 'BBB_20_2.0', 'ADX_14', 'roc_10', 'cmf_20', 'turnover_rate_f', 'sell_md_vol']
             remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'date_full', 'mfi_14', 'pb', 'amount', 'buy_elg_vol', 'stddev_10', 'pe', 'buy_md_vol', 'vol', 'atr_14', 'natr_14', 'willr_14', 'DMP_14', 'sell_lg_vol', 'obv', 'sell_elg_vol', 'rsi_14', 'ps', 'sell_sm_vol', 'buy_lg_vol']
-            logging.info(f"After feature selection, remain {len(remain_list)}")
+            #logging.info(f"After feature selection, remain {len(remain_list)}")
             #self.col_low, self.col_high, self.col_close, self.col_code_idx = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2, remain_list.index('stock_idx')-2
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2
         elif stock_type == StockType.RELATED:
