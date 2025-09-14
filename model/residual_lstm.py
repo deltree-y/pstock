@@ -11,6 +11,7 @@ from keras.optimizers import Adam
 from model.history import LossHistory
 from keras.losses import Huber
 from model.utils import WarmUpCosineDecayScheduler
+from model.losses import mse_with_variance_push, direction_weighted_mse, custom_asymmetric_loss 
 from keras.layers import (
     Input, LSTM, Bidirectional, Dropout, LayerNormalization,
     Dense, Add, Conv1D, GlobalAveragePooling1D, Multiply, Activation
@@ -162,6 +163,7 @@ class ResidualLSTMModel:
     def train(self, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
         # Huber损失函数，对异常值更鲁棒
         loss_to_use = self.loss_fn if getattr(self, 'loss_fn', None) is not None else Huber(delta=0.1) #'mse'
+        loss_to_use = custom_asymmetric_loss    # 使用自定义非对称损失函数
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
             loss=loss_to_use, #Huber(delta=0.1),  # 使用Huber损失而不是MSE

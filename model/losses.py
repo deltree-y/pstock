@@ -54,3 +54,13 @@ def direction_weighted_mse(y_true, y_pred):
     direction_weight = 0.7 + 0.3 * same_direction  # 方向正确时给予更低权重
     
     return direction_weight * mse
+
+def custom_asymmetric_loss(y_true, y_pred):
+    """
+    自定义非对称损失函数，对上涨预测错误惩罚更重
+    """
+    from keras import backend as K
+    error = y_pred - y_true
+    # 上涨预测为下跌的惩罚权重更大
+    weights = K.cast(K.greater(y_true, 0), K.floatx()) * 1.5 + 1.0
+    return K.mean(K.square(error) * weights, axis=-1)

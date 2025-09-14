@@ -82,8 +82,8 @@ if __name__ == "__main__":
         dropout_rate=dropout_rate,
         use_se=use_se,
         se_ratio=8,
-        l2_reg=1e-5,
-        loss_fn=loss_fn
+        l2_reg=1e-5#,
+        #loss_fn=loss_fn
     )
 
     logging.info(f"Start training: epochs={epochs}, batch={batch_size}, lr={learning_rate}")
