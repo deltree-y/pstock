@@ -8,6 +8,8 @@ from scipy.stats import pearsonr
 import numpy as np
 import logging, logging.config
 import matplotlib.pyplot as plt
+from scipy.stats import skew, kurtosis
+from numba import njit
 
 def setup_logging():
     logging.basicConfig(
@@ -224,6 +226,37 @@ def plot_error_distribution(y_true, y_pred, title="mae/rmse distribution", save_
     if save_path:
         plt.savefig(save_path, dpi=150)
     plt.show()
+
+@njit
+def rolling_skew(arr, window):
+    n = arr.shape[0]
+    result = np.empty(n)
+    result[:] = np.nan
+    for i in range(window - 1, n):
+        x = arr[i - window + 1:i + 1]
+        mean = np.mean(x)
+        std = np.std(x)
+        if std == 0:
+            result[i] = 0.0  # or np.nan
+        else:
+            result[i] = np.mean(((x - mean) / std) ** 3)
+    return result
+
+@njit
+def rolling_kurtosis(arr, window):
+    n = arr.shape[0]
+    result = np.empty(n)
+    result[:] = np.nan
+    for i in range(window - 1, n):
+        x = arr[i - window + 1:i + 1]
+        mean = np.mean(x)
+        std = np.std(x)
+        if std == 0:
+            result[i] = -3.0  # or np.nan
+        else:
+            result[i] = np.mean(((x - mean) / std) ** 4) - 3
+    return result
+
 
 class SuperList(list):
     def append(self, item):

@@ -5,13 +5,14 @@ import numpy as np
 import pandas_ta as ta
 from datetime import datetime
 from pathlib import Path
+from scipy.stats import skew, kurtosis
 
 o_path = os.getcwd()
 sys.path.append(o_path)
 sys.path.append(str(Path(__file__).resolve().parents[0]))
 from stock import Stock
 from stockinfo import StockInfo
-from utils.utils import StockType, setup_logging
+from utils.utils import StockType, setup_logging, rolling_skew, rolling_kurtosis
 from utils.tk import TOKEN
 from utils.const_def import BASE_DIR, TMP_DIR
 
@@ -69,6 +70,9 @@ class Trade():
         #1. 创建一个交易数据的DataFrame格式,并按日期升序排列(最早日期在前),TA-lib需要按升序排列
         self.trade_df = self.raw_data_df.copy().sort_index(ascending=False).reset_index(drop=True) #按日期升序排列,方便计算
 
+        #1.5 计算高级特征
+        max_cut_days = self.extract_advanced_features()
+
         #2. 通过计算,新增特征数据(新增列)
         #补充日期\星期特征
         self.trade_df['date_full'] = self.trade_df['trade_date'].astype(str).astype(int)
@@ -99,20 +103,57 @@ class Trade():
             self.trade_df['natr_14'], max_cut_days = ta.natr(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14), max(max_cut_days, 13)
             
             max_cut_days =max(max_cut_days, 27)
-        
+
+        self.trade_df.fillna(0,inplace=True)
+
         #3. 将trade_df按日期降序排列(最新日期在前),方便后续使用
         self.trade_df = self.trade_df.copy().sort_index(ascending=False).reset_index(drop=True) 
         return max_cut_days
-    
+
+    def extract_advanced_features(self):
+        """提取高级特征"""
+        # 假设raw_data是包含价格和交易量的DataFrame
+        #df = self.trade_df
+        
+        # 1. 提取价格动量特征
+        self.trade_df['return_1d'] = self.trade_df['close'].pct_change(1)
+        self.trade_df['return_5d'] = self.trade_df['close'].pct_change(5)
+        self.trade_df['return_10d'] = self.trade_df['close'].pct_change(10)
+        
+        # 2. 波动率特征
+        self.trade_df['volatility_5d'] = self.trade_df['return_1d'].rolling(5).std()
+        self.trade_df['volatility_10d'] = self.trade_df['return_1d'].rolling(10).std()
+        
+        # 3. 价格与成交量关系
+        self.trade_df['price_volume_ratio'] = self.trade_df['close'] / self.trade_df['vol']
+        self.trade_df['volume_change'] = self.trade_df['vol'].pct_change(1)
+        
+        # 4. 高级统计特征
+        #self.trade_df['return_skew_5d'] = self.trade_df['return_1d'].rolling(5).apply(lambda x: skew(x))
+        #self.trade_df['return_kurt_5d'] = self.trade_df['return_1d'].rolling(5).apply(lambda x: kurtosis(x))
+        arr = self.trade_df['return_1d'].to_numpy()
+        self.trade_df['return_skew_5d'] = rolling_skew(arr, 5)
+        self.trade_df['return_kurt_5d'] = rolling_kurtosis(arr, 5)
+        # 5. 非线性变换
+        self.trade_df['log_return'] = np.log(self.trade_df['close'] / self.trade_df['close'].shift(1))
+        self.trade_df['log_volume'] = np.log(self.trade_df['vol'])
+
+        max_cut_days = 10  # 新增特征需要丢弃的天数为10
+        return max_cut_days
+
+
     #根据数据类型,删除不需要的特征
     def drop_features_by_type(self, stock_type):
         if stock_type == StockType.PRIMARY or stock_type == StockType.RELATED:
             remain_list = self.trade_df.columns.to_list()
             #皮尔逊+互信息+树模型交集特征
-            #remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'date_full', 'ps', 'buy_elg_vol', 'rsi_14', 'DMP_14', 'buy_lg_vol', 'atr_14', 'buy_md_vol', 'pb', 'vol', 'willr_14', 'sell_elg_vol', 'stddev_10', 'mfi_14', 'sell_sm_vol', 'pe', 'sell_lg_vol', 'obv', 'amount', 'natr_14']#, 'dv_ratio', 'STOCHd_3_3_3', 'total_mv']#, 'buy_sm_vol', 'BBB_20_2.0', 'ADX_14', 'roc_10', 'cmf_20', 'turnover_rate_f', 'sell_md_vol']
-            remain_list = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'date_full', 'mfi_14', 'pb', 'amount', 'buy_elg_vol', 'stddev_10', 'pe', 'buy_md_vol', 'vol', 'atr_14', 'natr_14', 'willr_14', 'DMP_14', 'sell_lg_vol', 'obv', 'sell_elg_vol', 'rsi_14', 'ps', 'sell_sm_vol', 'buy_lg_vol']
+            basic_features = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'date_full', 'mfi_14', 'pb', \
+                              'amount', 'buy_elg_vol', 'stddev_10', 'pe', 'buy_md_vol', 'vol', 'atr_14', 'natr_14', 'willr_14', 'DMP_14', \
+                                'sell_lg_vol', 'obv', 'sell_elg_vol', 'rsi_14', 'ps', 'sell_sm_vol', 'buy_lg_vol']
+            advanced_features = ['return_1d', 'return_5d', 'return_10d', 'volatility_5d', 'volatility_10d', \
+                                 'price_volume_ratio', 'volume_change', 'return_skew_5d', 'return_kurt_5d', 'log_return', 'log_volume']
+            remain_list = basic_features + advanced_features
             #logging.info(f"After feature selection, remain {len(remain_list)}")
-            #self.col_low, self.col_high, self.col_close, self.col_code_idx = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2, remain_list.index('stock_idx')-2
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2
         elif stock_type == StockType.RELATED:
             pass
