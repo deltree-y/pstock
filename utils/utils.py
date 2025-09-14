@@ -1,4 +1,5 @@
 # coding=utf-8
+from collections import Counter
 from datetime import datetime, timedelta
 from math import ceil
 from enum import Enum, auto
@@ -257,6 +258,12 @@ def rolling_kurtosis(arr, window):
             result[i] = np.mean(((x - mean) / std) ** 4) - 3
     return result
 
+def print_ratio(lst, label=""):
+    logging.info(f"count of {label}:")
+    counter, total = Counter(lst), len(lst)
+    for num, count in counter.items():
+        percent = count / total
+        logging.info(f"{num}: {percent:.2%}")    
 
 class SuperList(list):
     def append(self, item):

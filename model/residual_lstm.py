@@ -1,13 +1,12 @@
 import os, sys, logging
-import numpy as np
 import tensorflow as tf
 from pathlib import Path
 from datetime import datetime
 from keras.models import Model, load_model
-from keras.layers import Input, LSTM, Dense, Dropout, Add, Concatenate, BatchNormalization, LayerNormalization, Bidirectional
 from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
 from keras.regularizers import l2
 from keras.optimizers import Adam
+from utils.const_def import NUM_CLASSES
 from model.history import LossHistory
 from keras.losses import Huber
 from model.utils import WarmUpCosineDecayScheduler
@@ -125,6 +124,7 @@ class ResidualLSTMModel:
 
         logging.info(f"ResidualLSTMModel: input shape={self.x.shape}, y shape={self.y.shape}")
         self._build(self.x.shape[1:])
+        self.model.summary()
 
     def _build(self, input_shape):
         inp = Input(shape=input_shape, name="input")
@@ -152,22 +152,19 @@ class ResidualLSTMModel:
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc1")(x_last)
         x_last = Dropout(self.dropout_rate, name="fc1_drop")(x_last)
-        x_last = Dense(self.base_units * self.p // 2, activation='relu',
+        x_last = Dense(32, activation='relu',
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc2")(x_last)
-        out = Dense(1, activation='linear', name="output")(x_last)
+        out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(x_last)
 
-        self.model = Model(inputs=inp, outputs=out, name="ResidualLSTMReg")
-    
+        self.model = Model(inputs=inp, outputs=out1)    
 
     def train(self, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
         # Huber损失函数，对异常值更鲁棒
-        loss_to_use = self.loss_fn if getattr(self, 'loss_fn', None) is not None else Huber(delta=0.1) #'mse'
-        loss_to_use = custom_asymmetric_loss    # 使用自定义非对称损失函数
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss=loss_to_use, #Huber(delta=0.1),  # 使用Huber损失而不是MSE
-            metrics=['mae']
+            loss={'output1': 'sparse_categorical_crossentropy'},
+            metrics={'output1': 'accuracy'}
         )        
         
         # 添加学习率调度和早停
@@ -207,44 +204,6 @@ class ResidualLSTMModel:
         spend_time = datetime.now() - start_time
         return "\n total spend:%.2f(h)/%.1f(m), %.1f(s)/epoc, %.2f(h)/10k"\
               %(spend_time.seconds/3600, spend_time.seconds/60, spend_time.seconds/epochs, 10000*(spend_time.seconds/3600)/epochs)
-
-    def analyze(self, vx, vy_orig, mean_y, std_y, desc=""):
-        """
-        vx: 验证集特征
-        vy_orig: 验证集真实标签(未标准化, 原百分比)
-        mean_y, std_y: 训练集目标的均值/标准差(若训练使用了标准化)
-        """
-        pred_scaled = self.model.predict(vx, batch_size=2048).reshape(-1)
-        y_pred = pred_scaled * std_y + mean_y
-        # 统计
-        real_mean, real_std = np.mean(vy_orig), np.std(vy_orig)
-        pred_mean, pred_std = np.mean(y_pred), np.std(y_pred)
-        collapse_ratio = pred_std / (real_std + 1e-9)
-        direction_acc = np.mean(np.sign(y_pred) == np.sign(vy_orig))
-        pearson = np.corrcoef(y_pred, vy_orig)[0, 1]
-        try:
-            from scipy.stats import spearmanr
-            spearman = spearmanr(y_pred, vy_orig).correlation
-        except Exception:
-            spearman = np.nan
-        qs = [0.1, 0.25, 0.5, 0.75, 0.9]
-        real_q = np.quantile(vy_orig, qs)
-        pred_q = np.quantile(y_pred, qs)
-        logging.info(f"[ANALYZE]{desc} real_mean={real_mean:.4f} real_std={real_std:.4f} "
-                     f"pred_mean={pred_mean:.4f} pred_std={pred_std:.4f} collapse_ratio={collapse_ratio:.3f}")
-        logging.info(f"[ANALYZE]{desc} dir_acc={direction_acc:.3f} pearson={pearson:.3f} spearman={spearman:.3f}")
-        for qi, rq, pq in zip(qs, real_q, pred_q):
-            logging.info(f"[ANALYZE]{desc} Q{qi*100:>4.0f} real={rq:.4f} pred={pq:.4f}")
-        return {
-            "real_mean": real_mean,
-            "real_std": real_std,
-            "pred_mean": pred_mean,
-            "pred_std": pred_std,
-            "collapse_ratio": collapse_ratio,
-            "direction_acc": direction_acc,
-            "pearson": pearson,
-            "spearman": spearman
-        }
 
     def save(self, filename):
         try:

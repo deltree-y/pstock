@@ -1,4 +1,4 @@
-import json
+import json,logging
 import os
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -36,6 +36,7 @@ class BinManager:
             if n_bins is None:
                 raise ValueError("初始化时输入数据需指定分组数量 n_bins.")
             if n_bins >= len(data_or_filename):
+                logging.error(f"数据: {(data_or_filename)}, 分组数量: {n_bins}")
                 raise ValueError("分组数量 n_bins 不能大于或等于数据长度.")
             _, bins = pd.qcut(data_or_filename, q=n_bins, retbins=True, duplicates='drop')
             self._validate_bins(bins)

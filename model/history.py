@@ -23,8 +23,8 @@ class LossHistory(Callback):
         # 只输出回归损失
         if logs:
             print(f"\n{epoch + 1}/{self.epoch}: "
-                  f"l/m=[{logs.get('loss'):.4f}/{logs.get('mae'):.4f}], "
-                  f"val l/m=[{logs.get('val_loss'):.4f}/{logs.get('val_mae'):.4f}]({loss_diff:+.4f}), ",
+                  f"l/a=[{logs.get('loss'):.4f}/{logs.get('accuracy')*100:.2f}], "
+                  f"val l/a=[{logs.get('val_loss'):.4f}/{logs.get('val_accuracy')*100:.2f}]({loss_diff:+.4f}), ",
                   f"{speed:.1f}s/epo,ed:{finished_time}({min_remaining/60:.1f}h)", end="", flush=True)
                     
             if epoch > 0 and logs.get('val_loss') < min(self.val_losses[:-1]):

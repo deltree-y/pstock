@@ -48,7 +48,6 @@ class StockDataset():
         self.date_list = self.raw_dataset[:,0]
         #处理关联股票数据
         self.rel_raw_dataset_list, self.rel_full_raw_data_list = zip(*[self.get_trade_data(rel_trade) for rel_trade in self.rel_trade_list]) if self.if_has_related else ([], [])
-        #self.raw_dataset = np.vstack(([self.raw_dataset] + list(self.rel_raw_dataset_list)) if self.if_has_related else self.raw_dataset)
         self.full_raw_data = np.vstack(([self.full_raw_data] + list(self.rel_full_raw_data_list)) if self.if_has_related else self.full_raw_data)
 
         #处理指数数据
@@ -76,6 +75,11 @@ class StockDataset():
         ### 方案二:每只股票单独切分训练/测试，再合并 ###
         # 1. 合并主股票与相关联股票的原始数据
         raw_dataset_list = [self.raw_dataset] + list(self.rel_raw_dataset_list) if self.if_has_related else [self.raw_dataset]
+        self.raw_dataset = np.vstack(raw_dataset_list)
+
+        # 1.5 基于所有的原始y数据生成分箱器
+        raw_y = self.raw_dataset[:, -2:].astype(float) #取出最后2列作为y
+        self.bins1, self.bins2 = self.get_bins(raw_y)
 
         # 2. 按股票分离测试集与验证集,并返回对应的y
         (self.raw_train_x, self.train_y), (self.raw_test_x, self.test_y) = self.split_train_test_dataset_by_stock(raw_dataset_list, self.train_size)
@@ -87,72 +91,9 @@ class StockDataset():
         self.normalized_windowed_train_x = self.get_normalized_windowed_x(self.raw_train_x)
         self.normalized_windowed_test_x = self.get_normalized_windowed_x(self.raw_test_x) if train_size < 1 else None
 
-
-        # ---------------- MOD VOL NORM: 计算窗口级别波动（percent）并生成 vol-normalized targets ----------
-        # 说明：raw_train_x/raw_test_x 为未归一化的原始日度特征矩阵，shape [N_days, F]
-        # get_windowed_x_by_raw(raw_train_x) 会返回 shape [N_windows, W, F]
-        try:
-            # 生成原始窗口（未归一化）
-            raw_windowed_train_x = self.get_windowed_x_by_raw(self.raw_train_x) if (hasattr(self, 'raw_train_x') and self.raw_train_x is not None and self.raw_train_x.size>0) else np.array([])
-            raw_windowed_test_x = self.get_windowed_x_by_raw(self.raw_test_x) if (hasattr(self, 'raw_test_x') and self.raw_test_x is not None and self.raw_test_x.size>0) else np.array([])
-
-            # 计算每个窗口的波动（std of returns）并转为百分比（vol_pct）
-            self.windowed_train_vol_pct = self.get_windowed_vol_pct_from_raw_windows(raw_windowed_train_x)
-            self.windowed_test_vol_pct = self.get_windowed_vol_pct_from_raw_windows(raw_windowed_test_x) if raw_windowed_test_x.size>0 else np.array([])
-
-            # 对齐 train_y 与窗口（train_y 还未被后面裁剪）：
-            # normalized_windowed_train_x 长度 = len(raw_train_x) - window_size + 1
-            # 我们需要与 dataset 原来的 y 对齐：后续逻辑会 do self.train_y = self.train_y[:-self.window_size+1]
-            # 因此此处构造 aligned_train_y = self.train_y[:-window_size+1] 与 windowed_vol_pct 对齐
-            if self.train_y is not None and self.train_y.size>0 and self.windowed_train_vol_pct.size>0:
-                # train_y shape: [M, 2] (y1,y2) ; get y1 column
-                y1_all = self.train_y[:, 0].astype(float)  # 注意 dataset.get_binned_y 已乘以100
-                # 截断以与窗口数对齐
-                aligned_y1 = y1_all[: self.windowed_train_vol_pct.shape[0]] if len(y1_all) >= self.windowed_train_vol_pct.shape[0] else y1_all
-                # 计算 vol-normalized target: target / vol_pct (保持两者单位均为百分比)
-                # 防止除0
-                eps = 1e-9
-                self.train_y_vol_norm = aligned_y1 / (self.windowed_train_vol_pct + eps)
-                # z-score 标准化
-                self.train_volnorm_mean = np.mean(self.train_y_vol_norm) if self.train_y_vol_norm.size>0 else 0.0
-                self.train_volnorm_std = np.std(self.train_y_vol_norm) + 1e-9 if self.train_y_vol_norm.size>0 else 1.0
-                self.train_y_vol_norm_scaled = (self.train_y_vol_norm - self.train_volnorm_mean) / self.train_volnorm_std
-            else:
-                self.train_y_vol_norm = np.array([])
-                self.train_y_vol_norm_scaled = np.array([])
-                self.train_volnorm_mean = 0.0
-                self.train_volnorm_std = 1.0
-
-            # test side
-            if self.test_y is not None and self.test_y.size>0 and self.windowed_test_vol_pct.size>0:
-                y1_test_all = self.test_y[:, 0].astype(float)
-                aligned_y1_test = y1_test_all[: self.windowed_test_vol_pct.shape[0]] if len(y1_test_all) >= self.windowed_test_vol_pct.shape[0] else y1_test_all
-                eps = 1e-9
-                self.test_y_vol_norm = aligned_y1_test / (self.windowed_test_vol_pct + eps)
-                # 使用训练集均值/方差进行 z-score（推理一致性）
-                self.test_y_vol_norm_scaled = (self.test_y_vol_norm - self.train_volnorm_mean) / self.train_volnorm_std
-            else:
-                self.test_y_vol_norm = np.array([])
-                self.test_y_vol_norm_scaled = np.array([])
-
-            logging.info(f"[VOL NORM] windowed_train_vol_pct shape: {self.windowed_train_vol_pct.shape}, train_y_vol_norm shape: {self.train_y_vol_norm.shape}")
-            if self.windowed_test_vol_pct is not None:
-                logging.info(f"[VOL NORM] windowed_test_vol_pct shape: {self.windowed_test_vol_pct.shape}, test_y_vol_norm shape: {self.test_y_vol_norm.shape}")
-        except Exception as e:
-            logging.warning(f"[VOL NORM] compute vol norm failed: {e}")
-            self.windowed_train_vol_pct = np.array([])
-            self.windowed_test_vol_pct = np.array([])
-            self.train_y_vol_norm = np.array([])
-            self.train_y_vol_norm_scaled = np.array([])
-            self.test_y_vol_norm = np.array([])
-            self.test_y_vol_norm_scaled = np.array([])
-            self.train_volnorm_mean = 0.0
-            self.train_volnorm_std = 1.0
-
         # 6. 对齐y数据, 因为x按窗口化后会减少数据,所以y也要按窗口大小相应减少
-        self.train_y_no_window, self.test_y_no_window = self.train_y, self.test_y #保存未窗口化的y数据,供有需要的使用
-        self.train_y, self.test_y = self.train_y[:-self.window_size+1], self.test_y[:-self.window_size+1] #由于x按窗口化后会减少数据,所以y也要相应减少
-
+        self.train_y_no_window, self.test_y_no_window = self.train_y.astype(int), self.test_y.astype(int) #保存未窗口化的y数据,供有需要的使用
+        self.train_y, self.test_y = self.train_y[:-self.window_size+1].astype(int), self.test_y[:-self.window_size+1].astype(int) #由于x按窗口化后会减少数据,所以y也要相应减少
 
         logging.info(f"train x/y shape - <{self.normalized_windowed_train_x.shape}/{self.train_y.shape}>")
         logging.info(f"test  x/y shape - <{self.normalized_windowed_test_x.shape}/{self.test_y.shape}>")
@@ -183,17 +124,23 @@ class StockDataset():
     def get_binned_y(self, raw_y):
         return raw_y*100
 
-    #按本dataset的y数据,生成对应的分箱器,并返回分箱后的y数据
     #此处提供两种分箱方法,可选其一
+    #按本dataset的y数据,生成对应的分箱器,并返回分箱后的y数据
+    def get_bins(self, raw_y):
+        y1,y2 = raw_y[:, 0], raw_y[:, 1]
+        bins1 = BinManager(y1, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y1_bins.json"))
+        bins2 = BinManager(y2, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y2_bins.json"))
+        return bins1, bins2
     def get_binned_y_use_qcut(self, raw_y):
         y1,y2 = raw_y[:, 0], raw_y[:, 1]
-        self.bins1 = BinManager(y1, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y1_bins.json"))
-        self.bins2 = BinManager(y2, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y2_bins.json"))
-        y1_binned = np.array([RateCat(rate=x,scale=self.bins1.prop_bins,right=True).get_label() for x in y1])
-        y2_binned = np.array([RateCat(rate=x,scale=self.bins2.prop_bins,right=True).get_label() for x in y2])
-        return (np.array([y1_binned, y2_binned]).astype(int)).transpose()
+        if self.bins1 is not None and self.bins2 is not None:
+            y1_binned = np.array([RateCat(rate=x,scale=self.bins1.prop_bins,right=True).get_label() for x in y1])
+            y2_binned = np.array([RateCat(rate=x,scale=self.bins2.prop_bins,right=True).get_label() for x in y2])
+            return (np.array([y1_binned, y2_binned]).astype(int)).transpose()
+        logging.error("StockDataset.get_binned_y_use_qcut() - bins1 or bins2 is None.")
+        exit()
+        
     #按手工生成具体的分箱,并返回分箱后的y数据
-    #此处提供两种分箱方法,可选其一
     def get_binned_y_use_scale(self, raw_y):
         y1,y2 = raw_y[:, 0], raw_y[:, 1]
         self.bins1 = np.array([-np.inf] + T1L_SCALE + [np.inf])
@@ -217,7 +164,10 @@ class StockDataset():
         train_x_list, train_y_list, test_x_list, test_y_list = [], [], [], []
         for raw_data in raw_dataset_list:
             raw_x, raw_y = self.get_dataset_xy(raw_data)
-            dataset_y = self.get_binned_y(raw_y)
+            if len(raw_x) < NUM_CLASSES:
+                logging.error(f"StockDataset.split_train_test_dataset_by_stock() - Too few data, will be skipped. data shape: {raw_data.shape}")
+                continue
+            dataset_y = self.get_binned_y_use_qcut(raw_y)
             train_count = int(len(raw_x) * train_size)
             if train_count == len(raw_x):
                 # 数据太少时，全部划分到训练集
@@ -281,32 +231,6 @@ class StockDataset():
             x.append(x_window)
         return np.array(x).astype(float)
     
-    def get_windowed_vol_pct_from_raw_windows(self, raw_windowed_x):
-        """
-        计算每个窗口的收益率标准差并返回百分比表示（例如 1.23 表示 1.23%）
-        raw_windowed_x: np.ndarray shape [N_windows, W, F]（未归一化）
-        使用 feature name 列表定位 'close' 列
-        """
-        if raw_windowed_x is None or raw_windowed_x.size == 0:
-            return np.array([])
-        feature_names = self.get_feature_names()
-        # 找 close 在 feature_names 中的位置
-        try:
-            close_idx = feature_names.index('close')
-        except ValueError:
-            # 若无法找到 'close'，使用一个保守的默认索引 2（许多实现中 close 在第三列）
-            close_idx = 2
-        close_series = raw_windowed_x[:, :, close_idx].astype(float)  # shape [N, W]
-        # returns shape [N, W-1]
-        with np.errstate(divide='ignore', invalid='ignore'):
-            returns = (close_series[:, 1:] - close_series[:, :-1]) / (close_series[:, :-1] + 1e-12)
-        vol = np.std(returns, axis=1)
-        vol = np.nan_to_num(vol, nan=0.0, posinf=0.0, neginf=0.0)
-        vol_pct = vol * 100.0
-        # 最小阈值避免除0
-        vol_pct = np.maximum(vol_pct, 1e-9)
-        return vol_pct
-
     #获取归一化,窗口化后的x数据
     def get_normalized_windowed_x(self, raw_x):
         self.get_scaler() if self.scaler is None else None
@@ -350,22 +274,6 @@ class StockDataset():
     #按指定列进行左连接
     # on - 指定连接的列,如['trade_date']
     def left_merge_np(self, left, right, col):
-        """
-        Performs a left merge (join) of two numpy arrays using a specified column index.
-
-        Args:
-            left (np.ndarray): The left numpy array to merge.
-            right (np.ndarray): The right numpy array to merge.
-            col (int): The column index to use as the key for merging in both arrays.
-
-        Returns:
-            np.ndarray: The merged result as a numpy array.
-
-        Notes:
-            - The function converts the input numpy arrays to pandas DataFrames for merging.
-            - If the column names used for merging are different, the redundant column from the right DataFrame is dropped after the merge.
-            - The output is converted back to a numpy array.
-        """
         df_left, df_right = pd.DataFrame(left), pd.DataFrame(right)
         left_col_name, right_col_name = df_left.columns[col], df_right.columns[col]
         df_merged = pd.merge(df_left, df_right, left_on=left_col_name, right_on=right_col_name, how='left')
@@ -470,8 +378,10 @@ if __name__ == "__main__":
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
     ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20180104', end_date='20250903', train_size=0.8)
     pd.set_option('display.max_columns', None)
-    #print(pd.DataFrame(ds.raw_train_x).iloc[5000:5050])
-    #print(pd.DataFrame(ds.train_y).iloc[5000:5050])
+    print(pd.DataFrame(ds.raw_train_x).iloc[5000:5010])
+    print(pd.DataFrame(ds.train_y).iloc[5000:5010])
+    print(ds.bins1.prop_bins)
+    print(ds.bins2.prop_bins)
     #tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     ### 只用T1 low的涨跌幅为回归目标 ###
     #ty_reg = ty[:, 0].astype(float)

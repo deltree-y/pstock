@@ -71,7 +71,7 @@ class RateCat(Cat):
         elif one_hot is not None:
             self.one_hot = one_hot
             super().__init__(one_hot=self.one_hot)
-            self.rate = self.get_rate_from_label(method)    
+            self.rate = self.get_rate_from_label(method)
     
     #根据变化率及刻度表, 输出编号
     #示例 - 
@@ -87,6 +87,7 @@ class RateCat(Cat):
     #示例 - 
     #输入<1,'min'>输出<-0.928>, 输入<1,'max'>输出<-0.913>
     def get_rate_from_label(self, method='avg'):
+        #logging.info(f"RateCat.get_rate_from_label() - label={self.label}, method={method}, scale={self.scale}")
         if self.label is not None and self.scale is not None:
             if method == 'avg':
                 if self.label == 0:
