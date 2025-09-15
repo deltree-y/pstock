@@ -1,4 +1,5 @@
 # coding=utf-8
+import warnings
 from collections import Counter
 from datetime import datetime, timedelta
 from math import ceil
@@ -68,20 +69,20 @@ def get_mind_value(value, base_value):
             return int(value) - 0.03
     return value
 
-def feature_importance_analysis(ds, feature_names, n_features=25):
+def feature_importance_analysis(ds, feature_names, pearson_threshold=0.03, mi_threshold=0.01, importance_threshold=0.01, n_features=25):
     """分析并选择最重要的特征"""
     feature_data = ds.raw_train_x[-len(ds.train_y):]  # 对齐数据
     target = ds.train_y[:, 0]  # 回归目标
     
     # 结合多种特征选择方法
     results = auto_select_features(feature_data, target, feature_names,
-                              pearson_threshold=0.03, mi_threshold=0.01,
+                              pearson_threshold=pearson_threshold, mi_threshold=mi_threshold,
                               print_detail=True)
     
     # 使用随机森林获取特征重要性
     selected_rf, rf_scores = select_features_by_tree_importance(
         feature_data, target, feature_names,
-        importance_threshold=0.01,
+        importance_threshold=importance_threshold,
         print_detail=True
     )
     
@@ -143,7 +144,9 @@ def auto_select_features(feature_data, target, feature_names,
     """
     pearson_scores = []
     for i in range(feature_data.shape[1]):
-        corr, _ = pearsonr(feature_data[:, i], target)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            corr, _ = pearsonr(feature_data[:, i], target)
         pearson_scores.append(abs(corr))
     mi_scores = mutual_info_regression(feature_data, target)
     
@@ -154,11 +157,11 @@ def auto_select_features(feature_data, target, feature_names,
         print("=== 皮尔逊相关系数 ===")
         for fname, score in zip(feature_names, pearson_scores):
             print(f"{fname}: {score:.3f}")
-        print("皮尔逊强相关特征:", pearson_selected)
+        print(f"皮尔逊强相关特征({len(pearson_selected)}):", pearson_selected)
         print("\n=== 互信息 ===")
         for fname, score in zip(feature_names, mi_scores):
             print(f"{fname}: {score:.3f}")
-        print("互信息强相关特征:", mi_selected)
+        print(f"互信息强相关特征({len(mi_selected)}):", mi_selected)
     return {
         "pearson_selected": pearson_selected,
         "mi_selected": mi_selected,

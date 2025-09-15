@@ -5,7 +5,7 @@ import numpy as np
 import pandas_ta as ta
 from datetime import datetime
 from pathlib import Path
-from scipy.stats import skew, kurtosis
+from itertools import chain
 
 o_path = os.getcwd()
 sys.path.append(o_path)
@@ -27,12 +27,13 @@ from utils.const_def import BASE_DIR, TMP_DIR
 #       self.raw_data_np           (np)包含日期(首列),所有特征, 不含t1t2变化率(最后两列)
 
 class Trade():
-    def __init__(self, ts_code, si, stock_type=StockType.PRIMARY, start_date=None, end_date=None):
+    def __init__(self, ts_code, si, stock_type=StockType.PRIMARY, start_date=None, end_date=None, if_use_all_features=False):
         self.ts_code, self.si = ts_code, si
         self.start_date = start_date if start_date is not None else str(self.si.get_start_date(self.ts_code))
         self.end_date = end_date if end_date is not None else datetime.today().strftime('%Y%m%d')
         self.asset = self.si.get_asset(self.ts_code)
         self.stock_type = stock_type if self.asset == 'E' else StockType.INDEX
+        self.if_use_all_features = if_use_all_features
         logging.debug(f"Trade::__init__() - ts_code:{ts_code}, start_date:{self.start_date}, end_date:{self.end_date}")
         self.stock = Stock(ts_code, si, self.start_date, self.end_date)
         self.trade_count = len(self.stock.df_filtered['trade_date'].values)
@@ -145,14 +146,19 @@ class Trade():
     #根据数据类型,删除不需要的特征
     def drop_features_by_type(self, stock_type):
         if stock_type == StockType.PRIMARY or stock_type == StockType.RELATED:
-            remain_list = self.trade_df.columns.to_list()
             #皮尔逊+互信息+树模型交集特征
-            basic_features = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'date_full', 'mfi_14', 'pb', \
-                              'amount', 'buy_elg_vol', 'stddev_10', 'pe', 'buy_md_vol', 'vol', 'atr_14', 'natr_14', 'willr_14', 'DMP_14', \
-                                'sell_lg_vol', 'obv', 'sell_elg_vol', 'rsi_14', 'ps', 'sell_sm_vol', 'buy_lg_vol']
+            basic_features = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'date_full']
+            extra_features_15 = ['volatility_10d', 'willr_14', 'turnover_rate_f', 'stddev_10', 'pb', 'ps', 'date_full', \
+                                 'total_mv', 'stock_idx', 'pe', 'BBB_20_2.0', 'dv_ratio', 'volatility_5d', 'return_5d', 'natr_14']
+            extra_features_34 = ['macd_signal', 'cci_20', 'willr_14', 'stddev_10', 'date_full', 'obv', 'pe', \
+                                 'cmf_20', 'dv_ratio', 'natr_14', 'volatility_10d', 'momentum_10', 'turnover_rate_f', \
+                                 'pb', 'mfi_14', 'ps', 'BBP_20_2.0', 'rsi_14', 'stock_idx', 'macd_hist', 'volatility_5d', \
+                                 'DMN_14', 'STOCHd_3_3_3', 'change', 'macd', 'ADX_14', 'DMP_14', 'total_mv', 'atr_14', \
+                                 'BBB_20_2.0', 'return_5d', 'amount', 'return_10d', 'roc_10']
             advanced_features = ['return_1d', 'return_5d', 'return_10d', 'volatility_5d', 'volatility_10d', \
                                  'price_volume_ratio', 'volume_change', 'return_skew_5d', 'return_kurt_5d', 'log_return', 'log_volume']
-            remain_list = basic_features + advanced_features
+            remain_list = list(dict.fromkeys(chain(basic_features, extra_features_34, advanced_features)))    #取并集
+            remain_list = self.trade_df.columns.to_list() if self.if_use_all_features else remain_list
             #logging.info(f"After feature selection, remain {len(remain_list)}")
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2
         elif stock_type == StockType.RELATED:
