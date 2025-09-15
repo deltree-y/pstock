@@ -31,11 +31,11 @@ from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 # | 归一化, 窗口化后的x            | self.normalized_windowed_train_x  | 归一化, 窗口化后的训练集x, 三维数组                             | numpy.array        |                                  |
 # |                             | self.normalized_windowed_test_x   | 归一化, 窗口化后的测试集x, 三维数组                             | numpy.array        |                                  |
 class StockDataset():
-    def __init__(self, ts_code, idx_code_list, rel_code_list, si, start_date=None, end_date=None, window_size=CONTINUOUS_DAYS, train_size=0.8, if_update_scaler=False):
+    def __init__(self, ts_code, idx_code_list, rel_code_list, si, start_date=None, end_date=None, window_size=CONTINUOUS_DAYS, train_size=0.8, if_update_scaler=False, if_use_all_features=False):
         #logging.debug(f"StockDataset.init - start_date:{start_date}, end_date:{end_date}")
-        self.p_trade = Trade(ts_code, si, start_date=start_date, end_date=end_date)
-        self.idx_trade_list = [Trade(idx_code, si, stock_type=StockType.INDEX, start_date=start_date, end_date=end_date) for idx_code in idx_code_list]
-        self.rel_trade_list = [Trade(rel_code, si, stock_type=StockType.RELATED, start_date=start_date, end_date=end_date) for rel_code in rel_code_list]
+        self.p_trade = Trade(ts_code, si, start_date=start_date, end_date=end_date, if_use_all_features=if_use_all_features)
+        self.idx_trade_list = [Trade(idx_code, si, stock_type=StockType.INDEX, start_date=start_date, end_date=end_date, if_use_all_features=if_use_all_features) for idx_code in idx_code_list]
+        self.rel_trade_list = [Trade(rel_code, si, stock_type=StockType.RELATED, start_date=start_date, end_date=end_date, if_use_all_features=if_use_all_features) for rel_code in rel_code_list]
         self.if_has_index, self.if_has_related = len(self.idx_trade_list) > 0, len(self.rel_trade_list) > 0
         self.stock = self.p_trade.stock
         self.window_size = window_size

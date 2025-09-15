@@ -29,39 +29,40 @@ if __name__ == "__main__":
     related_stock_list = ALL_CODE_LIST
 
     # 注意：train_size 设大容易使验证集过少，这里保持 0.9 但你可以回退到 0.85 观察稳定性
-    ds = StockDataset(primary_stock_code,
-                      index_code_list,
-                      related_stock_list,
-                      si,
-                      start_date ='20200104',
-                      end_date   ='20250903',
-                      train_size=0.9)
+    ds = StockDataset(ts_code=primary_stock_code,
+                      idx_code_list=index_code_list,
+                      rel_code_list=related_stock_list,
+                      si=si,
+                      start_date='20200104',
+                      end_date='20250903',
+                      train_size=0.9,
+                      if_use_all_features=False)
 
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
 
     # 仅使用 y 的第一列作为回归目标（T1低值变化率 *100 后的结果）
-    ty_reg = ty[:, 0]#.astype(float)
-    vy_reg = vy[:, 0]#.astype(float)
+    ty1 = ty[:, 0]#.astype(float)
+    vy1 = vy[:, 0]#.astype(float)
 
 
     # ================== 训练参数 ==================
     epochs = 120
     batch_size = 1024
-    learning_rate = 1e-3
-    patience = 25
+    learning_rate = 0.00005
+    patience = 50
 
     # 模型结构配置
-    depth = 4          # 残差块数
-    base_units = 24    # 每方向 LSTM 基础单元（最终 BiLSTM 输出通道=2*base_units*p）
+    depth = 6          # 残差块数
+    base_units = 32    # 每方向 LSTM 基础单元（最终 BiLSTM 输出通道=2*base_units*p）
     p = 2              # 放大系数
-    dropout_rate = 0.25
+    dropout_rate = 0.3
     use_se = True
 
     tm = ResidualLSTMModel(
         x=tx,
-        y=ty_reg,
+        y=ty1,
         test_x=vx,
-        test_y=vy_reg,
+        test_y=vy1,
         p=p,
         depth=depth,
         base_units=base_units,
@@ -71,11 +72,11 @@ if __name__ == "__main__":
         l2_reg=1e-5#,
         #loss_fn=loss_fn
     )
-    logging.info(f"bins1: {ds.bins1.prop_bins}\nbins2: {ds.bins2.prop_bins}")
-    print_ratio(ty_reg, "ty_reg")
+    logging.info(f"\nbins1: {ds.bins1.prop_bins}\nbins2: {ds.bins2.prop_bins}")
+    print_ratio(ty1, "ty1")
 
     logging.info(f"Start training: epochs={epochs}, batch={batch_size}, lr={learning_rate}")
-    logging.info(f"tx shape: {tx.shape}, ty_reg shape: {ty_reg.shape}, vx shape: {vx.shape}, vy_reg shape: {vy_reg.shape}")
+    logging.info(f"tx shape: {tx.shape}, ty1 shape: {ty1.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
     train_ret = tm.train(
         epochs=epochs,
         batch_size=batch_size,
@@ -84,13 +85,9 @@ if __name__ == "__main__":
     logging.info(train_ret)
 
     # ================== 评估 ==================
-    y_pred_scaled = tm.model.predict(vx, batch_size=2048).reshape(-1)
-    y_pred = y_pred_scaled# * std_y + mean_y
-
-
+    y_pred = tm.model.predict(vx, batch_size=2048).reshape(-1)
     # ================== 保存模型 ==================
-    save_path = os.path.join(BASE_DIR, MODEL_DIR,
-                             f"{primary_stock_code}_ResidualLSTM_ep{epochs}_bs{batch_size}_p{p}_d{depth}.h5")
+    save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_ResidualLSTM_ep{epochs}_bs{batch_size}_p{p}_d{depth}.h5")
     tm.save(save_path)
 
     # ================== 指定日期预测 ==================
@@ -107,7 +104,7 @@ if __name__ == "__main__":
         y_pred = tm.model.predict(vx)
         y_pred_label = np.argmax(y_pred, axis=1)
         print_ratio(y_pred_label, "y_pred_label")
-        print_ratio(vy_reg, "vy_reg")
+        print_ratio(vy1, "vy_reg")
 
         cm = confusion_matrix(vy[:, 0], y_pred_label)
         plt.imshow(cm, cmap='Blues')
