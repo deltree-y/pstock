@@ -172,11 +172,13 @@ class ResidualLSTMModel:
 
         self.model = Model(inputs=inp, outputs=out1)    
 
-    def train(self, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
-        # Huber损失函数，对异常值更鲁棒
+    def train(self, tx, ty, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
+        self.x = tx.astype('float32') if tx is not None else self.x
+        self.y = ty.astype(int) if ty is not None else self.y
+
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss={'output1': focal_loss(gamma=2.0, alpha=0.25)},#'sparse_categorical_crossentropy'},
+            loss={'output1': 'sparse_categorical_crossentropy'},#focal_loss(gamma=2.0, alpha=0.25)},#'sparse_categorical_crossentropy'},
             metrics={'output1': 'accuracy'}
         )        
         

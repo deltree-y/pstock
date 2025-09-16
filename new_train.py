@@ -1,24 +1,19 @@
 # coding=utf-8
 import os, sys, logging
-from collections import Counter
-from matplotlib import pyplot as plt
 import numpy as np
-from pathlib import Path
-
-from sklearn.metrics import confusion_matrix
-o_path = os.getcwd()
-sys.path.append(o_path)
-sys.path.append(str(Path(__file__).resolve().parents[0]))
+#from pathlib import Path
+#o_path = os.getcwd()
+#sys.path.append(o_path)
+#sys.path.append(str(Path(__file__).resolve().parents[0]))
 
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
-from predicproc.predict import Predict
 from model.residual_lstm import ResidualLSTMModel
 from utils.tk import TOKEN
 from utils.const_def import ALL_CODE_LIST, BASE_DIR, MODEL_DIR, NUM_CLASSES
 from utils.utils import setup_logging, print_ratio
-from predicproc.analyze import plot_confusion
-from model.utils import auto_adjust_class_weights, confusion_based_weights
+from predicproc.analyze import plot_confusion_by_model, print_predict_result
+from model.utils import  get_hard_samples, get_sample_weights
 
 if __name__ == "__main__":
     setup_logging()
@@ -27,6 +22,7 @@ if __name__ == "__main__":
     # ================== 数据集准备 ==================
     si = StockInfo(TOKEN)
     primary_stock_code = '600036.SH'
+    t_list = ['20250829', '20250901', '20250902', '20250903']
     index_code_list = []
     related_stock_list = ALL_CODE_LIST
 
@@ -48,11 +44,13 @@ if __name__ == "__main__":
 
 
     # ================== 训练参数 ==================
-    epochs = 120
+    n_repeat = 3
+    epochs = 100
     batch_size = 1024
-    learning_rate = 0.00006
-    patience = 50
-    cls_weights = dict(enumerate([0.1854275092976686, 1.042750929367235, 1.2682527881028205, 1.226394052044119, 0.8714498141287835, 1.405724907059373]))
+    learning_rate = 0.0001
+    patience = 30
+    cls_weights = dict(enumerate([0.5, 1.1, 1.1, 1.1, 1.1, 1.1]))
+    #cls_weights = dict(enumerate([0.1854275092976686, 1.042750929367235, 1.2682527881028205, 1.226394052044119, 0.8714498141287835, 1.405724907059373]))
 
     # 模型结构配置
     depth = 6          # 残差块数
@@ -61,7 +59,7 @@ if __name__ == "__main__":
     dropout_rate = 0.3
     use_se = True
 
-    tm = ResidualLSTMModel(
+    res_lstm = ResidualLSTMModel(
         x=tx,
         y=ty1,
         test_x=vx,
@@ -79,48 +77,57 @@ if __name__ == "__main__":
     logging.info(f"\nbins1: {ds.bins1.prop_bins}\nbins2: {ds.bins2.prop_bins}")
     print_ratio(ty1, "ty1")
 
-    logging.info(f"Start training: epochs={epochs}, batch={batch_size}, lr={learning_rate}")
+    # 1. 正常训练
+    logging.info(f"1. 正常训练: epochs={epochs}, batch={batch_size}, lr={learning_rate}")
     logging.info(f"tx shape: {tx.shape}, ty1 shape: {ty1.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
-    train_ret = tm.train(
-        epochs=epochs,
-        batch_size=batch_size,
-        learning_rate=learning_rate,
-        patience=patience
-    )
-    logging.info(train_ret)
+    train_ret = res_lstm.train(tx=tx, ty=ty1, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
+    print_predict_result(t_list, ds, res_lstm)
+    plot_confusion_by_model(res_lstm, vx, vy1, num_classes=NUM_CLASSES, title=f"1. 正常训练 Confusion Matrix")
+    
+    # ================== 重点训练 ==================
+    # 2. 获取 hard 样本
+    logging.info("2. 获取 hard 样本")
+    hard_x, hard_y = get_hard_samples(tx, ty1, res_lstm.model, threshold=0.3)
+    aug_x, aug_y = ds.time_series_augmentation_4x(hard_x, hard_y, noise_level=0.01)
 
-    # ================== 评估 ==================
-    y_pred = tm.model.predict(vx, batch_size=2048).reshape(-1)
-    # ================== 保存模型 ==================
-    save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_ResidualLSTM_ep{epochs}_bs{batch_size}_p{p}_d{depth}.h5")
-    tm.save(save_path)
-
-    # ================== 指定日期预测 ==================
-    t_list = ['20250829', '20250901', '20250902', '20250903']
-    for t0 in t_list:
-        print(f"Predict for T0[{t0}]")
-        data, bp = ds.get_predictable_dataset_by_date(t0)
-        pred_scaled = tm.model.predict(data)
-        logging.info(f"Predict scaled result: {pred_scaled}")
-        Predict(pred_scaled, bp, ds.bins1, ds.bins2).print_predict_result()
-        print()
+    # 3. 增权/增强/多次训练任选其一或多种组合
+    if True:
+        # 3.1 增权训练(先找出预测置信度低的样本，给它们更高的权重)
+        hard_mask = np.max(res_lstm.model.predict(tx), axis=1) < 0.3
+        res_lstm.class_weight_dict = dict(enumerate(get_sample_weights(ty1, hard_mask)))
+        logging.info(f"3.1 增权训练: tx shape: {tx.shape}, ty1 shape: {ty1.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
+        train_ret = res_lstm.train(tx=tx, ty=ty1, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
+        print_predict_result(t_list, ds, res_lstm)
+        plot_confusion_by_model(res_lstm, vx, vy1, num_classes=NUM_CLASSES, title=f"3.1 增权训练: Confusion Matrix")
 
     if True:
-        y_pred = tm.model.predict(vx)
-        y_pred_label = np.argmax(y_pred, axis=1)
-        print_ratio(y_pred_label, "y_pred_label")
-        auto_adjust_class_weights(y_pred_label, NUM_CLASSES)
-        confusion_based_weights(vy1, y_pred_label, NUM_CLASSES)
-        print_ratio(vy1, "vy1")
-        auto_adjust_class_weights(vy1, NUM_CLASSES)
+        # 3.2 数据增强训练
+        logging.info(f"3.2 数据增强训练: tx shape: {aug_x.shape}, ty1 shape: {aug_y.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
+        res_lstm.train(tx=aug_x, ty=aug_y, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
+        print_predict_result(t_list, ds, res_lstm)
+        plot_confusion_by_model(res_lstm, vx, vy1, num_classes=NUM_CLASSES, title=f"3.2 数据增强训练: Confusion Matrix")
 
-        cm = plot_confusion(vy1, y_pred_label, num_classes=NUM_CLASSES)
-        if False:
-            cm = confusion_matrix(vy[:, 0], y_pred_label)
-            plt.imshow(cm, cmap='Blues')
-            plt.title('Confusion Matrix')
-            plt.xlabel('Predicted')
-            plt.ylabel('True')
-            plt.colorbar()
-            plt.show()
+    if True:
+        # 3.3 多次训练（可以和增权、增强结合）
+        logging.info(f"3.3 多次训练: tx shape: {hard_x.shape}, ty1 shape: {hard_y.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
+        for _ in range(n_repeat):
+            res_lstm.train(tx=hard_x, ty=hard_y, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
+        print_predict_result(t_list, ds, res_lstm)
+        plot_confusion_by_model(res_lstm, vx, vy1, num_classes=NUM_CLASSES, title=f"3.3 多次训练: Confusion Matrix")
 
+    # 或者将增强后的 hard 样本拼回主数据集再训练
+    if True:
+        # 3.4 将增强后的 hard 样本拼回主数据集再训练
+        final_train_x = np.concatenate([tx, aug_x])
+        final_train_y = np.concatenate([ty1, aug_y])
+        logging.info(f"3.4 将增强后的 hard 样本拼回主数据集再训练: tx shape: {final_train_x.shape}, ty1 shape: {final_train_y.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
+        res_lstm.train(tx=final_train_x, ty=final_train_y, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
+        print_predict_result(t_list, ds, res_lstm)
+        plot_confusion_by_model(res_lstm, vx, vy1, num_classes=NUM_CLASSES, title=f"3.4 将增强后的 hard 样本拼回主数据集再训练: Confusion Matrix")
+
+    # ================== 评估 ==================
+    #y_pred = res_lstm.model.predict(vx, batch_size=2048).reshape(-1)
+
+    # ================== 保存模型 ==================
+    save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_ResidualLSTM_ep{epochs}_bs{batch_size}_p{p}_d{depth}.h5")
+    res_lstm.save(save_path)

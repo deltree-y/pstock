@@ -81,3 +81,32 @@ def confusion_based_weights(y_true, y_pred, num_classes=6, min_weight=0.5, max_w
     weights = weights / np.mean(weights)
     print(f"基于混淆矩阵调整的类别权重：{weights.tolist()}")
     return weights.tolist()
+
+def get_sample_weights(y, hard_mask, base_weight=1.0, hard_weight=3.0):
+    """
+    为hard样本增权，普通样本权重为base_weight，hard样本权重为hard_weight
+    y: 标签 [N,]
+    hard_mask: bool数组 [N,]，True代表hard样本
+    返回: sample_weight数组 [N,]
+    """
+    sample_weight = np.full_like(y, base_weight, dtype=float)
+    sample_weight[hard_mask] = hard_weight
+    return sample_weight
+
+def get_hard_samples(x, y, model, threshold=0.5):
+    """
+    找到置信度低于 threshold 的样本，为后续重点训练做准备
+    x: 特征数据 [N, ...]
+    y: 标签 [N,]
+    model: 已训练好的 Keras 模型
+    threshold: 置信度阈值，默认 0.5
+    返回 (hard_x, hard_y) 置信度低的样本
+    """
+    # 得到每个样本预测的概率分布
+    y_pred_prob = model.predict(x)  # shape: [N, num_classes]
+    # 置信度=最大概率
+    conf = np.max(y_pred_prob, axis=1)
+    hard_mask = conf < threshold
+    hard_x = x[hard_mask]
+    hard_y = y[hard_mask]
+    return hard_x, hard_y
