@@ -1,16 +1,18 @@
 import os, sys, logging
 import tensorflow as tf
+import numpy as np
 from pathlib import Path
 from datetime import datetime
+from keras import activations
 from keras.models import Model, load_model
-from keras.callbacks import ModelCheckpoint, ReduceLROnPlateau, EarlyStopping
+from keras.callbacks import EarlyStopping
 from keras.regularizers import l2
 from keras.optimizers import Adam
 from utils.const_def import NUM_CLASSES
 from model.history import LossHistory
-from keras.losses import Huber
 from model.utils import WarmUpCosineDecayScheduler
-from model.losses import mse_with_variance_push, direction_weighted_mse, custom_asymmetric_loss 
+from model.losses import focal_loss
+from sklearn.utils.class_weight import compute_class_weight
 from keras.layers import (
     Input, LSTM, Bidirectional, Dropout, LayerNormalization,
     Dense, Add, Conv1D, GlobalAveragePooling1D, Multiply, Activation
@@ -29,7 +31,7 @@ def se_block(x, ratio=8, name_prefix="se"):
     if ch is None:
         return x
     squeeze = GlobalAveragePooling1D(name=f"{name_prefix}_gap")(x)
-    squeeze = Dense(ch // ratio, activation='relu', name=f"{name_prefix}_fc1")(squeeze)
+    squeeze = Dense(ch // ratio, activation=activations.swish, name=f"{name_prefix}_fc1")(squeeze)
     excite = Dense(ch, activation='sigmoid', name=f"{name_prefix}_fc2")(squeeze)
     excite = tf.expand_dims(excite, axis=1)
     return Multiply(name=f"{name_prefix}_scale")([x, excite])
@@ -71,7 +73,7 @@ def residual_bilstm_block(x,
                           name=f"proj_{block_id}")(shortcut)
 
     out = Add(name=f"add_{block_id}")([y, shortcut])
-    out = Activation('relu', name=f"act_{block_id}")(out)
+    out = Activation(activations.swish, name=f"act_{block_id}")(out)
     return out
 
 class ResidualLSTMModel:
@@ -91,7 +93,8 @@ class ResidualLSTMModel:
                  use_se=True,
                  se_ratio=8,
                  l2_reg=1e-5,
-                 loss_fn=None
+                 loss_fn=None,
+                 class_weights=None
                  ):
         """
         p: 放大尺度(向后兼容)
@@ -109,9 +112,9 @@ class ResidualLSTMModel:
 
         self.p = p
         self.x = x.astype('float32')
-        self.y = y.astype('float32')
+        self.y = y.astype(int)  # 分类任务 y 应为整数类别
         self.test_x = test_x.astype('float32') if test_x is not None else None
-        self.test_y = test_y.astype('float32') if test_y is not None else None
+        self.test_y = test_y.astype(int) if test_y is not None else None
 
         self.history = LossHistory()
         self.depth = depth
@@ -122,9 +125,19 @@ class ResidualLSTMModel:
         self.l2_reg = l2_reg
         self.loss_fn = loss_fn  # 保存传入的自定义损失（可为 None）
 
-        logging.info(f"ResidualLSTMModel: input shape={self.x.shape}, y shape={self.y.shape}")
+        if class_weights is None:
+            # y_train 是训练集的分箱标签
+            class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=self.y)
+            # 手动提升类别5和0的权重
+            class_weights[0] *= 0.5
+            class_weights[5] *= 2
+            self.class_weight_dict = dict(enumerate(class_weights))
+        else:
+            self.class_weight_dict = class_weights
+
         self._build(self.x.shape[1:])
         self.model.summary()
+        logging.info(f"ResidualLSTMModel: input shape={self.x.shape}, y shape={self.y.shape}")
 
     def _build(self, input_shape):
         inp = Input(shape=input_shape, name="input")
@@ -148,11 +161,11 @@ class ResidualLSTMModel:
         x_last = Dropout(self.dropout_rate, name="drop_last")(x_last)
 
         # 回归头
-        x_last = Dense(self.base_units * self.p, activation='relu',
+        x_last = Dense(self.base_units * self.p, activation=activations.swish,
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc1")(x_last)
         x_last = Dropout(self.dropout_rate, name="fc1_drop")(x_last)
-        x_last = Dense(32, activation='relu',
+        x_last = Dense(32, activation=activations.swish,
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc2")(x_last)
         out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(x_last)
@@ -163,7 +176,7 @@ class ResidualLSTMModel:
         # Huber损失函数，对异常值更鲁棒
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss={'output1': 'sparse_categorical_crossentropy'},
+            loss={'output1': focal_loss(gamma=2.0, alpha=0.25)},#'sparse_categorical_crossentropy'},
             metrics={'output1': 'accuracy'}
         )        
         
@@ -193,11 +206,12 @@ class ResidualLSTMModel:
             x=self.x,
             y=self.y,
             batch_size=batch_size,
-            validation_data=(self.test_x, self.test_y), 
-            validation_freq=1, 
+            validation_data=(self.test_x, self.test_y),
+            validation_freq=1,
             callbacks=callbacks,
             epochs=epochs, 
             shuffle=True, 
+            class_weight=self.class_weight_dict,
             verbose=0  # 改为0以减少输出
         )
         

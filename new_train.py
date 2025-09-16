@@ -15,8 +15,10 @@ from dataset import StockDataset
 from predicproc.predict import Predict
 from model.residual_lstm import ResidualLSTMModel
 from utils.tk import TOKEN
-from utils.const_def import ALL_CODE_LIST, BASE_DIR, MODEL_DIR
+from utils.const_def import ALL_CODE_LIST, BASE_DIR, MODEL_DIR, NUM_CLASSES
 from utils.utils import setup_logging, print_ratio
+from predicproc.analyze import plot_confusion
+from model.utils import auto_adjust_class_weights, confusion_based_weights
 
 if __name__ == "__main__":
     setup_logging()
@@ -48,8 +50,9 @@ if __name__ == "__main__":
     # ================== 训练参数 ==================
     epochs = 120
     batch_size = 1024
-    learning_rate = 0.00005
+    learning_rate = 0.00006
     patience = 50
+    cls_weights = dict(enumerate([0.1854275092976686, 1.042750929367235, 1.2682527881028205, 1.226394052044119, 0.8714498141287835, 1.405724907059373]))
 
     # 模型结构配置
     depth = 6          # 残差块数
@@ -69,7 +72,8 @@ if __name__ == "__main__":
         dropout_rate=dropout_rate,
         use_se=use_se,
         se_ratio=8,
-        l2_reg=1e-5#,
+        l2_reg=1e-5,
+        class_weights=cls_weights,
         #loss_fn=loss_fn
     )
     logging.info(f"\nbins1: {ds.bins1.prop_bins}\nbins2: {ds.bins2.prop_bins}")
@@ -80,7 +84,8 @@ if __name__ == "__main__":
     train_ret = tm.train(
         epochs=epochs,
         batch_size=batch_size,
-        learning_rate=learning_rate
+        learning_rate=learning_rate,
+        patience=patience
     )
     logging.info(train_ret)
 
@@ -104,13 +109,18 @@ if __name__ == "__main__":
         y_pred = tm.model.predict(vx)
         y_pred_label = np.argmax(y_pred, axis=1)
         print_ratio(y_pred_label, "y_pred_label")
-        print_ratio(vy1, "vy_reg")
+        auto_adjust_class_weights(y_pred_label, NUM_CLASSES)
+        confusion_based_weights(vy1, y_pred_label, NUM_CLASSES)
+        print_ratio(vy1, "vy1")
+        auto_adjust_class_weights(vy1, NUM_CLASSES)
 
-        cm = confusion_matrix(vy[:, 0], y_pred_label)
-        plt.imshow(cm, cmap='Blues')
-        plt.title('Confusion Matrix')
-        plt.xlabel('Predicted')
-        plt.ylabel('True')
-        plt.colorbar()
-        plt.show()
+        cm = plot_confusion(vy1, y_pred_label, num_classes=NUM_CLASSES)
+        if False:
+            cm = confusion_matrix(vy[:, 0], y_pred_label)
+            plt.imshow(cm, cmap='Blues')
+            plt.title('Confusion Matrix')
+            plt.xlabel('Predicted')
+            plt.ylabel('True')
+            plt.colorbar()
+            plt.show()
 

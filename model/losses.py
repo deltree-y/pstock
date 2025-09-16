@@ -64,3 +64,16 @@ def custom_asymmetric_loss(y_true, y_pred):
     # 上涨预测为下跌的惩罚权重更大
     weights = K.cast(K.greater(y_true, 0), K.floatx()) * 1.5 + 1.0
     return K.mean(K.square(error) * weights, axis=-1)
+
+def focal_loss(gamma=2.0, alpha=0.25):
+    def loss(y_true, y_pred):
+        # y_true shape: (batch_size, 1) 或 (batch_size,)
+        y_true = tf.cast(y_true, tf.int32)
+        if len(y_true.shape) == 2:  # 如果是 (batch_size, 1)
+            y_true = tf.squeeze(y_true, axis=-1)  # 变成 (batch_size,)
+        y_true_one_hot = tf.one_hot(y_true, depth=tf.shape(y_pred)[-1])  # shape: (batch_size, num_classes)
+        cross_entropy = tf.keras.losses.categorical_crossentropy(y_true_one_hot, y_pred)
+        p_t = tf.reduce_sum(y_true_one_hot * y_pred, axis=-1)
+        focal_factor = alpha * tf.pow(1. - p_t, gamma)
+        return tf.reduce_mean(focal_factor * cross_entropy)
+    return loss
