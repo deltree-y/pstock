@@ -178,7 +178,7 @@ class ResidualLSTMModel:
 
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss={'output1': 'sparse_categorical_crossentropy'},#focal_loss(gamma=2.0, alpha=0.25)},#'sparse_categorical_crossentropy'},
+            loss={'output1': focal_loss(gamma=2.0, alpha=0.25)},#focal_loss(gamma=2.0, alpha=0.25)},#'sparse_categorical_crossentropy'},
             metrics={'output1': 'accuracy'}
         )        
         

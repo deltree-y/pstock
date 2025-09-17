@@ -11,7 +11,7 @@ from datasets.stock import Stock, Stocks
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset, StockDatasets
 from predicproc.predict import Predict, RegPredict
-from model.lstmmodel import LSTMModel
+from model.residual_lstm import ResidualLSTMModel
 from bins import BinManager
 from utils.tk import TOKEN
 from utils.const_def import BASE, T1L_SCALE, T2H_SCALE, REL_CODE_LIST, NUM_CLASSES
@@ -27,7 +27,7 @@ if __name__ == "__main__":
     bins1 = BinManager(BASE+"cfg\\600036.SH_pri_y1_bins.json")
     bins2 = BinManager(BASE+"cfg\\600036.SH_pri_y2_bins.json")
 
-    tm = LSTMModel(fn = BASE + "\\model\\temp_best.h5")
+    tm = ResidualLSTMModel(fn = BASE + "\\model\\temp_best.h5")
     t_list = ['20250829', '20250901', '20250902']
     
     if False:

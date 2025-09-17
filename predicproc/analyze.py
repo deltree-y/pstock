@@ -17,7 +17,7 @@ def plot_confusion(y_true, y_pred, num_classes=6, title="Confusion Matrix"):
     plt.xlabel('Predicted Label')
     plt.ylabel('True Label')
     plt.title(title)
-    plt.show(block=False)
+    plt.show()
     return cm
 
 def plot_confusion_by_model(model, x, y_true, num_classes=6, title="Confusion Matrix"):
