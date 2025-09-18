@@ -54,7 +54,7 @@ if __name__ == "__main__":
 
     # 模型结构配置
     depth = 6          # 残差块数
-    base_units = 32    # 每方向 LSTM 基础单元（最终 BiLSTM 输出通道=2*base_units*p）
+    base_units = 48    # 每方向 LSTM 基础单元（最终 BiLSTM 输出通道=2*base_units*p）
     p = 2              # 放大系数
     dropout_rate = 0.3
     use_se = True
@@ -82,7 +82,7 @@ if __name__ == "__main__":
     logging.info(f"tx shape: {tx.shape}, ty1 shape: {ty1.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
     train_ret = res_lstm.train(tx=tx, ty=ty1, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
     print_predict_result(t_list, ds, res_lstm)
-    #plot_confusion_by_model(res_lstm, vx, vy1, num_classes=NUM_CLASSES, title=f"1. 正常训练 Confusion Matrix")
+    plot_confusion_by_model(res_lstm, vx, vy1, num_classes=NUM_CLASSES, title=f"1. 正常训练 Confusion Matrix")
     
     # ================== 重点训练 ==================
     # 2. 获取 hard 样本
@@ -97,8 +97,9 @@ if __name__ == "__main__":
         res_lstm.class_weight_dict = dict(enumerate(get_sample_weights(ty1, hard_mask)))
         logging.info(f"3.1 增权训练: tx shape: {tx.shape}, ty1 shape: {ty1.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
         train_ret = res_lstm.train(tx=tx, ty=ty1, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
+        res_lstm.class_weight_dict = dict(enumerate([1,1,1,1,1,1]))  # 还原默认权重
         print_predict_result(t_list, ds, res_lstm)
-        #plot_confusion_by_model(res_lstm, vx, vy1, num_classes=NUM_CLASSES, title=f"3.1 增权训练: Confusion Matrix")
+        plot_confusion_by_model(res_lstm, vx, vy1, num_classes=NUM_CLASSES, title=f"3.1 增权训练: Confusion Matrix")
 
     if False:
         # 3.2 数据增强训练

@@ -1,21 +1,83 @@
 import warnings
 import numpy as np
+import pandas as pd
 from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
 from scipy.stats import pearsonr
-from sklearn.ensemble import RandomForestRegressor
+from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from scipy.stats import pearsonr
 
-def binary_class_feature_selection(x_data, y_label, feature_names, class_a=0, class_b=5):
-    # 只保留0和5
-    mask = (y_label == class_a) | (y_label == class_b)
-    x_sub = x_data[mask]
-    y_sub = (y_label[mask] == class_b).astype(int)  # 二分类
+def binary_class_feature_selection(x_train, y_train, feature_names):
+    mask = np.isin(y_train, [0, 5])
+    x_bin = x_train[mask]
+    y_bin = y_train[mask]
+    y_bin = (y_bin == 5).astype(int)
 
-    mi_scores = mutual_info_classif(x_sub, y_sub)
-    pearson_scores = [abs(pearsonr(x_sub[:,i], y_sub)[0]) for i in range(x_sub.shape[1])]
-    print("互信息得分(前10):", sorted(zip(feature_names, mi_scores), key=lambda x:-x[1])[:10])
-    print("皮尔逊得分(前10):", sorted(zip(feature_names, pearson_scores), key=lambda x:-x[1])[:10])
-    return mi_scores, pearson_scores
+    print("x_bin shape:", x_bin.shape)
+    print("y_bin shape:", y_bin.shape)
+    print("feature_names:", len(feature_names))
+
+    # 防止特征数量不一致
+    if len(feature_names) != x_bin.shape[1]:
+        print("Warning: feature_names与x_bin特征数不一致，自动裁剪")
+        feature_names = feature_names[:x_bin.shape[1]]
+
+    pearson_scores = [abs(pearsonr(x_bin[:, i], y_bin)[0]) for i in range(x_bin.shape[1])]
+    mi_scores = mutual_info_classif(x_bin, y_bin, discrete_features=False, random_state=42)
+    rf = RandomForestClassifier(n_estimators=50, random_state=42)
+    rf.fit(x_bin, y_bin)
+    rf_scores = rf.feature_importances_
+
+    print("feature_names:", len(feature_names))
+    print("pearson_scores:", len(pearson_scores))
+    print("mi_scores:", len(mi_scores))
+    print("rf_scores:", len(rf_scores))
+
+    df = pd.DataFrame({
+        'feature': feature_names,
+        'pearson': pearson_scores,
+        'mi': mi_scores,
+        'rf': rf_scores
+    })
+    df['score'] = df[['pearson', 'mi', 'rf']].mean(axis=1)
+    df.sort_values('score', ascending=False, inplace=True)
+    return df
+
+
+def multiclass_feature_selection(x_train, y_train, feature_names):
+    """
+    针对全部类别做特征区分度分析
+    返回：区分度排名表DataFrame
+    """
+    # 皮尔逊相关性（与类别标签相关性，类别标签不适合皮尔逊但可以粗略参考）
+    pearson_scores = [abs(pearsonr(x_train[:,i], y_train)[0]) for i in range(x_train.shape[1])]
+    # 互信息
+    mi_scores = mutual_info_classif(x_train, y_train, discrete_features=False, random_state=42)
+    # 随机森林重要性
+    rf = RandomForestClassifier(n_estimators=50, random_state=42)
+    rf.fit(x_train, y_train)
+    rf_scores = rf.feature_importances_
+    
+    df = pd.DataFrame({
+        'feature': feature_names,
+        'pearson': pearson_scores,
+        'mi': mi_scores,
+        'rf': rf_scores
+    })
+    df['score'] = df[['pearson', 'mi', 'rf']].mean(axis=1)
+    df.sort_values('score', ascending=False, inplace=True)
+    return df
+
+def select_joint_features(df_bin, df_multi, top_k=15, alpha=0.5):
+    """
+    从二分类（0/5）和多分类分析结果中，选出兼顾两者的前top_k特征
+    alpha: 二分类权重（0~1），越大偏重极端类别判别
+    """
+    # 按名字合并
+    df = df_bin[['feature','score']].merge(df_multi[['feature','score']], on='feature', suffixes=('_bin','_multi'))
+    # 综合分数
+    df['joint_score'] = df['score_bin']*alpha + df['score_multi']*(1-alpha)
+    df.sort_values('joint_score', ascending=False, inplace=True)
+    return df['feature'].head(top_k).tolist()
 
 
 def feature_importance_analysis(ds, feature_names, pearson_threshold=0.03, mi_threshold=0.01, importance_threshold=0.01, n_features=25):

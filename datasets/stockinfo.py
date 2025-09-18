@@ -12,7 +12,7 @@ sys.path.append(o_path)
 sys.path.append(str(Path(__file__).resolve().parents[0]))
 from utils.utils import setup_logging
 from utils.tk import TOKEN
-from utils.const_def import NAN_FILL, MIN_TOTAL_MV, LATEST_DATE, STANDARD_DATE, IS_PRINT_TUSHARE_CALL_INFO, INDUSTRY_LIST
+from utils.const_def import FIRST_TRADE_DATE, NAN_FILL, MIN_TOTAL_MV, LATEST_DATE, STANDARD_DATE, IS_PRINT_TUSHARE_CALL_INFO, INDUSTRY_LIST
 from utils.const_def import BASE_DIR, GLOBAL_DIR
 
 #StockInfo用于存储所有股票、指数的基本信息数据，其中
@@ -394,6 +394,121 @@ class StockInfo():
                     df.loc[len(df)] = [row[1]['ex_date'], row[1]['ts_code'], row[1]['cash_div_tax'], row[1]['stk_div']]
         return df
     
+    #上海银行间同业拆放利率
+    # 数据开始于2006-10-08, 每交易日11点发布, 每次最多返回2000条记录
+    def get_shibor(self, start_date=None, end_date=None):
+        one_time_count_limit = 2000
+        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
+        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
+        ret = self.pro.shibor(start_date=start_date, end_date=end_date)
+        call_cnt = 1
+        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
+        while next_end_date is not None:
+            new_ret = self.pro.shibor(start_date=start_date, end_date=str(next_end_date))
+            new_ret.bfill(inplace=True)
+            new_ret.fillna(NAN_FILL,inplace=True)            
+            ret = pd.concat([ret, new_ret], ignore_index=True)
+            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
+            call_cnt += 1
+        ret = ret.rename(columns={'date': 'trade_date'})
+        logging.info(f"INFO: Tushare interface - <pro.shibor> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        return ret
+    
+    #美国每日国债收益率曲线利率
+    def get_us_tycr(self, start_date=None, end_date=None):
+        one_time_count_limit = 2000
+        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
+        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
+        ret = self.pro.us_tycr(start_date=start_date, end_date=end_date)
+        call_cnt = 1
+        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
+        while next_end_date is not None:
+            new_ret = self.pro.us_tycr(start_date=start_date, end_date=str(next_end_date))
+            new_ret.bfill(inplace=True)
+            new_ret.fillna(NAN_FILL,inplace=True)            
+            ret = pd.concat([ret, new_ret], ignore_index=True)
+            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
+            call_cnt += 1
+        ret = ret.rename(columns={'date': 'trade_date'})
+        logging.info(f"INFO: Tushare interface - <pro.us_tycr> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        return ret
+    
+    #美国国债实际收益率曲线利率
+    def get_us_trycr(self, start_date=None, end_date=None):
+        one_time_count_limit = 2000
+        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
+        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
+        ret = self.pro.us_trycr(start_date=start_date, end_date=end_date)
+        call_cnt = 1
+        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
+        while next_end_date is not None:
+            new_ret = self.pro.us_trycr(start_date=start_date, end_date=str(next_end_date))
+            new_ret.bfill(inplace=True)
+            new_ret.fillna(NAN_FILL,inplace=True)            
+            ret = pd.concat([ret, new_ret], ignore_index=True)
+            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
+            call_cnt += 1
+        ret = ret.rename(columns={'date': 'trade_date'})
+        logging.info(f"INFO: Tushare interface - <pro.us_trycr> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        return ret
+    
+    #美国短期国债收益率
+    def get_us_tbr(self, start_date=None, end_date=None):
+        one_time_count_limit = 2000
+        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
+        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
+        ret = self.pro.us_tbr(start_date=start_date, end_date=end_date)
+        call_cnt = 1
+        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
+        while next_end_date is not None:
+            new_ret = self.pro.us_tbr(start_date=start_date, end_date=str(next_end_date))
+            new_ret.bfill(inplace=True)
+            new_ret.fillna(NAN_FILL,inplace=True)            
+            ret = pd.concat([ret, new_ret], ignore_index=True)
+            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
+            call_cnt += 1
+        ret = ret.rename(columns={'date': 'trade_date'})
+        logging.info(f"INFO: Tushare interface - <pro.us_tbr> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        return ret
+    
+    #美国长期国债收益率
+    def get_us_tltr(self, start_date=None, end_date=None):
+        one_time_count_limit = 2000
+        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
+        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
+        ret = self.pro.us_tltr(start_date=start_date, end_date=end_date)
+        call_cnt = 1
+        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
+        while next_end_date is not None:
+            new_ret = self.pro.us_tltr(start_date=start_date, end_date=str(next_end_date))
+            new_ret.bfill(inplace=True)
+            new_ret.fillna(NAN_FILL,inplace=True)            
+            ret = pd.concat([ret, new_ret], ignore_index=True)
+            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
+            call_cnt += 1
+        ret = ret.rename(columns={'date': 'trade_date'})
+        logging.info(f"INFO: Tushare interface - <pro.us_tltr> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        return ret
+    
+    #美国国债实际长期利率平均值
+    def get_us_trltr(self, start_date=None, end_date=None):
+        one_time_count_limit = 2000
+        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
+        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
+        ret = self.pro.us_trltr(start_date=start_date, end_date=end_date)
+        call_cnt = 1
+        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
+        while next_end_date is not None:
+            new_ret = self.pro.us_trltr(start_date=start_date, end_date=str(next_end_date))
+            new_ret.bfill(inplace=True)
+            new_ret.fillna(NAN_FILL,inplace=True)            
+            ret = pd.concat([ret, new_ret], ignore_index=True)
+            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
+            call_cnt += 1
+        ret = ret.rename(columns={'date': 'trade_date'})
+        logging.info(f"INFO: Tushare interface - <pro.us_trltr> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        return ret
+
     #获取股票对应的总市值（单位：万元）：
     def get_total_mv(self, ts_code):
         daily_basic = self.get_daily_basic(ts_code=ts_code)
@@ -458,15 +573,17 @@ class StockInfo():
     def get_top_n_code_group_by_industry(self, n=3):
         # 读取CSV
         df = pd.read_csv(os.path.join(BASE_DIR, GLOBAL_DIR, "stock_list_with_total_mv.csv"), encoding='gbk')
-
         # 分组并获取每组B列的TOP5
         df['total_mv'] = pd.to_numeric(df['total_mv'], errors='coerce')
         top5 = df[['industry', 'total_mv', 'ts_code']].groupby('industry', group_keys=False).apply(lambda x: x.nlargest(n, 'total_mv'))
-
         # 获取对应的C列值
         result = top5['ts_code'].tolist()
-
         print(result)
+
+    def get_next_end_date(self, df, one_time_count_limit, date_col_name='trade_date'):
+        if len(df) < one_time_count_limit:
+            return None
+        return self.get_pre_trade_date(df[date_col_name].values[-1])
 
     #获取股票的综合数据
     def get_stock_detail(self, asset='E', ts_code=None, spec_date=None, start_date=None, end_date=None):
@@ -494,6 +611,12 @@ class StockInfo():
         elif asset == 'E':
             data_part1 = self.get_daily_basic(ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date).drop(columns=[drop_column])
             data_part2 = self.get_moneyflow(ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date).drop(columns=[drop_column])
+            data_part11 = self.get_shibor(start_date=start_date, end_date=end_date)
+            data_part12 = self.get_us_tycr(start_date=start_date, end_date=end_date)
+            data_part13 = self.get_us_trycr(start_date=start_date, end_date=end_date)
+            data_part14 = self.get_us_tbr(start_date=start_date, end_date=end_date)
+            data_part15 = self.get_us_tltr(start_date=start_date, end_date=end_date)
+            data_part16 = self.get_us_trltr(start_date=start_date, end_date=end_date)
             #data_part3 = self.get_margin_detail(ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date).drop(columns=[drop_column])
             #data_part4 = self.get_block_trade(ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date).drop(columns=[drop_column])
             #data_part5 = self.get_stk_holdertrade(ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date).drop(columns=[drop_column])
@@ -502,6 +625,12 @@ class StockInfo():
             data_complete = pd.merge(data_basic, data_part0, how='left', on=[spec_colunm])
             data_complete = pd.merge(data_complete, data_part1, how='left', on=[spec_colunm], suffixes=[None, '_daily_basic'])
             data_complete = pd.merge(data_complete, data_part2, how='left', on=[spec_colunm], suffixes=[None, '_moneyflow'])
+            data_complete = pd.merge(data_complete, data_part11, how='left', on=[spec_colunm], suffixes=[None, '_shibor'])
+            data_complete = pd.merge(data_complete, data_part12, how='left', on=[spec_colunm], suffixes=[None, '_us_tycr'])
+            data_complete = pd.merge(data_complete, data_part13, how='left', on=[spec_colunm], suffixes=[None, '_us_trycr'])
+            data_complete = pd.merge(data_complete, data_part14, how='left', on=[spec_colunm], suffixes=[None, '_us_tbr'])
+            data_complete = pd.merge(data_complete, data_part15, how='left', on=[spec_colunm], suffixes=[None, '_us_tltr'])
+            data_complete = pd.merge(data_complete, data_part16, how='left', on=[spec_colunm], suffixes=[None, '_us_trltr'])
             #data_complete = pd.merge(data_complete, data_part3, how='left', on=[spec_colunm], suffixes=[None, '_margin_detail'])
             #data_complete = pd.merge(data_complete, data_part4, how='left', on=[spec_colunm], suffixes=[None, '_block_trade'])
             #data_complete = pd.merge(data_complete, data_part5, how='left', on=[spec_colunm], suffixes=[None, '_stk_holdertrade'])
@@ -546,4 +675,6 @@ if __name__ == "__main__":
     setup_logging()
     ts_code1 = '600036.SH'
     si = StockInfo(TOKEN)
-    si.get_top_n_code_group_by_industry(1)
+    #si.get_top_n_code_group_by_industry(1)
+    df = si.get_us_tycr()
+    print(f"df count = {len(df)}, \nhead = \n{df.head(20)}, \ntail = \n{df.tail(20)}")

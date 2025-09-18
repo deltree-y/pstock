@@ -150,14 +150,19 @@ class Trade():
             basic_features = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'date_full']
             extra_features_15 = ['volatility_10d', 'willr_14', 'turnover_rate_f', 'stddev_10', 'pb', 'ps', 'date_full', \
                                  'total_mv', 'stock_idx', 'pe', 'BBB_20_2.0', 'dv_ratio', 'volatility_5d', 'return_5d', 'natr_14']
-            extra_features_34 = ['macd_signal', 'cci_20', 'willr_14', 'stddev_10', 'date_full', 'obv', 'pe', \
-                                 'cmf_20', 'dv_ratio', 'natr_14', 'volatility_10d', 'momentum_10', 'turnover_rate_f', \
-                                 'pb', 'mfi_14', 'ps', 'BBP_20_2.0', 'rsi_14', 'stock_idx', 'macd_hist', 'volatility_5d', \
-                                 'DMN_14', 'STOCHd_3_3_3', 'change', 'macd', 'ADX_14', 'DMP_14', 'total_mv', 'atr_14', \
-                                 'BBB_20_2.0', 'return_5d', 'amount', 'return_10d', 'roc_10']
+            extra_features_20 = ['natr_14', 'volatility_10d', 'date_full', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio',  'turnover_rate_f', 'total_mv', \
+                                 'pb', 'pe', 'atr_14', 'ADX_14', 'ps', 'stddev_10', 'DMP_14', 'roc_10', 'return_10d', 'stock_idx', 'return_5d', 'rsi_14']
+            extra_features_25 = ['natr_14', 'volatility_10d', 'date_full', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', 'turnover_rate_f', 'total_mv', 'pb', \
+                                 'pe', 'atr_14', 'ADX_14', 'ps', 'stddev_10', 'DMP_14', 'roc_10', 'return_10d', 'stock_idx', 'return_5d', 'rsi_14', 'willr_14', 'cci_20', 'cmf_20', 'obv', 'mfi_14']
+            extra_features_34 = ['macd_signal', 'cci_20', 'willr_14', 'stddev_10', 'date_full', 'obv', 'pe', 'cmf_20', 'dv_ratio', 'natr_14', 'volatility_10d', \
+                                 'momentum_10', 'turnover_rate_f', 'pb', 'mfi_14', 'ps', 'BBP_20_2.0', 'rsi_14', 'stock_idx', 'macd_hist', 'volatility_5d', \
+                                 'DMN_14', 'STOCHd_3_3_3', 'change', 'macd', 'ADX_14', 'DMP_14', 'total_mv', 'atr_14', 'BBB_20_2.0', 'return_5d', 'amount', 'return_10d', 'roc_10']
+            extra_features_35 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'dv_ratio', 'volatility_5d', 'date_full', '1y', '1m', '9m', '2w', 'y20_us_trycr', 'turnover_rate_f', '6m', '1w', 'ltc', 'y20', 'y10_us_trycr', '3m', 'y10', 'cmt', 'pb', 'y30', 'ltr_avg', 'y30_us_trycr', 'w26_bd', 'y7_us_trycr', 'y7', 'y5_us_trycr', 'w26_ce', 'y1', 'm6', 'y2', 'm3', 'w52_ce', 'y3']
+            extra_features_45 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'dv_ratio', 'volatility_5d', 'date_full', '1y', '1m', '9m', '2w', 'y20_us_trycr', 'turnover_rate_f', '6m', '1w', 'ltc', 'y20', 'y10_us_trycr', '3m', 'y10', 'cmt', 'pb', 'y30', 'ltr_avg', 'y30_us_trycr', 'w26_bd', 'y7_us_trycr', 'y7', 'y5_us_trycr', 'w26_ce', 'y1', 'm6', 'y2', 'm3', 'w52_ce', 'y3', 'w52_bd', 'w8_bd', 'y5', 'm2', 'w8_ce', 'm1', 'w13_bd', 'w13_ce', 'w4_ce', 'w4_bd']
+            extra_features_55 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'dv_ratio', 'volatility_5d', 'date_full', '1y', '1m', '9m', '2w', 'y20_us_trycr', 'turnover_rate_f', '6m', '1w', 'ltc', 'y20', 'y10_us_trycr', '3m', 'y10', 'cmt', 'pb', 'y30', 'ltr_avg', 'y30_us_trycr', 'w26_bd', 'y7_us_trycr', 'y7', 'y5_us_trycr', 'w26_ce', 'y1', 'm6', 'y2', 'm3', 'w52_ce', 'y3', 'w52_bd', 'w8_bd', 'y5', 'm2', 'w8_ce', 'm1', 'w13_bd', 'w13_ce', 'w4_ce', 'w4_bd', 'on', 'pe', 'stock_idx', 'total_mv', 'industry_idx', 'atr_14', 'ps', 'stddev_10', 'log_volume', 'ADX_14']
             advanced_features = ['return_1d', 'return_5d', 'return_10d', 'volatility_5d', 'volatility_10d', \
                                  'price_volume_ratio', 'volume_change', 'return_skew_5d', 'return_kurt_5d', 'log_return', 'log_volume']
-            remain_list = list(dict.fromkeys(chain(basic_features, extra_features_34, advanced_features)))    #取并集
+            remain_list = list(dict.fromkeys(chain(basic_features, extra_features_35, advanced_features)))    #取并集
             remain_list = self.trade_df.columns.to_list() if self.if_use_all_features else remain_list
             #logging.info(f"After feature selection, remain {len(remain_list)}")
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2
