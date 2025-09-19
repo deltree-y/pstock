@@ -148,8 +148,7 @@ class Trade():
         if stock_type == StockType.PRIMARY or stock_type == StockType.RELATED:
             #皮尔逊+互信息+树模型交集特征
             basic_features = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'date_full']
-            extra_features_15 = ['volatility_10d', 'willr_14', 'turnover_rate_f', 'stddev_10', 'pb', 'ps', 'date_full', \
-                                 'total_mv', 'stock_idx', 'pe', 'BBB_20_2.0', 'dv_ratio', 'volatility_5d', 'return_5d', 'natr_14']
+            extra_features_18 = ['1m', 'ps', 'dv_ratio', 'on', 'pe', 'BBB_20_2.0', 'natr_14', 'volatility_5d', 'total_mv', 'pb', 'willr_14', '2w', 'turnover_rate_f', '1w', 'stddev_10', 'volatility_10d', 'return_5d', '1y']
             extra_features_20 = ['natr_14', 'volatility_10d', 'date_full', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio',  'turnover_rate_f', 'total_mv', \
                                  'pb', 'pe', 'atr_14', 'ADX_14', 'ps', 'stddev_10', 'DMP_14', 'roc_10', 'return_10d', 'stock_idx', 'return_5d', 'rsi_14']
             extra_features_25 = ['natr_14', 'volatility_10d', 'date_full', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', 'turnover_rate_f', 'total_mv', 'pb', \
