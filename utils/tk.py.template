@@ -1,0 +1,27 @@
+# -*- coding: utf-8 -*-
+"""
+TuShare API Token Configuration Template
+
+Copy this file to utils/tk.py and configure your TuShare Pro API token.
+Get your token from: https://tushare.pro/
+
+INSTRUCTIONS:
+1. Copy this file: cp utils/tk.py.template utils/tk.py
+2. Edit utils/tk.py and replace YOUR_TUSHARE_TOKEN_HERE with your actual token
+3. Never commit utils/tk.py to version control (it's in .gitignore)
+"""
+
+import os
+
+# Method 1: Replace YOUR_TUSHARE_TOKEN_HERE with your actual TuShare Pro API token
+TOKEN = "YOUR_TUSHARE_TOKEN_HERE"
+
+# Method 2: Use environment variable (recommended for production)
+# TOKEN = os.getenv('TUSHARE_TOKEN', 'YOUR_TUSHARE_TOKEN_HERE')
+
+# Method 3: Read from a separate config file (not tracked by git)
+# try:
+#     with open('utils/token.txt', 'r') as f:
+#         TOKEN = f.read().strip()
+# except FileNotFoundError:
+#     TOKEN = "YOUR_TUSHARE_TOKEN_HERE"
