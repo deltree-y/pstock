@@ -1,0 +1,18 @@
+name: Deploy to Copilot Space
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync-to-space:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      # 你可以添加自动化测试等步骤
+
+      # 例如用scp推送到远程主机（需要在Secrets里配置SPACE_HOST、SPACE_USER、SPACE_KEY）
+      - name: Sync code to Space server
+        run: |
+          scp -i ${{ secrets.SPACE_KEY }} -r ./* ${{ secrets.SPACE_USER }}@${{ secrets.SPACE_HOST }}:/path/to/copilot-space/code/
