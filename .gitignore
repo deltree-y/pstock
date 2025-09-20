@@ -178,6 +178,8 @@ data/index/
 data/model/
 data/temp/
 data/global/
+data/bins/
+data/scaler
 *.h5
 *.pkl
 *.joblib
@@ -196,3 +198,6 @@ logs/
 .Trashes
 ehthumbs.db
 Thumbs.db
+
+others
+test
