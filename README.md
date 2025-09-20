@@ -47,12 +47,20 @@ pip install -r requirements.txt
 
 1. 注册 [TuShare Pro](https://tushare.pro/) 账号
 2. 获取API令牌
-3. 编辑 `utils/tk.py` 文件，将 `YOUR_TUSHARE_TOKEN_HERE` 替换为您的实际令牌
+3. 复制模板文件并配置令牌：
+
+```bash
+cp utils/tk.py.template utils/tk.py
+```
+
+4. 编辑 `utils/tk.py` 文件，将 `YOUR_TUSHARE_TOKEN_HERE` 替换为您的实际令牌
 
 ```python
 # utils/tk.py
 TOKEN = "your_actual_tushare_token_here"
 ```
+
+**注意**: `utils/tk.py` 文件已在 `.gitignore` 中排除，不会被提交到版本控制。
 
 ### 3. 创建数据目录
 
