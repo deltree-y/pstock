@@ -56,18 +56,7 @@ class Stock():
         else:
             e_date = str(end_date)
         logging.debug(f"[{self.name}({self.ts_code})]从tushare获取数据[{s_date}]-[{e_date}]")
-        delta = datetime.strptime(e_date,'%Y%m%d') - datetime.strptime(str(s_date),'%Y%m%d')
-        if delta.days > STOCK_DATE_DELTA:
-            logging.debug(f"一次需要读取的数据太多, 改为两次读取")
-            m_date = (datetime.strptime(e_date,'%Y%m%d') - timedelta(days=STOCK_DATE_DELTA)).strftime("%Y%m%d")
-            self.df_raw = self.si.get_stock_detail(asset=self.asset, ts_code=self.ts_code, start_date=m_date, end_date=e_date)
-            m_date = (datetime.strptime(e_date,'%Y%m%d') - timedelta(days=STOCK_DATE_DELTA + 1)).strftime("%Y%m%d")
-            new_df = self.si.get_stock_detail(asset=self.asset, ts_code=self.ts_code, start_date=s_date, end_date=m_date)
-            self.df_raw = pd.concat([self.df_raw.astype(new_df.dtypes), new_df.astype(self.df_raw.dtypes)])   #due to padas upgrade
-            self.df_raw = self.df_raw.reset_index(drop=True)
-        else:   
-            logging.debug("可一次获取完全部数据.")
-            self.df_raw = self.si.get_stock_detail(asset=self.asset, ts_code=self.ts_code, start_date=s_date, end_date=e_date)
+        self.df_raw = self.si.get_stock_detail(asset=self.asset, ts_code=self.ts_code, start_date=s_date, end_date=e_date)
         self.update_first_last_date()
         logging.debug(f"[{self.name}({self.ts_code})]加载数据[{s_date}]-[{e_date}]成功, 共<{self.df_raw.shape[0]}>行, 最新日期<{self.latest_date}>")
 

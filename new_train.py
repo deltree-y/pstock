@@ -87,7 +87,7 @@ if __name__ == "__main__":
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_ResidualLSTM_ep{epochs}_bs{batch_size}_p{p}_d{depth}.h5")
     elif model_type == 'transformer':
         # Transformer模型参数
-        epochs = 80
+        epochs = 100
         batch_size = 1024
         learning_rate = 0.00005
         patience = 30
@@ -97,12 +97,14 @@ if __name__ == "__main__":
         num_layers = 4
         p = 2
         dropout_rate = 0.3
-        cls_weights = dict(enumerate([0.5, 1.1, 1.1, 1.1, 1.1, 1.1]))
+        loss_type = 'focal_loss'#'focal_loss'#'cross_entropy'#'weighted_cross_entropy'
+        cls_weights = dict(enumerate([0.6828409172673222, 1.108499269160892, 1.0943138523448035, 1.0108307574339053, 1.103515203793077]))
 
         model = TransformerModel(
             x=tx,y=ty1,test_x=vx,test_y=vy1,p=p,
             d_model=d_model, num_heads=num_heads, ff_dim=ff_dim, dropout_rate=dropout_rate, num_layers=num_layers,
-            class_weights=cls_weights
+            class_weights=cls_weights, l2_reg=1e-5, use_pos_encoding=True, use_gating=True,
+            loss_type = loss_type
         )
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_Transformer_ep{epochs}_bs{batch_size}_p{p}.h5")
     else:

@@ -26,6 +26,7 @@ class StockInfo():
         self.pro = self.ts.pro_api()
         self.stock_list, self.index_list, self.trade_date_list = None, None, None
         self.filtered_list_df = None
+        self.data_part11,self.data_part12,self.data_part13,self.data_part14,self.data_part15,self.data_part16 = None,None,None,None,None,None
 
         self.stock_list_fn = os.path.join(BASE_DIR, GLOBAL_DIR, "stock_all.csv")
         self.index_list_fn = os.path.join(BASE_DIR, GLOBAL_DIR, "index_all.csv")
@@ -172,346 +173,56 @@ class StockInfo():
         logging.info(f"Tushare interface - <ts.pro_bar> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
         return ret
 
-    #A股日线行情
-    #取['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'pre_close', 'vol']
-    def get_daily(self, ts_code=None, start_date=None, end_date=None, trade_date=None):
+    #通用获取tushare数据接口
+    def get_tushare_data(self, api_name, remain_columns=None,
+                         ts_code=None, trade_date=None, start_date=None, end_date=None):
         start_date = str(start_date) if start_date is not None else None
         end_date = str(end_date) if end_date is not None else None
         
-        #cols = ['ts_code', 'trade_date', 'open', 'high', 'low', 'close', 'pre_close', 'vol']
-
-        if trade_date is not None:
-            #ret = self.pro.daily(trade_date=trade_date)[cols]
-            ret = self.pro.daily(trade_date=trade_date)
-        elif start_date is None and end_date is None:
-            #ret = self.pro.daily(ts_code=ts_code)[cols]
-            ret = self.pro.daily(ts_code=ts_code)
+        if api_name in ['shibor', 'us_tycr','us_trycr','us_tbr','us_tltr','us_trltr']:
+            date_src_name, date_dst_name = 'date', 'trade_date', 
+            one_time_count_limit = 2000
+        elif api_name in ['daily', 'moneyflow']:
+            one_time_count_limit = 6000
+            date_src_name, date_dst_name = 'trade_date', 'trade_date', 
         else:
-            #ret = self.pro.daily(ts_code=ts_code, start_date=start_date, end_date=end_date)[cols]
-            ret = self.pro.daily(ts_code=ts_code, start_date=start_date, end_date=end_date)
-        logging.info(f"Tushare interface - <pro.daily> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-
-
-    #每日指标， 如换手率、市盈率、市净率、总股本、总市值等
-    def get_daily_basic(self, ts_code=None, trade_date=None, start_date=None, end_date=None):
-        start_date = str(start_date) if start_date is not None else None
-        end_date = str(end_date) if end_date is not None else None
-        
-        #cols = ['ts_code', 'trade_date', 'turnover_rate_f', 'volume_ratio', 'pe', 'pb', 'ps', 'dv_ratio', 'total_share', 'float_share', 'free_share', 'total_mv', 'circ_mv']
-        cols = ['ts_code', 'trade_date', 'turnover_rate_f', 'volume_ratio', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv']
+            one_time_count_limit = -1
+            date_src_name, date_dst_name = 'trade_date', 'trade_date', 
         if trade_date is not None:
-            ret = self.pro.daily_basic(trade_date=trade_date)[cols]
+            ret = getattr(self.pro, api_name)(trade_date=trade_date)
         elif start_date is None and end_date is None:
-            ret = self.pro.daily_basic(ts_code=ts_code)[cols]
-        else:
-            ret = self.pro.daily_basic(ts_code=ts_code, start_date=start_date, end_date=end_date)[cols]
-        logging.info(f"Tushare interface - <pro.daily_basic> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-
-    #股票历史列表（历史每天股票列表）
-    def get_bak_basic(self, ts_code=None, trade_date=None):
-        if trade_date is not None:
-            ret = self.pro.bak_basic(trade_date=trade_date)
+            ret = getattr(self.pro, api_name)(ts_code=ts_code)
         elif ts_code is not None:
-            ret = self.pro.bak_basic(ts_code=ts_code)
+            ret = getattr(self.pro, api_name)(ts_code=ts_code, start_date=start_date, end_date=end_date)
         else:
-            logging.error("in StockInfo::get_bak_basic().")
-            exit()
-        logging.info("Tushare interface - <pro.bak_basic> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-
-    #备用行情
-    def get_bak_daily(self, ts_code=None, trade_date=None):
-        if trade_date is not None:
-            ret = self.pro.bak_daily(trade_date=trade_date)
-        elif ts_code is not None:
-            ret = self.pro.bak_daily(ts_code=ts_code)
-        else:
-            logging.error(f"in StockInfo::get_bak_daily().")
-            exit()
-        logging.info(f"Tushare interface - <pro.bak_daily> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-
-    #获取某一天的所有股票每日指标数据
-    def get_one_day_all_daily_basic(self, date):
-        ret = self.pro.daily_basic(start_date=date, end_date=date)
-        logging.info("INFO: Tushare interface - <pro.daily_basic> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-
-    #个股资金流向， 如大/中/小单买入量/金额等
-    #数据开始于2010年
-    def get_moneyflow(self, ts_code=None, trade_date=None, start_date=None, end_date=None):
-        start_date = str(start_date) if start_date is not None else None
-        end_date = str(end_date) if end_date is not None else None
-        
-        cols = ['trade_date', 'ts_code', 'buy_sm_vol','sell_sm_vol','buy_md_vol','sell_md_vol','buy_lg_vol','sell_lg_vol','buy_elg_vol','sell_elg_vol','net_mf_vol']
-        if trade_date is not None:
-            ret = self.pro.moneyflow(trade_date=trade_date)[cols]
-        elif start_date is None and end_date is None:
-            ret = self.pro.moneyflow(ts_code=ts_code)[cols]
-        else:
-            ret = self.pro.moneyflow(ts_code=ts_code, start_date=start_date, end_date=end_date)[cols]
-        logging.info("Tushare interface - <pro.moneyflow> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-    
-    #融资融券交易明细
-    def get_margin_detail(self, ts_code=None, trade_date=None, start_date=None, end_date=None):
-        start_date = str(start_date) if start_date is not None else None
-        end_date = str(end_date) if end_date is not None else None
-        
-        cols = ['trade_date', 'ts_code', 'rzye', 'rqye', 'rzmre', 'rqyl', 'rzche', 'rqchl', 'rqmcl', 'rzrqye']
-        if trade_date is not None:
-            ret = self.pro.margin_detail(trade_date=trade_date)[cols]
-        elif start_date is None and end_date is None:
-            ret = self.pro.margin_detail(ts_code=ts_code)[cols]
-        else:
-            ret = self.pro.margin_detail(ts_code=ts_code, start_date=start_date, end_date=end_date)[cols]
-        logging.info("Tushare interface - <pro.margin_detail> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-
-    #大宗交易数据
-    def get_block_trade(self, ts_code=None, trade_date=None, start_date=None, end_date=None):
-        start_date = str(start_date) if start_date is not None else None
-        end_date = str(end_date) if end_date is not None else None
-        
-        if trade_date is not None:
-            block_trade = self.pro.block_trade(trade_date=trade_date)
-        elif start_date is None and end_date is None:
-            block_trade = self.pro.block_trade(ts_code=ts_code)
-        else:
-            block_trade = self.pro.block_trade(ts_code=ts_code, start_date=start_date, end_date=end_date)
-        logging.info("Tushare interface - <pro.block_trade> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-
-        df = pd.DataFrame(columns=['trade_date','ts_code','block_trade_price', 'block_trade_vol'])
-        for row in block_trade.iterrows():
-            data = [row[1]['trade_date'],row[1]['ts_code'], 0, 0]
-            data[2] = row[1]['price']
-            if len(df[df['trade_date']==row[1]['trade_date']]) == 0:#还未存储该日期的数据
-                data[3] = row[1]['vol']*10000
-                df.loc[len(df)] = data
-            else:#已有该日期的数据
-                data[3] = df.loc[df['trade_date']==row[1]['trade_date']].values[0][3] + row[1]['vol']*10000
-                df.loc[df['trade_date']==row[1]['trade_date']] = data
-        return df
-    
-    #获取股东增减持数据
-    def get_stk_holdertrade(self, ts_code=None, trade_date=None, start_date=None, end_date=None):
-        start_date = str(start_date) if start_date is not None else None
-        end_date = str(end_date) if end_date is not None else None
-        
-        if trade_date is not None:
-            ret = self.pro.stk_holdertrade(trade_date=trade_date)
-        elif start_date is None and end_date is None:
-            ret = self.pro.stk_holdertrade(ts_code=ts_code)
-        else:
-            ret = self.pro.stk_holdertrade(ts_code=ts_code, start_date=start_date, end_date=end_date)
-        logging.info("Tushare interface - <pro.stk_holdertrade> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-
-        df = pd.DataFrame(columns=['trade_date','ts_code', 'change_vol_G', 'change_vol_P', 'change_vol_C'])
-        for row in ret.iterrows():
-            data = [row[1]['ann_date'],row[1]['ts_code'],0,0,0]
-            holder_type_int = HolderType(row[1]['holder_type']).holder_type_int
-            in_de_int = InDe(row[1]['in_de']).in_de_int
-            if len(df[df['trade_date']==row[1]['ann_date']]) == 0:#还未存储该日期的数据
-                data[holder_type_int+1]=row[1]['change_vol']*in_de_int
-                df.loc[len(df)] = data
-            else:#已有该日期的数据
-                data[2:]=df.loc[df['trade_date']==row[1]['ann_date']].values[0][2:] #检查此处的下标是否正确
-                data[holder_type_int+1] += row[1]['change_vol']*in_de_int
-                df.loc[df['trade_date']==row[1]['ann_date']] = data
-        for row in df.iterrows():
-            fixed_date = row[1]['trade_date'] if self.is_trade_date(row[1]['trade_date']) else self.get_pre_trade_date(row[1]['trade_date'])
-            df.replace({'trade_date': {row[1]['trade_date']: fixed_date}}, inplace=True)
-        
-        #简单的replace的话,会造成将替换后的日期与原有的日期重复,形成两条同样日期的数据. 所以此处需要额外再做处理
-        pre_date, pre_ts_code = None, None
-        for row in df.iterrows():
-            if pre_date is not None:
-                if row[1]['trade_date'] == pre_date and row[1]['ts_code'] == pre_ts_code:
-                    logging.info(f"[stk_holdertrade] 发现<{row[1]['ts_code']}>的重复日期<{row[1]['trade_date']}>数据, 进行容错处理")
-                    i = df[(df['trade_date']==row[1]['trade_date'])&(df['ts_code']==row[1]['ts_code'])].first_valid_index()
-                    data = [row[1]['trade_date'],row[1]['ts_code'],0,0,0]
-                    data[2:] = df.loc[(df['trade_date']==row[1]['trade_date'])&(df['ts_code']==row[1]['ts_code'])].loc[i][2:]\
-                             + df.loc[(df['trade_date']==row[1]['trade_date'])&(df['ts_code']==row[1]['ts_code'])].loc[i+1][2:]
-                    df[(df['trade_date']==row[1]['trade_date'])&(df['ts_code']==row[1]['ts_code'])] = data
-                    df.drop(index=i, inplace=True)
-            pre_date, pre_ts_code = row[1]['trade_date'], row[1]['ts_code']
-        return df
-
-    #获取限售股解禁数据
-    def get_share_float(self, ts_code=None, float_date=None, start_date=None, end_date=None):
-        start_date = str(start_date) if start_date is not None else None
-        end_date = str(end_date) if end_date is not None else None
-        
-        if float_date is not None:
-            share_float = self.pro.share_float(float_date=float_date)
-        elif start_date is None and end_date is None:
-            share_float = self.pro.share_float(ts_code=ts_code)
-        else:
-            share_float = self.pro.share_float(ts_code=ts_code, start_date=start_date, end_date=end_date)
-        logging.info("Tushare interface - <pro.share_float> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-
-        df = pd.DataFrame(columns=['trade_date','ts_code', 'float_share_open'])
-        for row in share_float.iterrows():
-            data = [row[1]['float_date'],row[1]['ts_code'], 0]
-            if len(df[df['trade_date']==row[1]['float_date']]) == 0:#还未存储该日期的数据
-                data[2] = row[1]['float_share']
-                df.loc[len(df)] = data
-            else:#已有该日期的数据
-                data[2] = df.loc[df['trade_date']==row[1]['float_date']].values[0][2] + row[1]['float_share']
-                df.loc[df['trade_date']==row[1]['float_date']] = data
-        for row in df.iterrows():
-            fixed_date = row[1]['trade_date'] if self.is_trade_date(row[1]['trade_date']) else self.get_pre_trade_date(row[1]['trade_date'])
-            df.replace({'trade_date': {row[1]['trade_date']: fixed_date}}, inplace=True)
-        #简单的replace的话,会造成将替换后的日期与原有的日期重复,形成两条同样日期的数据. 所以此处需要额外再做处理
-        pre_date, pre_ts_code = None, None
-        for row in df.iterrows():
-            if pre_date is not None:
-                if row[1]['trade_date'] == pre_date and row[1]['ts_code'] == pre_ts_code:
-                    print("INFO: [share_float]发现<%s>的重复日期<%s>数据, 进行容错处理"%(row[1]['ts_code'],row[1]['trade_date']))
-                    i = df[(df['trade_date']==row[1]['trade_date'])&(df['ts_code']==row[1]['ts_code'])].first_valid_index()
-                    data = [row[1]['trade_date'],row[1]['ts_code'],0]
-                    data[2:] = df.loc[(df['trade_date']==row[1]['trade_date'])&(df['ts_code']==row[1]['ts_code'])].loc[i][2:]\
-                             + df.loc[(df['trade_date']==row[1]['trade_date'])&(df['ts_code']==row[1]['ts_code'])].loc[i+1][2:]
-                    df[(df['trade_date']==row[1]['trade_date'])&(df['ts_code']==row[1]['ts_code'])] = data
-                    df.drop(index=i, inplace=True)
-            pre_date, pre_ts_code = row[1]['trade_date'], row[1]['ts_code']
-        return df
-
-    #分红送股数据
-    def get_dividend(self, ts_code=None, ex_date=None):
-        if ex_date is not None:
-            dividend = self.pro.dividend(ex_date=ex_date)
-        else:
-            dividend = self.pro.dividend(ts_code=ts_code)
-        logging.info("INFO: Tushare interface - <pro.dividend> is running for 1 time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-
-        df = pd.DataFrame(columns=['trade_date','ts_code', 'cash_div_tax','stk_div'])
-        for row in dividend.iterrows():
-            if row[1]['div_proc'] == '实施':
-                if len(df[df['trade_date']==row[1]['ex_date']]) == 0:#还未存储该日期的数据
-                    df.loc[len(df)] = [row[1]['ex_date'], row[1]['ts_code'], row[1]['cash_div_tax'], row[1]['stk_div']]
-        return df
-    
-    #上海银行间同业拆放利率
-    # 数据开始于2006-10-08, 每交易日11点发布, 每次最多返回2000条记录
-    def get_shibor(self, start_date=None, end_date=None):
-        one_time_count_limit = 2000
-        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
-        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
-        ret = self.pro.shibor(start_date=start_date, end_date=end_date)
+            ret = getattr(self.pro, api_name)(start_date=start_date, end_date=end_date)
         call_cnt = 1
-        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
-        while next_end_date is not None:
-            new_ret = self.pro.shibor(start_date=start_date, end_date=str(next_end_date))
-            new_ret.bfill(inplace=True)
-            new_ret.fillna(NAN_FILL,inplace=True)            
-            ret = pd.concat([ret, new_ret], ignore_index=True)
-            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
-            call_cnt += 1
-        ret = ret.rename(columns={'date': 'trade_date'})
-        logging.info(f"INFO: Tushare interface - <pro.shibor> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-    
-    #美国每日国债收益率曲线利率
-    def get_us_tycr(self, start_date=None, end_date=None):
-        one_time_count_limit = 2000
-        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
-        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
-        ret = self.pro.us_tycr(start_date=start_date, end_date=end_date)
-        call_cnt = 1
-        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
-        while next_end_date is not None:
-            new_ret = self.pro.us_tycr(start_date=start_date, end_date=str(next_end_date))
-            new_ret.bfill(inplace=True)
-            new_ret.fillna(NAN_FILL,inplace=True)            
-            ret = pd.concat([ret, new_ret], ignore_index=True)
-            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
-            call_cnt += 1
-        ret = ret.rename(columns={'date': 'trade_date'})
-        logging.info(f"INFO: Tushare interface - <pro.us_tycr> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-    
-    #美国国债实际收益率曲线利率
-    def get_us_trycr(self, start_date=None, end_date=None):
-        one_time_count_limit = 2000
-        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
-        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
-        ret = self.pro.us_trycr(start_date=start_date, end_date=end_date)
-        call_cnt = 1
-        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
-        while next_end_date is not None:
-            new_ret = self.pro.us_trycr(start_date=start_date, end_date=str(next_end_date))
-            new_ret.bfill(inplace=True)
-            new_ret.fillna(NAN_FILL,inplace=True)            
-            ret = pd.concat([ret, new_ret], ignore_index=True)
-            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
-            call_cnt += 1
-        ret = ret.rename(columns={'date': 'trade_date'})
-        logging.info(f"INFO: Tushare interface - <pro.us_trycr> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-    
-    #美国短期国债收益率
-    def get_us_tbr(self, start_date=None, end_date=None):
-        one_time_count_limit = 2000
-        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
-        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
-        ret = self.pro.us_tbr(start_date=start_date, end_date=end_date)
-        call_cnt = 1
-        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
-        while next_end_date is not None:
-            new_ret = self.pro.us_tbr(start_date=start_date, end_date=str(next_end_date))
-            new_ret.bfill(inplace=True)
-            new_ret.fillna(NAN_FILL,inplace=True)            
-            ret = pd.concat([ret, new_ret], ignore_index=True)
-            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
-            call_cnt += 1
-        ret = ret.rename(columns={'date': 'trade_date'})
-        logging.info(f"INFO: Tushare interface - <pro.us_tbr> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-    
-    #美国长期国债收益率
-    def get_us_tltr(self, start_date=None, end_date=None):
-        one_time_count_limit = 2000
-        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
-        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
-        ret = self.pro.us_tltr(start_date=start_date, end_date=end_date)
-        call_cnt = 1
-        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
-        while next_end_date is not None:
-            new_ret = self.pro.us_tltr(start_date=start_date, end_date=str(next_end_date))
-            new_ret.bfill(inplace=True)
-            new_ret.fillna(NAN_FILL,inplace=True)            
-            ret = pd.concat([ret, new_ret], ignore_index=True)
-            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
-            call_cnt += 1
-        ret = ret.rename(columns={'date': 'trade_date'})
-        logging.info(f"INFO: Tushare interface - <pro.us_tltr> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
-        return ret
-    
-    #美国国债实际长期利率平均值
-    def get_us_trltr(self, start_date=None, end_date=None):
-        one_time_count_limit = 2000
-        start_date = str(start_date) if start_date is not None else FIRST_TRADE_DATE
-        end_date = str(end_date) if end_date is not None else datetime.now().strftime('%Y%m%d')
-        ret = self.pro.us_trltr(start_date=start_date, end_date=end_date)
-        call_cnt = 1
-        next_end_date = self.get_next_end_date(ret, one_time_count_limit, 'date')
-        while next_end_date is not None:
-            new_ret = self.pro.us_trltr(start_date=start_date, end_date=str(next_end_date))
-            new_ret.bfill(inplace=True)
-            new_ret.fillna(NAN_FILL,inplace=True)            
-            ret = pd.concat([ret, new_ret], ignore_index=True)
-            next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, 'date')
-            call_cnt += 1
-        ret = ret.rename(columns={'date': 'trade_date'})
-        logging.info(f"INFO: Tushare interface - <pro.us_trltr> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
+        if one_time_count_limit > -1:  #有获取数量限制
+            next_end_date = self.get_next_end_date(ret, one_time_count_limit, date_src_name)
+            while next_end_date is not None:
+                if trade_date is not None:
+                    new_ret = getattr(self.pro, api_name)(trade_date=trade_date)
+                elif start_date is None and end_date is None:
+                    new_ret = getattr(self.pro, api_name)(ts_code=ts_code)
+                elif ts_code is not None:
+                    new_ret = getattr(self.pro, api_name)(ts_code=ts_code, start_date=start_date, end_date=str(next_end_date))
+                else:
+                    new_ret = getattr(self.pro, api_name)(start_date=start_date, end_date=str(next_end_date))
+                new_ret.bfill(inplace=True)
+                new_ret.fillna(NAN_FILL,inplace=True)            
+                ret = pd.concat([ret, new_ret], ignore_index=True)
+                next_end_date = self.get_next_end_date(new_ret, one_time_count_limit, date_src_name)
+                call_cnt += 1
+        if date_src_name != date_dst_name:
+            ret = ret.rename(columns={date_src_name: date_dst_name})
+        if remain_columns is not None:
+            ret = ret[remain_columns]
+        logging.info(f"INFO: Tushare interface - <pro.{api_name}> is running for [{call_cnt}] time.") if IS_PRINT_TUSHARE_CALL_INFO else None
         return ret
 
     #获取股票对应的总市值（单位：万元）：
     def get_total_mv(self, ts_code):
-        daily_basic = self.get_daily_basic(ts_code=ts_code)
+        daily_basic = self.get_tushare_data(api_name='daily_basic',ts_code=ts_code)
         try:
             ret = daily_basic['total_mv'][0]
         except:
@@ -583,7 +294,8 @@ class StockInfo():
     def get_next_end_date(self, df, one_time_count_limit, date_col_name='trade_date'):
         if len(df) < one_time_count_limit:
             return None
-        return self.get_pre_trade_date(df[date_col_name].values[-1])
+        ret = self.get_pre_trade_date(df[date_col_name].values[-1])
+        return ret
 
     #获取股票的综合数据
     def get_stock_detail(self, asset='E', ts_code=None, spec_date=None, start_date=None, end_date=None):
@@ -591,16 +303,15 @@ class StockInfo():
             spec_colunm = 'trade_date'
             drop_column = 'ts_code'
             #data_basic = self.get_trade_open_dates(start_date=start_date, end_date=end_date)
-            data_basic = self.get_daily(ts_code=ts_code, start_date=start_date, end_date=end_date)
-            #data_basic.insert(column='industry_idx', value=self.get_industry_idx(ts_code))
-            #data_basic.insert(column='stock_idx', value=self.get_stock_idx(ts_code))
+            #data_basic = self.get_daily(ts_code=ts_code, start_date=start_date, end_date=end_date)
+            data_basic = self.get_tushare_data(api_name='daily', ts_code=ts_code, start_date=start_date, end_date=end_date)
             data_basic['industry_idx'] = self.get_industry_idx(ts_code)
             data_basic['stock_idx'] = self.get_stock_idx(ts_code)
             data_part0 = pd.DataFrame(columns=['trade_date'])
         elif spec_date is not None: #若spec_date不为空，则默认为取指定日期的所有stock数据
             spec_colunm = 'ts_code'
             drop_column = 'trade_date'
-            data_basic = self.get_daily(trade_date=spec_date)
+            data_basic = self.get_tushare_data(api_name='daily', trade_date=spec_date)
             data_part0 = pd.DataFrame(columns=['ts_code'])
         else:
             logging.error("In para error-<ts_code> and <spec_date> can not be both None.")
@@ -609,14 +320,17 @@ class StockInfo():
         if asset == 'I':
             return self.get_pro_bar(ts_code=ts_code, asset=asset, start_date=start_date, end_date=end_date)
         elif asset == 'E':
-            data_part1 = self.get_daily_basic(ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date).drop(columns=[drop_column])
-            data_part2 = self.get_moneyflow(ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date).drop(columns=[drop_column])
-            data_part11 = self.get_shibor(start_date=start_date, end_date=end_date)
-            data_part12 = self.get_us_tycr(start_date=start_date, end_date=end_date)
-            data_part13 = self.get_us_trycr(start_date=start_date, end_date=end_date)
-            data_part14 = self.get_us_tbr(start_date=start_date, end_date=end_date)
-            data_part15 = self.get_us_tltr(start_date=start_date, end_date=end_date)
-            data_part16 = self.get_us_trltr(start_date=start_date, end_date=end_date)
+            data_part1 = self.get_tushare_data(api_name='daily_basic', ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date,
+                                               remain_columns=['ts_code', 'trade_date', 'turnover_rate_f', 'volume_ratio', 'pe', 'pb', 'ps', 'dv_ratio', 'total_mv']).drop(columns=[drop_column])
+            data_part2 = self.get_tushare_data(api_name='moneyflow', ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date,
+                                               remain_columns=['trade_date', 'ts_code', 'buy_sm_vol','sell_sm_vol','buy_md_vol','sell_md_vol','buy_lg_vol',\
+                                                               'sell_lg_vol','buy_elg_vol','sell_elg_vol','net_mf_vol']).drop(columns=[drop_column])
+            self.data_part11 = self.data_part11 if self.data_part11 is not None else self.get_tushare_data(api_name='shibor', start_date=start_date, end_date=end_date, remain_columns=['trade_date', 'on', '1w', '6m', '1y'])
+            self.data_part12 = self.data_part12 if self.data_part12 is not None else self.get_tushare_data(api_name='us_tycr', start_date=start_date, end_date=end_date, remain_columns=['trade_date', 'm1', 'y1', 'y5', 'y10', 'y20', 'y30'])
+            self.data_part13 = self.data_part13 if self.data_part13 is not None else self.get_tushare_data(api_name='us_trycr', start_date=start_date, end_date=end_date, remain_columns=['trade_date', 'y5', 'y10', 'y30'])
+            self.data_part14 = self.data_part14 if self.data_part14 is not None else self.get_tushare_data(api_name='us_tbr', start_date=start_date, end_date=end_date, remain_columns=['trade_date', 'w4_bd', 'w4_ce', 'w26_bd', 'w26_ce', 'w52_bd', 'w52_ce'])
+            self.data_part15 = self.data_part15 if self.data_part15 is not None else self.get_tushare_data(api_name='us_tltr', start_date=start_date, end_date=end_date, remain_columns=['trade_date', 'ltc', 'cmt', 'e_factor'])
+            self.data_part16 = self.data_part16 if self.data_part16 is not None else self.get_tushare_data(api_name='us_trltr', start_date=start_date, end_date=end_date, remain_columns=['trade_date', 'ltr_avg'])
             #data_part3 = self.get_margin_detail(ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date).drop(columns=[drop_column])
             #data_part4 = self.get_block_trade(ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date).drop(columns=[drop_column])
             #data_part5 = self.get_stk_holdertrade(ts_code=ts_code, trade_date=spec_date, start_date=start_date, end_date=end_date).drop(columns=[drop_column])
@@ -625,12 +339,12 @@ class StockInfo():
             data_complete = pd.merge(data_basic, data_part0, how='left', on=[spec_colunm])
             data_complete = pd.merge(data_complete, data_part1, how='left', on=[spec_colunm], suffixes=[None, '_daily_basic'])
             data_complete = pd.merge(data_complete, data_part2, how='left', on=[spec_colunm], suffixes=[None, '_moneyflow'])
-            data_complete = pd.merge(data_complete, data_part11, how='left', on=[spec_colunm], suffixes=[None, '_shibor'])
-            data_complete = pd.merge(data_complete, data_part12, how='left', on=[spec_colunm], suffixes=[None, '_us_tycr'])
-            data_complete = pd.merge(data_complete, data_part13, how='left', on=[spec_colunm], suffixes=[None, '_us_trycr'])
-            data_complete = pd.merge(data_complete, data_part14, how='left', on=[spec_colunm], suffixes=[None, '_us_tbr'])
-            data_complete = pd.merge(data_complete, data_part15, how='left', on=[spec_colunm], suffixes=[None, '_us_tltr'])
-            data_complete = pd.merge(data_complete, data_part16, how='left', on=[spec_colunm], suffixes=[None, '_us_trltr'])
+            data_complete = pd.merge(data_complete, self.data_part11, how='left', on=[spec_colunm], suffixes=[None, '_shibor'])
+            data_complete = pd.merge(data_complete, self.data_part12, how='left', on=[spec_colunm], suffixes=[None, '_us_tycr'])
+            data_complete = pd.merge(data_complete, self.data_part13, how='left', on=[spec_colunm], suffixes=[None, '_us_trycr'])
+            data_complete = pd.merge(data_complete, self.data_part14, how='left', on=[spec_colunm], suffixes=[None, '_us_tbr'])
+            data_complete = pd.merge(data_complete, self.data_part15, how='left', on=[spec_colunm], suffixes=[None, '_us_tltr'])
+            data_complete = pd.merge(data_complete, self.data_part16, how='left', on=[spec_colunm], suffixes=[None, '_us_trltr'])
             #data_complete = pd.merge(data_complete, data_part3, how='left', on=[spec_colunm], suffixes=[None, '_margin_detail'])
             #data_complete = pd.merge(data_complete, data_part4, how='left', on=[spec_colunm], suffixes=[None, '_block_trade'])
             #data_complete = pd.merge(data_complete, data_part5, how='left', on=[spec_colunm], suffixes=[None, '_stk_holdertrade'])
@@ -642,39 +356,14 @@ class StockInfo():
             return data_complete
 
 
-class HolderType():
-    def __init__(self, holder_type):
-        self.holder_type = holder_type
-        self.holder_type_int = -1
-        self.__get_inter_class()
-
-    def __get_inter_class(self):
-        if self.holder_type == 'G':
-            self.holder_type_int = 1
-        elif self.holder_type == 'P':
-            self.holder_type_int = 2
-        elif self.holder_type == 'C':
-            self.holder_type_int = 3
-        else:
-            logging.error(f"unexcept <holder_type> -[{self.holder_type}]")
-            exit()
-
-class InDe():
-    def __init__(self, in_de):
-        self.in_de = in_de
-        self.in_de_int = self.__get_inter_class()
-    
-    def __get_inter_class(self):
-        if self.in_de not in ['IN', 'DE']:
-            logging.error(f"InDe() unexcept <in_de> -[{self.in_de}]")
-            exit()
-        ret = 1 if self.in_de == 'IN' else -1
-        return ret
-
 if __name__ == "__main__":
     setup_logging()
     ts_code1 = '600036.SH'
     si = StockInfo(TOKEN)
     #si.get_top_n_code_group_by_industry(1)
-    df = si.get_us_tycr()
-    print(f"df count = {len(df)}, \nhead = \n{df.head(20)}, \ntail = \n{df.tail(20)}")
+    func_name = 'shibor'
+    df = si.get_tushare_data(api_name=func_name, start_date='19900101', end_date='20240101')
+    #df = si.get_shibor(start_date='19900101', end_date='20240101')
+    #df = si.get_pro_bar(ts_code=ts_code1)
+    print(f"rows: {len(df)}")
+    #print(f"colunms: {df.columns}")

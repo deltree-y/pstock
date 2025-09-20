@@ -1,6 +1,7 @@
 # coding=utf-8
 import os, sys, logging
 import numpy as np
+import tensorflow as tf
 from datetime import datetime
 from pathlib import Path
 from keras.models import Model
@@ -18,26 +19,86 @@ o_path = os.getcwd()
 sys.path.append(o_path)
 sys.path.append(str(Path(__file__).resolve().parents[0]))
 
-def transformer_encoder_block(x, d_model, num_heads, ff_dim, dropout_rate):
-    # Self-attention
-    attn_output = MultiHeadAttention(num_heads=num_heads, key_dim=d_model)(x, x)
-    attn_output = Dropout(dropout_rate)(attn_output)
-    x = Add()([x, attn_output])
-    x = LayerNormalization()(x)
+def positional_encoding(length, depth):
+    """
+    优化建议1: 添加位置编码来增强序列位置信息
+    """
+    positions = np.arange(length)[:, np.newaxis]    # (seq, 1)
+    depths = np.arange(depth)[np.newaxis, :]/depth  # (1, depth)
+    
+    angle_rates = 1 / (10000**depths)               # (1, depth)
+    angle_rads = positions * angle_rates            # (seq, depth)
+    
+    # 将正弦应用于偶数索引，余弦应用于奇数索引
+    pos_encoding = np.zeros(angle_rads.shape)
+    pos_encoding[:, 0::2] = np.sin(angle_rads[:, 0::2])
+    pos_encoding[:, 1::2] = np.cos(angle_rads[:, 1::2])
+    
+    return tf.cast(pos_encoding, dtype=tf.float32)
 
-    # Feed Forward Network
-    ff_output = Dense(ff_dim, activation='relu', kernel_regularizer=l2(1e-4))(x)
-    ff_output = Dropout(dropout_rate)(ff_output)
-    ff_output_proj = Dense(x.shape[-1], activation=None)(ff_output)
-    x = Add()([x, ff_output_proj])
-    x = LayerNormalization()(x)
+def transformer_encoder_block(x, d_model, num_heads, ff_dim, dropout_rate, l2_reg=1e-5, block_id=0, use_gating=False):
+    """
+    优化建议2: 增强的Transformer编码器块，支持门控机制选项
+    优化建议3: 增加L2正则化和更多dropout位置
+    """
+    # Self-attention with stronger regularization
+    attn_output = MultiHeadAttention(
+        num_heads=num_heads, 
+        key_dim=d_model // num_heads,  # 按头数平均分配维度
+        kernel_regularizer=l2(l2_reg),
+        name=f"mha_{block_id}"
+    )(x, x)
+    attn_output = Dropout(dropout_rate, name=f"attn_dropout_{block_id}")(attn_output)
+    
+    # 第一个残差连接
+    x = Add(name=f"add1_{block_id}")([x, attn_output])
+    x = LayerNormalization(epsilon=1e-6, name=f"ln1_{block_id}")(x)
+    
+    # 前馈网络
+    ff_input = x
+    ff_output = Dense(ff_dim, activation='gelu', kernel_regularizer=l2(l2_reg), name=f"ff1_{block_id}")(x)
+    ff_output = Dropout(dropout_rate, name=f"ff_dropout1_{block_id}")(ff_output)
+    
+    # 优化建议2: 可选的门控机制
+    if use_gating:
+        gate = Dense(ff_dim, activation='sigmoid', kernel_regularizer=l2(l2_reg), name=f"gate_{block_id}")(x)
+        ff_output = tf.multiply(ff_output, gate)
+    
+    ff_output = Dense(d_model, kernel_regularizer=l2(l2_reg), name=f"ff2_{block_id}")(ff_output)
+    ff_output = Dropout(dropout_rate, name=f"ff_dropout2_{block_id}")(ff_output)
+    
+    # 第二个残差连接
+    x = Add(name=f"add2_{block_id}")([ff_input, ff_output])
+    x = LayerNormalization(epsilon=1e-6, name=f"ln2_{block_id}")(x)
+    
     return x
+
 
 class TransformerModel():
     def __init__(self, x=None, y=None, test_x=None, test_y=None, 
                  d_model=256, num_heads=4, ff_dim=512, dropout_rate=0.2, num_layers=4, p=2,
-                 class_weights=None
+                 l2_reg=1e-5, use_gating=False, use_pos_encoding=True, class_weights=None, loss_type='focal_loss'
                  ):
+        """
+        优化建议2: 增加更多模型配置选项
+        优化建议3: 添加L2正则化参数
+        优化建议7: 支持选择不同的损失函数
+        
+        参数:
+            x, y: 训练数据和标签
+            test_x, test_y: 测试数据和标签
+            d_model: 模型维度
+            num_heads: 注意力头数量
+            ff_dim: 前馈网络维度
+            dropout_rate: Dropout率
+            num_layers: Transformer层数
+            p: 放大系数
+            l2_reg: L2正则化系数
+            use_gating: 是否使用门控机制
+            use_pos_encoding: 是否使用位置编码
+            class_weights: 类别权重
+            loss_type: 损失函数类型 ('focal_loss', 'cross_entropy', 'weighted_cross_entropy')
+        """
         self.x = x.astype('float32')
         self.y1 = y.astype(int)  # 多分类标签（分箱后的类别编号）
         self.test_x = test_x.astype('float32') if test_x is not None else None
@@ -48,12 +109,18 @@ class TransformerModel():
         self.dropout_rate = dropout_rate
         self.num_layers = num_layers
         self.p = p
+        self.l2_reg = l2_reg
+        self.use_gating = use_gating
+        self.use_pos_encoding = use_pos_encoding
+        self.loss_type = loss_type
+        
         if class_weights is None:
             # y_train 是训练集的分箱标签
-            class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=self.y)
-            # 手动提升类别5和0的权重
-            class_weights[0] *= 0.5
-            class_weights[5] *= 2
+            class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=self.y1)
+            # 手动提升类别0和5的权重，假设这些是稀有类
+            if len(class_weights) > 5:
+                class_weights[0] *= 1.5  # 增加第一个类的权重
+                class_weights[-1] *= 2.0  # 增加最后一个类的权重
             self.class_weight_dict = dict(enumerate(class_weights))
         else:
             self.class_weight_dict = class_weights
@@ -64,27 +131,75 @@ class TransformerModel():
         self.model.summary()
 
     def create_model(self, shape):
+        """
+        构建改进的Transformer模型
+        优化建议1: 添加位置编码
+        优化建议2: 更灵活的网络结构配置
+        优化建议3: 增强正则化
+        """
         inputs = Input(shape)
-        x = LayerNormalization()(inputs)
-        for _ in range(self.num_layers):
-            x = transformer_encoder_block(x, self.d_model, self.num_heads, self.ff_dim, self.dropout_rate)
+        
+        # 初始归一化和投影
+        x = LayerNormalization(epsilon=1e-6)(inputs)
+        x = Dense(self.d_model, kernel_regularizer=l2(self.l2_reg))(x)
+        
+        # 优化建议1: 添加位置编码
+        if self.use_pos_encoding:
+            seq_length = inputs.shape[1]
+            pos_encoding = positional_encoding(seq_length, self.d_model)
+            x = x + pos_encoding
+        
+        # 构建多层Transformer编码器
+        for i in range(self.num_layers):
+            x = transformer_encoder_block(
+                x,
+                d_model=self.d_model,
+                num_heads=self.num_heads,
+                ff_dim=self.ff_dim,
+                dropout_rate=self.dropout_rate,
+                l2_reg=self.l2_reg,
+                block_id=i,
+                use_gating=self.use_gating
+            )
+        
+        # 序列展平并进行最终分类
         x = Flatten()(x)
-        x = Dense(64, activation='relu', kernel_regularizer=l2(1e-4))(x)
+        x = Dense(128, activation='gelu', kernel_regularizer=l2(self.l2_reg))(x)
         x = Dropout(self.dropout_rate)(x)
-        out = Dense(NUM_CLASSES, activation='softmax', name='output1')(x)
+        x = Dense(64, activation='gelu', kernel_regularizer=l2(self.l2_reg))(x)
+        x = Dropout(self.dropout_rate/2)(x)  # 输出层前降低dropout以稳定训练
+        
+        # 多分类输出层
+        out = Dense(NUM_CLASSES, activation='softmax', kernel_regularizer=l2(self.l2_reg), name='output1')(x)
         self.model = Model(inputs=inputs, outputs=out)
         
 
 
-    def train(self, tx, ty, epochs=80, batch_size=512, learning_rate=0.002, patience=30):
+    def train(self, tx, ty, epochs=80, batch_size=512, learning_rate=0.002, weight_decay=1e-5, patience=30):
+        """
+        训练模型
+        优化建议4: 使用AdamW优化器并添加weight_decay参数
+        优化建议7: 支持不同的损失函数
+        """
         self.x = tx.astype('float32') if tx is not None else self.x
         self.y = ty.astype(int) if ty is not None else self.y
 
+        optimizer = optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5)#AdamW(learning_rate=learning_rate, weight_decay=weight_decay, clipnorm=0.5)
+
+        # 优化建议7: 支持不同的损失函数
+        if self.loss_type == 'focal_loss':
+            loss = focal_loss(gamma=2.0, alpha=0.25)
+        elif self.loss_type == 'weighted_cross_entropy':
+            loss = 'sparse_categorical_crossentropy'
+        else:  # 默认交叉熵
+            loss = 'sparse_categorical_crossentropy'
+
         self.model.compile(
-            optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss={'output1': focal_loss(gamma=2.0, alpha=0.25)},#focal_loss(gamma=2.0, alpha=0.25)},#'sparse_categorical_crossentropy'},
+            optimizer=optimizer,
+            loss={'output1': loss},
             metrics={'output1': 'accuracy'}
         )        
+
         # 添加学习率调度和早停
         warmup_steps = int(0.1 * epochs)  # 10%的步数用于预热
         lr_scheduler = WarmUpCosineDecayScheduler(
