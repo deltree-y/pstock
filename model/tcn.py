@@ -2,7 +2,7 @@
 import os, sys, logging
 import tensorflow as tf
 from keras.models import Model
-from keras.layers import Input, BatchNormalization, Dropout, Dense
+from keras.layers import Input, BatchNormalization, Dropout, Dense, Lambda
 from keras.callbacks import EarlyStopping
 from keras.optimizers import Adam
 from keras import layers
@@ -17,7 +17,8 @@ class TCNModel():
     def __init__(self, x=None, y=None, test_x=None, test_y=None, fn=None, p=2,
                  nb_filters=64, kernel_size=8, nb_stacks=1,
                  dilations=[1, 2, 4, 8, 16, 32], dropout_rate=0.3,
-                 class_weights=None, loss_type=None
+                 class_weights=None, loss_type=None,
+                 l2_reg=1e-5
                  ):
         if fn != None:
             self.load(fn)
@@ -30,6 +31,7 @@ class TCNModel():
             self.nb_stacks = nb_stacks
             self.dilations = dilations or [1, 2, 4, 8, 16, 32]
             self.class_weights = class_weights
+            self.l2_reg = l2_reg
             self.loss_type = loss_type
             self.learning_rate_status = "init"
 
@@ -48,12 +50,12 @@ class TCNModel():
     def improved_residual_block(self, x, dilation_rate, filters, kernel_size=8):
         # 残差连接
         residual = layers.Conv1D(filters=filters, kernel_size=1, padding='same',
-                            kernel_regularizer=tf.keras.regularizers.l2(1e-5))(x)
+                            kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg))(x)
         
         # 第一卷积层
         conv = layers.Conv1D(filters=filters, kernel_size=kernel_size, 
                         dilation_rate=dilation_rate, padding='causal',
-                        kernel_regularizer=tf.keras.regularizers.l2(1e-5))(x)
+                        kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg))(x)
         conv = layers.LayerNormalization()(conv)  # 使用Layer Normalization
         conv = layers.Activation('relu')(conv)
         conv = layers.SpatialDropout1D(self.dropout_rate)(conv)
@@ -61,7 +63,7 @@ class TCNModel():
         # 第二卷积层
         conv = layers.Conv1D(filters=filters, kernel_size=kernel_size,
                         dilation_rate=dilation_rate, padding='causal',
-                        kernel_regularizer=tf.keras.regularizers.l2(1e-5))(conv)
+                        kernel_regularizer=tf.keras.regularizers.l2(self.l2_reg))(conv)
         conv = layers.LayerNormalization()(conv)  # 使用Layer Normalization
         conv = layers.Activation('relu')(conv)
         conv = layers.SpatialDropout1D(self.dropout_rate)(conv)
@@ -94,6 +96,12 @@ class TCNModel():
         x = layers.Dense(32, activation='relu')(x)
         # 多分类输出
         outputs = layers.Dense(NUM_CLASSES, activation='softmax', name='output1')(x)
+
+        # 使用温度缩放调整输出分布
+        temperature = 1.5  # 调整这个值，>1会使分布更平滑，<1会使分布更尖锐
+        x_last = Dense(NUM_CLASSES, name='logits')(x)
+        outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output1')(x_last)
+        
         self.model = Model(inputs=inputs, outputs=outputs)
 
     def train(self, tx, ty, epochs=120, batch_size=256, learning_rate=0.001, patience=20):

@@ -1,6 +1,7 @@
 # coding=utf-8
 import os, sys, logging
 import numpy as np
+from sklearn.utils import compute_class_weight
 #from pathlib import Path
 #o_path = os.getcwd()
 #sys.path.append(o_path)
@@ -9,6 +10,7 @@ import numpy as np
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
 from model.residual_lstm import ResidualLSTMModel
+from model.residual_tcn import ResidualTCNModel
 from model.tcn import TCNModel
 from model.transformer import TransformerModel
 from utils.tk import TOKEN
@@ -58,10 +60,17 @@ if __name__ == "__main__":
     learning_rate = 0.00003
     patience = 60
     p = 2
-    dropout_rate = 0.3
-    cls_weights = dict(enumerate([0.46946348, 0.97702727, 1.18450308, 1.18450308, 1.18450308]))
+    dropout_rate = 0.5
+    l2_reg = 1e-4
     loss_type = 'focal_loss'#'focal_loss'#'cross_entropy'#'weighted_cross_entropy'
- 
+     
+    # 显著降低类别0权重，提高类别4权重
+    class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty1)
+    class_weights[0] *= 0.2
+    class_weights[4] *= 3.0
+    cls_weights = dict(enumerate(class_weights))
+    #cls_weights = dict(enumerate([0.46946348, 0.97702727, 1.18450308, 1.18450308, 1.18450308]))
+    
     # ================== 模型选择 ==================
     if model_type == 'residual_lstm':
         # 残差LSTM模型参数
@@ -72,7 +81,7 @@ if __name__ == "__main__":
         model = ResidualLSTMModel(
             x=tx, y=ty1, test_x=vx, test_y=vy1, p=p,
             depth=depth,base_units=base_units,dropout_rate=dropout_rate,use_se=use_se, 
-            se_ratio=8,l2_reg=1e-5,
+            se_ratio=8,l2_reg=l2_reg,
             class_weights=cls_weights, loss_type = loss_type
         )
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_ResidualLSTM_ep{epochs}_bs{batch_size}_p{p}_d{depth}.h5")
@@ -86,7 +95,7 @@ if __name__ == "__main__":
         model = TransformerModel(
             x=tx, y=ty1, test_x=vx, test_y=vy1, p=p,
             d_model=d_model, num_heads=num_heads, ff_dim=ff_dim, dropout_rate=dropout_rate, num_layers=num_layers,
-            l2_reg=1e-5, use_pos_encoding=True, use_gating=True,
+            l2_reg=l2_reg, use_pos_encoding=True, use_gating=True,
             class_weights=cls_weights, loss_type = loss_type
         )
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_Transformer_ep{epochs}_bs{batch_size}_p{p}.h5")
@@ -97,11 +106,12 @@ if __name__ == "__main__":
         nb_stacks = 1
         dilations = [1, 2, 4, 8, 16, 32]
 
-        model = TCNModel(
+        model = ResidualTCNModel(
             x=tx, y=ty1, test_x=vx, test_y=vy1, p=p,
             nb_filters=nb_filters, kernel_size=kernel_size, nb_stacks=nb_stacks,
             dilations=dilations, dropout_rate=dropout_rate,
-            class_weights=cls_weights, loss_type = loss_type
+            class_weights=cls_weights, loss_type = loss_type,
+            l2_reg=l2_reg
         )
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_TCN_ep{epochs}_bs{batch_size}_p{p}.h5")
     else:

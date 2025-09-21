@@ -31,12 +31,12 @@ class WarmUpCosineDecayScheduler(tf.keras.callbacks.Callback):
         # 预热阶段
         if epoch < self.warmup_steps:
             lr = self.learning_rate_base * (epoch / self.warmup_steps)
-            self.model.learning_rate_status = "warmup"
+            self.model.learning_rate_status = "wup"
             #print("\n(warmup)", end='')
         # 恒定学习率阶段
         elif epoch < self.warmup_steps + self.hold_steps:
             lr = self.learning_rate_base
-            self.model.learning_rate_status = "hold"
+            self.model.learning_rate_status = "hld"
             #print("\n(hold)", end='')
         # 余弦衰减阶段
         else:
@@ -44,7 +44,7 @@ class WarmUpCosineDecayScheduler(tf.keras.callbacks.Callback):
             cosine_steps = self.total_steps - self.warmup_steps - self.hold_steps
             progress = steps_since_hold / cosine_steps
             lr = 0.5 * self.learning_rate_base * (1 + np.cos(np.pi * progress))
-            self.model.learning_rate_status = "cosine"
+            self.model.learning_rate_status = "cos"
             #print("\n(cosine decay)", end='')
         return lr
 
