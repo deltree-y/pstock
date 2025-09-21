@@ -26,8 +26,8 @@ def plot_confusion_by_model(model, x, y_true, num_classes=6, title="Confusion Ma
     print_ratio(y_pred, "y_pred_label")
     auto_adjust_class_weights(y_pred, num_classes)
     confusion_based_weights(y_true, y_pred, num_classes)
-    ret = plot_confusion(y_true, y_pred, num_classes=num_classes, title=title)
-    return ret
+    #ret = plot_confusion(y_true, y_pred, num_classes=num_classes, title=title)
+    #return ret
 
 #基于给定的日期list,使用给定的数据集和模型进行预测并打印结果
 def print_predict_result(t_list, ds, m):

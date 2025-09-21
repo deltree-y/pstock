@@ -9,6 +9,7 @@ import numpy as np
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
 from model.residual_lstm import ResidualLSTMModel
+from model.tcn import TCNModel
 from model.transformer import TransformerModel
 from utils.tk import TOKEN
 from utils.const_def import ALL_CODE_LIST, BASE_DIR, MODEL_DIR, NUM_CLASSES
@@ -22,7 +23,8 @@ if __name__ == "__main__":
 
     # ================== 参数设置 ==================
     # 支持 'residual_lstm' 或 'transformer'
-    model_type = 'transformer'  # <<< 修改这里即可切换模型
+    #model_type = 'transformer'  # <<< 修改这里即可切换模型
+    model_type = 'tcn'  # <<< 修改这里即可切换模型
     # model_type = 'residual_lstm'
 
     # ================== 数据集准备 ==================
@@ -53,60 +55,55 @@ if __name__ == "__main__":
     n_repeat = 3
     epochs = 120
     batch_size = 1024
-    learning_rate = 0.00005
+    learning_rate = 0.00003
     patience = 60
-    cls_weights = dict(enumerate([0.5, 1.1, 1.1, 1.1, 1.1, 1.1]))
-    #cls_weights = dict(enumerate([0.1854275092976686, 1.042750929367235, 1.2682527881028205, 1.226394052044119, 0.8714498141287835, 1.405724907059373]))
-
-    # 模型结构配置
-    depth = 6          # 残差块数
-    base_units = 48    # 每方向 LSTM 基础单元（最终 BiLSTM 输出通道=2*base_units*p）
-    p = 2              # 放大系数
+    p = 2
     dropout_rate = 0.3
-    use_se = True
-
+    cls_weights = dict(enumerate([0.46946348, 0.97702727, 1.18450308, 1.18450308, 1.18450308]))
+    loss_type = 'focal_loss'#'focal_loss'#'cross_entropy'#'weighted_cross_entropy'
+ 
     # ================== 模型选择 ==================
     if model_type == 'residual_lstm':
         # 残差LSTM模型参数
-        epochs = 120
-        batch_size = 1024
-        learning_rate = 0.00002
-        patience = 60
         depth = 6
         base_units = 48
-        p = 2
-        dropout_rate = 0.3
         use_se = True
-        cls_weights = dict(enumerate([0.5, 1.1, 1.1, 1.1, 1.1, 1.1]))
 
         model = ResidualLSTMModel(
             x=tx, y=ty1, test_x=vx, test_y=vy1, p=p,
-            depth=depth,base_units=base_units,dropout_rate=dropout_rate,use_se=use_se, class_weights=cls_weights,
-            se_ratio=8,l2_reg=1e-5
+            depth=depth,base_units=base_units,dropout_rate=dropout_rate,use_se=use_se, 
+            se_ratio=8,l2_reg=1e-5,
+            class_weights=cls_weights, loss_type = loss_type
         )
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_ResidualLSTM_ep{epochs}_bs{batch_size}_p{p}_d{depth}.h5")
     elif model_type == 'transformer':
         # Transformer模型参数
-        epochs = 100
-        batch_size = 1024
-        learning_rate = 0.00005
-        patience = 30
         d_model = 256
         num_heads = 4
         ff_dim = 512
         num_layers = 4
-        p = 2
-        dropout_rate = 0.3
-        loss_type = 'focal_loss'#'focal_loss'#'cross_entropy'#'weighted_cross_entropy'
-        cls_weights = dict(enumerate([0.6828409172673222, 1.108499269160892, 1.0943138523448035, 1.0108307574339053, 1.103515203793077]))
 
         model = TransformerModel(
-            x=tx,y=ty1,test_x=vx,test_y=vy1,p=p,
+            x=tx, y=ty1, test_x=vx, test_y=vy1, p=p,
             d_model=d_model, num_heads=num_heads, ff_dim=ff_dim, dropout_rate=dropout_rate, num_layers=num_layers,
-            class_weights=cls_weights, l2_reg=1e-5, use_pos_encoding=True, use_gating=True,
-            loss_type = loss_type
+            l2_reg=1e-5, use_pos_encoding=True, use_gating=True,
+            class_weights=cls_weights, loss_type = loss_type
         )
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_Transformer_ep{epochs}_bs{batch_size}_p{p}.h5")
+    elif model_type == 'tcn':
+        # TCN模型参数
+        nb_filters = 64
+        kernel_size = 8
+        nb_stacks = 1
+        dilations = [1, 2, 4, 8, 16, 32]
+
+        model = TCNModel(
+            x=tx, y=ty1, test_x=vx, test_y=vy1, p=p,
+            nb_filters=nb_filters, kernel_size=kernel_size, nb_stacks=nb_stacks,
+            dilations=dilations, dropout_rate=dropout_rate,
+            class_weights=cls_weights, loss_type = loss_type
+        )
+        save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_TCN_ep{epochs}_bs{batch_size}_p{p}.h5")
     else:
         raise ValueError(f"Unknown model_type: {model_type}")
 
@@ -168,5 +165,4 @@ if __name__ == "__main__":
     #y_pred = res_lstm.model.predict(vx, batch_size=2048).reshape(-1)
 
     # ================== 保存模型 ==================
-    save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_ResidualLSTM_ep{epochs}_bs{batch_size}_p{p}_d{depth}.h5")
     model.save(save_path)

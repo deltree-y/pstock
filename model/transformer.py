@@ -100,9 +100,9 @@ class TransformerModel():
             loss_type: 损失函数类型 ('focal_loss', 'cross_entropy', 'weighted_cross_entropy')
         """
         self.x = x.astype('float32')
-        self.y1 = y.astype(int)  # 多分类标签（分箱后的类别编号）
+        self.y = y.astype(int)  # 多分类标签（分箱后的类别编号）
         self.test_x = test_x.astype('float32') if test_x is not None else None
-        self.test_y1 = test_y.astype(int) if test_y is not None else None
+        self.test_y = test_y.astype(int) if test_y is not None else None
         self.d_model = d_model
         self.num_heads = num_heads
         self.ff_dim = ff_dim
@@ -110,13 +110,15 @@ class TransformerModel():
         self.num_layers = num_layers
         self.p = p
         self.l2_reg = l2_reg
+        self.learning_rate_status = "init"
+        
         self.use_gating = use_gating
         self.use_pos_encoding = use_pos_encoding
         self.loss_type = loss_type
         
         if class_weights is None:
             # y_train 是训练集的分箱标签
-            class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=self.y1)
+            class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=self.y)
             # 手动提升类别0和5的权重，假设这些是稀有类
             if len(class_weights) > 5:
                 class_weights[0] *= 1.5  # 增加第一个类的权重
@@ -218,10 +220,9 @@ class TransformerModel():
         start_time = datetime.now()
         self.history.set_para(epochs, start_time)
         self.model.fit(
-            x=self.x,
-            y=self.y1,
+            x=self.x, y=self.y,
             batch_size=batch_size,
-            validation_data=(self.test_x, self.test_y1),
+            validation_data=(self.test_x, self.test_y),
             epochs=epochs,
             callbacks=[self.history, lr_scheduler, early_stopping],
             class_weight=self.class_weight_dict,

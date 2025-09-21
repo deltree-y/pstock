@@ -1,4 +1,5 @@
 # codeing: utf-8
+import logging
 import tensorflow as tf
 from sklearn.metrics import confusion_matrix
 import numpy as np
@@ -18,25 +19,33 @@ class WarmUpCosineDecayScheduler(tf.keras.callbacks.Callback):
         self.verbose = verbose
         self.learning_rates = []
 
-    def on_batch_begin(self, batch, logs=None):
-        self.global_steps = self.model.optimizer.iterations.numpy()
-        lr = self.get_lr()
+    def on_epoch_begin(self, epoch, logs=None):
+        #self.global_steps = self.model.optimizer.iterations.numpy()
+        lr = self.get_lr(epoch)
+        #if lr != tf.keras.backend.get_value(self.model.optimizer.lr):
+        #    print(f" lr change from <{tf.keras.backend.get_value(self.model.optimizer.lr):.8f}> to <{lr:.8f}>",end='')
         tf.keras.backend.set_value(self.model.optimizer.lr, lr)
         self.learning_rates.append(lr)
 
-    def get_lr(self):
+    def get_lr(self, epoch):
         # 预热阶段
-        if self.global_steps < self.warmup_steps:
-            lr = self.learning_rate_base * (self.global_steps / self.warmup_steps)
+        if epoch < self.warmup_steps:
+            lr = self.learning_rate_base * (epoch / self.warmup_steps)
+            self.model.learning_rate_status = "warmup"
+            #print("\n(warmup)", end='')
         # 恒定学习率阶段
-        elif self.global_steps < self.warmup_steps + self.hold_steps:
+        elif epoch < self.warmup_steps + self.hold_steps:
             lr = self.learning_rate_base
+            self.model.learning_rate_status = "hold"
+            #print("\n(hold)", end='')
         # 余弦衰减阶段
         else:
-            steps_since_hold = self.global_steps - self.warmup_steps - self.hold_steps
+            steps_since_hold = epoch - self.warmup_steps - self.hold_steps
             cosine_steps = self.total_steps - self.warmup_steps - self.hold_steps
             progress = steps_since_hold / cosine_steps
             lr = 0.5 * self.learning_rate_base * (1 + np.cos(np.pi * progress))
+            self.model.learning_rate_status = "cosine"
+            #print("\n(cosine decay)", end='')
         return lr
 
 

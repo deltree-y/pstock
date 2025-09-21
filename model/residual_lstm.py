@@ -94,7 +94,8 @@ class ResidualLSTMModel:
                  se_ratio=8,
                  l2_reg=1e-5,
                  loss_fn=None,
-                 class_weights=None
+                 class_weights=None,
+                 loss_type=None
                  ):
         """
         p: 放大尺度(向后兼容)
@@ -115,6 +116,8 @@ class ResidualLSTMModel:
         self.y = y.astype(int)  # 分类任务 y 应为整数类别
         self.test_x = test_x.astype('float32') if test_x is not None else None
         self.test_y = test_y.astype(int) if test_y is not None else None
+        self.loss_type = loss_type
+        self.learning_rate_status = "init"
 
         self.history = LossHistory()
         self.depth = depth
@@ -176,9 +179,15 @@ class ResidualLSTMModel:
         self.x = tx.astype('float32') if tx is not None else self.x
         self.y = ty.astype(int) if ty is not None else self.y
 
+        # 多分类损失
+        if self.loss_type == 'focal_loss':
+            loss_fn = focal_loss(gamma=2.0, alpha=0.25)
+        else:
+            loss_fn = 'sparse_categorical_crossentropy'
+
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss={'output1': focal_loss(gamma=2.0, alpha=0.25)},#focal_loss(gamma=2.0, alpha=0.25)},#'sparse_categorical_crossentropy'},
+            loss={'output1': loss_fn},
             metrics={'output1': 'accuracy'}
         )        
         
@@ -205,8 +214,7 @@ class ResidualLSTMModel:
         callbacks = [self.history, lr_scheduler, early_stopping]
         
         self.model.fit(
-            x=self.x,
-            y=self.y,
+            x=self.x, y=self.y,
             batch_size=batch_size,
             validation_data=(self.test_x, self.test_y),
             validation_freq=1,

@@ -1,6 +1,7 @@
-import logging
+import tensorflow as tf
 from datetime import datetime, timedelta
 from keras.callbacks import Callback
+
 
 class LossHistory(Callback):
     def on_train_begin(self, logs={}):
@@ -24,11 +25,12 @@ class LossHistory(Callback):
         if logs:
             print(f"\n{epoch + 1}/{self.epoch}: "
                   f"l/a=[{logs.get('loss'):.4f}/{logs.get('accuracy')*100:.2f}], "
-                  f"val l/a=[{logs.get('val_loss'):.4f}/{logs.get('val_accuracy')*100:.2f}]({loss_diff:+.4f}), ",
+                  f"val l/a=[{logs.get('val_loss'):.4f}/{logs.get('val_accuracy')*100:.2f}]({loss_diff:+.4f}),",
+                  f"lr({self.model.learning_rate_status}):{tf.keras.backend.get_value(self.model.optimizer.lr):.8f}",
                   f"{speed:.1f}s/epo,ed:{finished_time}({min_remaining/60:.1f}h)", end="", flush=True)
                     
             if epoch > 0 and logs.get('val_loss') < min(self.val_losses[:-1]):
-                print(f" <-- improved[{min(self.val_losses[:-1])-logs.get('val_loss'):.5f}]", end="", flush=True)
+                print(f" <-- [{min(self.val_losses[:-1])-logs.get('val_loss'):.5f}]", end="", flush=True)
 
 
         ### 以下所有行多分类时使用 ###
