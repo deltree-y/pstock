@@ -139,7 +139,26 @@ class Trade():
         self.trade_df['log_return'] = np.log(self.trade_df['close'] / self.trade_df['close'].shift(1))
         self.trade_df['log_volume'] = np.log(self.trade_df['vol'])
 
-        max_cut_days = 10  # 新增特征需要丢弃的天数为10
+        #### 第二批新增技术指标 ####
+        # 1. 前20日高点
+        self.trade_df['high_20d_max'] = self.trade_df['high'].rolling(20).max()
+        self.trade_df['close_to_high_20d'] = (self.trade_df['close'] - self.trade_df['high_20d_max']) / self.trade_df['high_20d_max']
+
+        # 2. 创新高标记
+        self.trade_df['is_new_high_20d'] = (self.trade_df['high'] == self.trade_df['high_20d_max']).astype(int)
+
+        # 3. 振幅
+        self.trade_df['amplitude'] = (self.trade_df['high'] - self.trade_df['low']) / ((self.trade_df['open'] + self.trade_df['close']) / 2)
+
+        # 4. 成交量放大倍数
+        self.trade_df['vol_ratio_20d'] = self.trade_df['vol'] / self.trade_df['vol'].rolling(20).mean()
+
+        # 5. MACD金叉死叉（假设已用ta库）
+        macd = ta.macd(self.trade_df['close'])
+        self.trade_df['macd_cross'] = ((macd['MACD_12_26_9'] > macd['MACDs_12_26_9']).astype(int))
+        
+        max_cut_days = 26  # 新增特征需要丢弃的天数为26天
+
         return max_cut_days
 
 
@@ -160,8 +179,7 @@ class Trade():
             extra_features_35 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', 'date_full', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'stock_idx', 'atr_14', 'stddev_10']
             extra_features_45 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', 'date_full', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'stock_idx', 'atr_14', 'stddev_10', 'ps', 'ADX_14', 'industry_idx', 'log_volume', 'DMP_14', 'amount', 'return_10d', 'roc_10', 'BBU_20_2.0', 'return_5d']
             extra_features_55 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', 'date_full', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'stock_idx', 'atr_14', 'stddev_10', 'ps', 'ADX_14', 'industry_idx', 'log_volume', 'DMP_14', 'amount', 'return_10d', 'roc_10', 'BBU_20_2.0', 'return_5d', 'e_factor', 'sma_10', 'ema_10', 'wma_10', 'BBM_20_2.0', 'pre_close', 'high', 'close', 'low', 'obv']
-            advanced_features = ['return_1d', 'return_5d', 'return_10d', 'volatility_5d', 'volatility_10d', \
-                                 'price_volume_ratio', 'volume_change', 'return_skew_5d', 'return_kurt_5d', 'log_return', 'log_volume']
+            advanced_features = ['return_1d', 'return_10d', 'volatility_5d', 'high_20d_max', 'close_to_high_20d', 'is_new_high_20d', 'amplitude', 'vol_ratio_20d', 'macd_cross']
             remain_list = list(dict.fromkeys(chain(basic_features, extra_features_35, advanced_features)))    #取并集
             remain_list = self.trade_df.columns.to_list() if self.if_use_all_features else remain_list
             #logging.info(f"After feature selection, remain {len(remain_list)}")

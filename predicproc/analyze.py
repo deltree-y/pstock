@@ -2,6 +2,7 @@ import numpy as np
 from sklearn.metrics import confusion_matrix
 import matplotlib.pyplot as plt
 import seaborn as sns
+from sklearn.metrics import accuracy_score, recall_score, f1_score
 
 from model.utils import auto_adjust_class_weights, confusion_based_weights
 from predicproc.predict import Predict
@@ -26,6 +27,8 @@ def plot_confusion_by_model(model, x, y_true, num_classes=6, title="Confusion Ma
     print_ratio(y_pred, "y_pred_label")
     auto_adjust_class_weights(y_pred, num_classes)
     confusion_based_weights(y_true, y_pred, num_classes)
+    print("各类别召回率:", recall_score(y_true, y_pred, average=None))    # [0.5, 0.5, 0.75, 0.5, 0.75]
+
     #ret = plot_confusion(y_true, y_pred, num_classes=num_classes, title=title)
     #return ret
 

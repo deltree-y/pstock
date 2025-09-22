@@ -25,9 +25,9 @@ if __name__ == "__main__":
 
     # ================== 参数设置 ==================
     # 支持 'residual_lstm' 或 'transformer'
-    #model_type = 'transformer'  # <<< 修改这里即可切换模型
-    model_type = 'tcn'  # <<< 修改这里即可切换模型
-    # model_type = 'residual_lstm'
+    model_type = 'transformer'  # <<< 修改这里即可切换模型
+    #model_type = 'residual_tcn'  # <<< 修改这里即可切换模型
+    #model_type = 'residual_lstm'
 
     # ================== 数据集准备 ==================
     si = StockInfo(TOKEN)
@@ -99,25 +99,27 @@ if __name__ == "__main__":
             class_weights=cls_weights, loss_type = loss_type
         )
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_Transformer_ep{epochs}_bs{batch_size}_p{p}.h5")
-    elif model_type == 'tcn':
+    elif model_type == 'residual_tcn':
         # TCN模型参数
+        dilations = [1, 2, 4, 8, 16, 32]
         nb_filters = 64
         kernel_size = 8
-        nb_stacks = 1
-        dilations = [1, 2, 4, 8, 16, 32]
+        nb_stacks = 2
+        causal = True  # 因为是时间序列，建议使用因果卷积
 
         model = ResidualTCNModel(
             x=tx, y=ty1, test_x=vx, test_y=vy1, p=p,
             nb_filters=nb_filters, kernel_size=kernel_size, nb_stacks=nb_stacks,
             dilations=dilations, dropout_rate=dropout_rate,
             class_weights=cls_weights, loss_type = loss_type,
-            l2_reg=l2_reg
+            l2_reg=l2_reg, causal=causal
         )
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_TCN_ep{epochs}_bs{batch_size}_p{p}.h5")
     else:
         raise ValueError(f"Unknown model_type: {model_type}")
 
-    logging.info(f"\nbins1: {ds.bins1.prop_bins}\nbins2: {ds.bins2.prop_bins}")
+    print(f"Class weights: {cls_weights}")
+    print(f"\nbins1: {ds.bins1.prop_bins}\nbins2: {ds.bins2.prop_bins}")
     print_ratio(ty1, "ty1")
 
     # ================== 训练 ==================
@@ -150,7 +152,7 @@ if __name__ == "__main__":
         logging.info(f"3.2 数据增强训练: tx shape: {aug_x.shape}, ty1 shape: {aug_y.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
         model.train(tx=aug_x, ty=aug_y, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
         print_predict_result(t_list, ds, model)
-        #plot_confusion_by_model(res_lstm, vx, vy1, num_classes=NUM_CLASSES, title=f"3.2 数据增强训练: Confusion Matrix")
+        #plot_confusion_by_model(model, vx, vy1, num_classes=NUM_CLASSES, title=f"3.2 数据增强训练: Confusion Matrix")
 
     if True:
         # 3.3 多次训练（可以和增权、增强结合）
@@ -159,7 +161,7 @@ if __name__ == "__main__":
         for _ in range(n_repeat):
             model.train(tx=hard_x, ty=hard_y, epochs=epochs, batch_size=batch_size, learning_rate=new_lr, patience=patience)
         print_predict_result(t_list, ds, model)
-        #plot_confusion_by_model(res_lstm, vx, vy1, num_classes=NUM_CLASSES, title=f"3.3 多次训练: Confusion Matrix")
+        plot_confusion_by_model(model, vx, vy1, num_classes=NUM_CLASSES, title=f"3.3 多次训练: Confusion Matrix")
 
     # 或者将增强后的 hard 样本拼回主数据集再训练
     if False:
@@ -172,7 +174,7 @@ if __name__ == "__main__":
         plot_confusion_by_model(model, vx, vy1, num_classes=NUM_CLASSES, title=f"3.4 将增强后的 hard 样本拼回主数据集再训练: Confusion Matrix")
 
     # ================== 评估 ==================
-    #y_pred = res_lstm.model.predict(vx, batch_size=2048).reshape(-1)
+    #y_pred = model.model.predict(vx, batch_size=2048).reshape(-1)
 
     # ================== 保存模型 ==================
     model.save(save_path)
