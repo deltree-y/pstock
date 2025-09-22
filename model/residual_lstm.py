@@ -15,7 +15,7 @@ from model.losses import focal_loss
 from sklearn.utils.class_weight import compute_class_weight
 from keras.layers import (
     Input, LSTM, Bidirectional, Dropout, LayerNormalization,
-    Dense, Add, Conv1D, GlobalAveragePooling1D, Multiply, Activation
+    Dense, Add, Conv1D, GlobalAveragePooling1D, Multiply, Activation, Lambda
 )
 
 o_path = os.getcwd()
@@ -171,9 +171,13 @@ class ResidualLSTMModel:
         x_last = Dense(32, activation=activations.swish,
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc2")(x_last)
-        out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(x_last)
+        # 输出层
+        temperature = 2
+        x_last = Dense(NUM_CLASSES, name='logits')(x_last)
+        outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output1')(x_last)
+        #out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(x_last)
 
-        self.model = Model(inputs=inp, outputs=out1)    
+        self.model = Model(inputs=inp, outputs=outputs)    
 
     def train(self, tx, ty, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
         self.x = tx.astype('float32') if tx is not None else self.x

@@ -23,11 +23,6 @@ if __name__ == "__main__":
     setup_logging()
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-    # ================== 参数设置 ==================
-    # 支持 'residual_lstm' 或 'transformer'
-    model_type = 'transformer'  # <<< 修改这里即可切换模型
-    #model_type = 'residual_tcn'  # <<< 修改这里即可切换模型
-    #model_type = 'residual_lstm'
 
     # ================== 数据集准备 ==================
     si = StockInfo(TOKEN)
@@ -52,6 +47,10 @@ if __name__ == "__main__":
     ty1 = ty[:, 0]#.astype(float)
     vy1 = vy[:, 0]#.astype(float)
 
+    # ================== 模型选择 ==================
+    #model_type = 'transformer'  # <<< 修改这里即可切换模型
+    #model_type = 'residual_tcn'  # <<< 修改这里即可切换模型
+    model_type = 'residual_lstm'
 
     # ================== 训练参数 ==================
     n_repeat = 3
@@ -66,8 +65,8 @@ if __name__ == "__main__":
      
     # 显著降低类别0权重，提高类别4权重
     class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty1)
-    class_weights[0] *= 0.2
-    class_weights[4] *= 3.0
+    #class_weights[0] *= 0.2
+    #class_weights[4] *= 3.0
     cls_weights = dict(enumerate(class_weights))
     #cls_weights = dict(enumerate([0.46946348, 0.97702727, 1.18450308, 1.18450308, 1.18450308]))
     
