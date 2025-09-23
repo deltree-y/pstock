@@ -26,19 +26,20 @@ class BinManager:
         self._bins = None
         self._n_bins = None
 
-        if isinstance(data_or_filename, str) and os.path.isfile(data_or_filename):
+        if isinstance(data_or_filename, str) and os.path.isfile(data_or_filename):  # 输入为文件名
             with open(data_or_filename) as f:
                 bins = np.array(json.load(f))
             self._validate_bins(bins)
             self._bins = bins
             self._n_bins = len(bins) - 1
-        elif isinstance(data_or_filename, (list, np.ndarray, pd.Series)):
+        elif isinstance(data_or_filename, (list, np.ndarray, pd.Series)):   # 输入为数据
             if n_bins is None:
                 raise ValueError("初始化时输入数据需指定分组数量 n_bins.")
             if n_bins >= len(data_or_filename):
                 logging.error(f"数据: {(data_or_filename)}, 分组数量: {n_bins}")
                 raise ValueError("分组数量 n_bins 不能大于或等于数据长度.")
             _, bins = pd.qcut(data_or_filename, q=n_bins, retbins=True, duplicates='drop')
+            print(f"生成的分箱边界: {bins}")
             self._validate_bins(bins)
             self._bins = bins
             self._n_bins = len(bins) - 1
@@ -48,11 +49,15 @@ class BinManager:
 
     @property
     def bins(self):
-        return self._bins.copy() if self._bins is not None else None
-
+        """返回去除头尾（最小和最大边界）的分割点，仅用于分箱显示或手工分割点分析"""
+        if self._bins is not None:
+            return self._bins[1:-1].copy()  # 只保留中间分割点
+        return None
+    
     @property
-    def prop_bins(self):
-        return self._bins.copy()[1:-1] if self._bins is not None else None
+    def full_bins(self):
+        """返回完整分箱边界（含最大最小）"""
+        return self._bins.copy() if self._bins is not None else None
 
     @property
     def n_bins(self):

@@ -81,7 +81,7 @@ class StockDataset():
         raw_y = self.raw_dataset[:, -2:].astype(float) #取出最后2列作为y
         self.bins1, self.bins2 = self.get_bins(raw_y)
 
-        # 2. 按股票分离测试集与验证集,并返回对应的y
+        # 2. 按股票分离测试集与验证集,并对y进行分箱,返回对应的y
         (self.raw_train_x, self.train_y), (self.raw_test_x, self.test_y) = self.split_train_test_dataset_by_stock(raw_dataset_list, self.train_size)
         
         # 4. 根据train_x的数据,生成并保存\读取归一化参数, #根据输入参数判断是否需要更新归一化参数配置,如果更新的话,就保存新的参数配置
@@ -125,7 +125,7 @@ class StockDataset():
         return raw_y*100
 
     #此处提供两种分箱方法,可选其一
-    #按本dataset的y数据,生成对应的分箱器,并返回分箱后的y数据
+    #方法一(自动分箱) : 按本dataset的y数据,生成对应的分箱器,并返回分箱后的y数据
     def get_bins(self, raw_y):
         y1,y2 = raw_y[:, 0], raw_y[:, 1]
         bins1 = BinManager(y1, n_bins=NUM_CLASSES, save_path=os.path.join(BASE_DIR, BIN_DIR, self.stock.ts_code + "_y1_bins.json"))
@@ -134,13 +134,13 @@ class StockDataset():
     def get_binned_y_use_qcut(self, raw_y):
         y1,y2 = raw_y[:, 0], raw_y[:, 1]
         if self.bins1 is not None and self.bins2 is not None:
-            y1_binned = np.array([RateCat(rate=x,scale=self.bins1.prop_bins,right=True).get_label() for x in y1])
-            y2_binned = np.array([RateCat(rate=x,scale=self.bins2.prop_bins,right=True).get_label() for x in y2])
+            y1_binned = np.array([RateCat(rate=y,scale=self.bins1.bins,right=True).get_label() for y in y1])
+            y2_binned = np.array([RateCat(rate=y,scale=self.bins2.bins,right=True).get_label() for y in y2])
             return (np.array([y1_binned, y2_binned]).astype(int)).transpose()
         logging.error("StockDataset.get_binned_y_use_qcut() - bins1 or bins2 is None.")
         exit()
         
-    #按手工生成具体的分箱,并返回分箱后的y数据
+    #方法二(手工分箱) : 按手工生成具体的分箱,并返回分箱后的y数据
     def get_binned_y_use_scale(self, raw_y):
         y1,y2 = raw_y[:, 0], raw_y[:, 1]
         self.bins1 = np.array([-np.inf] + T1L_SCALE + [np.inf])
@@ -169,15 +169,12 @@ class StockDataset():
                 continue
             dataset_y = self.get_binned_y_use_qcut(raw_y)
             train_count = int(len(raw_x) * train_size)
-            if train_count == len(raw_x):
-                # 数据太少时，全部划分到训练集
-                train_x_list.append(raw_x)
-                train_y_list.append(dataset_y)
-            else:
-                train_x_list.append(raw_x[:train_count])
-                train_y_list.append(dataset_y[:train_count])
-                test_x_list.append(raw_x[train_count:])
-                test_y_list.append(dataset_y[train_count:])
+            test_count = len(raw_x) - train_count
+            #print(f"train start date: {raw_data[-1,0]}, end date: {raw_data[test_count,0]}, count: {train_count}, test start date: {raw_data[test_count,0]}, end date: {raw_data[0,0]}, count: {test_count}")
+            train_x_list.append(raw_x[test_count:])
+            train_y_list.append(dataset_y[test_count:])
+            test_x_list.append(raw_x[:test_count])
+            test_y_list.append(dataset_y[:test_count])
 
         # 合并所有股票的训练集和测试集
         raw_train_x = np.vstack(train_x_list) if train_x_list else np.array([])
@@ -202,7 +199,6 @@ class StockDataset():
         self.scaler = StandardScaler()
         #self.scaler = RobustScaler()#
         #self.scaler = MinMaxScaler(feature_range=(-1, 1))  # 替换RobustScaler
-
 
         if new_data is not None or not os.path.exists(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + "_scaler.save")):    #如果有新的数据,则更新归一化的参数配置
             df = pd.DataFrame(new_data)
@@ -237,7 +233,7 @@ class StockDataset():
         normalized_x = self.get_normalized_data(raw_x)
         return self.get_windowed_x_by_raw(normalized_x)
 
-    #获取某一天的模型输入数据(已归一化,无法获取T1,T2的数据),以及对应的真实结果y
+    #获取某一天的模型输入数据(已归一化),以及对应的真实结果y
     def get_dataset_with_y_by_date(self, date):
         date = type(self.full_raw_data[0, 0])(date)
         try:
@@ -247,7 +243,7 @@ class StockDataset():
             exit()
         return self.normalized_windowed_train_x[idx,:,:] , self.raw_y[idx]
     
-    #获取某一天的模型输入数据(已归一化,可以获取T2的数据)
+    #获取某一天的模型输入数据(已归一化, 预测用),以及对应的收盘价
     def get_predictable_dataset_by_date(self, date):
         """
         根据指定日期，获取归一化且窗口化的数据集及该日期的收盘价。
@@ -376,12 +372,16 @@ if __name__ == "__main__":
     idx_code_list = []#'000001.SH','399001.SZ']#,'000300.SH','000905.SH']
     rel_code_list = ALL_CODE_LIST
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
-    ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20100104', end_date='20250918', train_size=0.8, if_use_all_features=True)
+    ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20000104', end_date='20250923', train_size=0.8, if_use_all_features=True)
     pd.set_option('display.max_columns', None)
-    print(pd.DataFrame(ds.raw_train_x).iloc[5000:5010])
-    print(pd.DataFrame(ds.train_y).iloc[5000:5010])
-    print(ds.bins1.prop_bins)
-    print(ds.bins2.prop_bins)
+    start_idx = 7000
+    print("Raw x sample:")
+    print(pd.DataFrame(ds.raw_train_x).iloc[start_idx:start_idx+3])
+    print("\nRaw y sample:")
+    print(pd.DataFrame(ds.train_y).iloc[start_idx:start_idx+3])
+    print("\nbins:")
+    print(ds.bins1.bins)
+    print(ds.bins2.bins)
     #tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     ### 只用T1 low的涨跌幅为回归目标 ###
     #ty_reg = ty[:, 0].astype(float)

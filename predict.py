@@ -36,7 +36,7 @@ if __name__ == "__main__":
             print("Predict for T0[%s]"%t0)
             data, bp = sd.get_predictable_dataset_by_date(t0)
             pred_data = tm.model(data)
-            Predict(pred_data, bp, bins1.prop_bins, bins2.prop_bins).print_predict_result()
+            Predict(pred_data, bp, bins1.bins, bins2.bins).print_predict_result()
             print()
 
     else:

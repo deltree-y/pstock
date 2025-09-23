@@ -11,6 +11,7 @@ from keras.regularizers import l2
 from keras.optimizers import Adam
 from model.history import LossHistory
 from sklearn.utils.class_weight import compute_class_weight
+from model.utils import WarmUpCosineDecayScheduler
 from utils.const_def import BASE, NUM_CLASSES
 
 o_path = os.getcwd()
@@ -18,175 +19,95 @@ sys.path.append(o_path)
 sys.path.append(str(Path(__file__).resolve().parents[0]))
 
 class LSTMModel():
-    def __init__(self, x=None, y=None, test_x=None, test_y=None, fn=None, p=2):
-        if fn != None:
+    def __init__(self,
+                 x=None, y=None,
+                 test_x=None,test_y=None,
+                 fn=None, p=2,
+                 depth=3, base_units=32,use_se=True, se_ratio=8,
+                 dropout_rate=0.2, l2_reg=1e-5,
+                 loss_fn=None, class_weights=None, loss_type=None
+                 ):
+        if fn is not None:
             self.load(fn)
             self.model.summary()
-        elif x is not None and y is not None:
-            self.p = p
-            #以下2行为多分类的数据
-            #self.x,self.y1,self.y2 = x.astype(float),y[:,0].astype(int),y[:,1].astype(int)
-            #self.test_x, self.test_y1, self.test_y2 = test_x.astype(float), test_y[:,0].astype(int), test_y[:,1].astype(int)
-            #以下2行为回归的数据
-            self.x,self.y1,self.y2 = x.astype(float),y[:,0].astype(float),y[:,1].astype(float)
-            self.test_x, self.test_y1, self.test_y2 = test_x.astype(float), test_y[:,0].astype(float), test_y[:,1].astype(float)
+            return
+        
+        self.p = p
+        self.x = x.astype('float32')
+        self.y = y.astype(int)  # 分类任务 y 应为整数类别
+        self.test_x = test_x.astype('float32') if test_x is not None else None
+        self.test_y = test_y.astype(int) if test_y is not None else None
+        self.loss_type = loss_type
+        self.learning_rate_status = "init"
 
-            self.history = LossHistory()
-            logging.info(f"input shape is - <{x.shape}>, output shape is - <{y.shape}>")
-            #self.create_model(x[0].shape)
-            #self.create_model_mini(x[0].shape)
-            self.create_model_reg_mini(x[0].shape)
-            #self.create_model_reg(x[0].shape)
-            self.model.summary()
-        else:
-            logging.error("LSTMModel init fail, no fn or x/y input!")
-            exit()
+        self.history = LossHistory()
+        self.depth = depth
+        self.base_units = base_units
+        self.dropout_rate = dropout_rate
+        self.use_se = use_se
+        self.se_ratio = se_ratio
+        self.l2_reg = l2_reg
+        self.loss_fn = loss_fn  # 保存传入的自定义损失（可为 None）
+        self.class_weight_dict = class_weights
+
+        self.history = LossHistory()
+        self.create_model_mini(x[0].shape)
+        self.model.summary()
+        logging.info(f"LSTM Mini Model: input shape={self.x.shape}, y shape={self.y.shape}")
 
     def create_model_mini(self, shape):
         inputs = Input(shape)
-        x = LSTM(16*self.p, return_sequences=False)(inputs)
-        x = Dense(8*self.p, activation='relu')(x)
+        x = LSTM(128, return_sequences=False)(inputs)
+        x = Dense(32, activation='relu')(x)
         out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(x)
         self.model = Model(inputs=inputs, outputs=out1)
 
-    def create_model_reg_mini(self, shape):
-        inputs = Input(shape)
-        x = LSTM(16*self.p, return_sequences=False)(inputs)
-        x = Dense(8*self.p, activation='relu')(x)
-        out1 = Dense(1, activation='linear', name='output1')(x)
-        self.model = Model(inputs=inputs, outputs=out1)
-
-    def create_model_reg(self, shape):
-        inputs = Input(shape)
+    def train(self, tx, ty, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
+        self.x = tx.astype('float32') if tx is not None else self.x
+        self.y = ty.astype(int) if ty is not None else self.y
         
-        # 第一层 Bidirectional LSTM - 减少正则化强度
-        x = Bidirectional(LSTM(self.p*32, return_sequences=True, kernel_regularizer=l2(1e-5)))(inputs)
-        x = LayerNormalization()(x)
-        x = Dropout(0.2)(x)  # 降低dropout率
-
-        # 第二层 Bidirectional LSTM
-        x = Bidirectional(LSTM(self.p*16, return_sequences=False, kernel_regularizer=l2(1e-5)))(x)
-        x = LayerNormalization()(x)
-        x = Dropout(0.3)(x)  # 降低dropout率
-
-        # 减少Dense层复杂度，防止过拟合
-        shared = Dense(self.p*64, activation='relu', kernel_regularizer=l2(1e-5))(x)  # 从256减少到64
-        shared = Dropout(0.3)(shared)
-
-        shared = Dense(self.p*32, activation='relu', kernel_regularizer=l2(1e-5))(shared)  # 从64减少到32
-        shared = Dropout(0.2)(shared)
-
-        # 输出层
-        out1 = Dense(self.p*16, activation='relu', kernel_regularizer=l2(1e-5))(shared)  # 从32减少到16
-        out1 = Dropout(0.1)(out1)  # 最后一层使用更低的dropout
-        out1 = Dense(1, activation='linear', name='output1')(out1)
-
-        self.model = Model(inputs=inputs, outputs=out1)
-
-    def create_model(self, shape):
-        inputs = Input(shape)
+        self.model.compile(
+            optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
+            loss={'output1': 'sparse_categorical_crossentropy'},
+            metrics={'output1': 'accuracy'}
+        )        
         
-        # 第一层 Bidirectional LSTM - 减少正则化强度
-        x = Bidirectional(LSTM(self.p*32, return_sequences=True, kernel_regularizer=l2(1e-5)))(inputs)
-        x = LayerNormalization()(x)
-        x = Dropout(0.2)(x)  # 降低dropout率
-
-        # 第二层 Bidirectional LSTM
-        x = Bidirectional(LSTM(self.p*16, return_sequences=False, kernel_regularizer=l2(1e-5)))(x)
-        x = LayerNormalization()(x)
-        x = Dropout(0.3)(x)  # 降低dropout率
-
-        # 减少Dense层复杂度，防止过拟合
-        shared = Dense(self.p*64, activation='relu', kernel_regularizer=l2(1e-5))(x)  # 从256减少到64
-        shared = Dropout(0.3)(shared)
-
-        shared = Dense(self.p*32, activation='relu', kernel_regularizer=l2(1e-5))(shared)  # 从64减少到32
-        shared = Dropout(0.2)(shared)
-
-        # 输出层
-        out1 = Dense(self.p*16, activation='relu', kernel_regularizer=l2(1e-5))(shared)  # 从32减少到16
-        out1 = Dropout(0.1)(out1)  # 最后一层使用更低的dropout
-        out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(out1)
-
-        self.model = Model(inputs=inputs, outputs=out1)
-
-    def train(self, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
-        model_path = os.path.join(BASE, "model", f"stocks_{epochs}_best.h5")
-        
-        # 模型检查点 - 保存最佳模型
-        mc = ModelCheckpoint(
-            model_path,
-            monitor='val_loss',
-            verbose=0,
-            save_best_only=False,
-            save_weights_only=False,
-            mode='auto',
-            save_freq='epoch'
+        # 添加学习率调度和早停
+        warmup_steps, hold_steps = int(0.4 * epochs), int(0.1 * epochs)
+        lr_scheduler = WarmUpCosineDecayScheduler(
+            learning_rate_base=learning_rate,
+            total_steps=epochs,
+            warmup_steps=warmup_steps,
+            hold_steps=hold_steps
         )
-        
-        # 学习率调度器 - 当验证损失停止改善时降低学习率
-        lr_scheduler = ReduceLROnPlateau(
-            monitor='val_loss', 
-            factor=0.9,  # 每次减少10%
-            patience=int(patience/5),  # 增加patience，避免过早降低学习率
-            min_lr=1e-6,  # 设置最小学习率
-            verbose=1
-        )
-        
-        # 早停机制 - 防止过拟合
         early_stopping = EarlyStopping(
             monitor='val_loss',
-            patience=patience,  # 30个epoch没有改善就停止
+            patience=patience,
             restore_best_weights=True,
             verbose=1
         )
-
-        # 改进的优化器配置
-        self.model.compile(
-            ### 以下4行为多分类的配置 ###
-            #optimizer=Adam(learning_rate=learning_rate, clipnorm=1.0),  # 添加梯度裁剪，使用适中的学习率
-            #loss={'output1': 'sparse_categorical_crossentropy'},
-            #metrics={'output1': 'accuracy'},
-            #weighted_metrics=[]
-
-            ### 以下3行为回归的配置 ###
-            optimizer=Adam(learning_rate=learning_rate, clipnorm=1.0),
-            loss='mse',
-            metrics=['mae']
-        )
         
         start_time = datetime.now()
-        
-        # 计算类别权重以处理类别不平衡问题
-        ### 以下7行为多分类的配置 ###
-        #class_weights = compute_class_weight(
-        #    'balanced',
-        #    classes=np.unique(self.y1),
-        #    y=self.y1
-        #)
-        #class_weight_dict = dict(enumerate(class_weights))
-        #logging.info(f"Class weights computed: {class_weight_dict}")
+        self.history.set_para(epochs, start_time)
         
         # 添加所有callback
-        #callbacks = [mc, self.history, lr_scheduler, early_stopping]
         callbacks = [self.history, lr_scheduler, early_stopping]
         
         self.model.fit(
-            x=self.x,
-            y=self.y1,#{'output1': self.y1},
+            x=self.x, y=self.y,
             batch_size=batch_size,
-            validation_data=(self.test_x, self.test_y1), 
-            validation_freq=1, 
+            validation_data=(self.test_x, self.test_y),
+            validation_freq=1,
             callbacks=callbacks,
             epochs=epochs, 
             shuffle=True, 
-            verbose=0  # 改为1以便观察训练过程
-            #class_weight=class_weight_dict  # 添加类别权重,多分类才需要配置
+            verbose=0  # 改为0以减少输出
         )
         
         spend_time = datetime.now() - start_time
         return "\n total spend:%.2f(h)/%.1f(m), %.1f(s)/epoc, %.2f(h)/10k"\
               %(spend_time.seconds/3600, spend_time.seconds/60, spend_time.seconds/epochs, 10000*(spend_time.seconds/3600)/epochs)
+
 
     def save(self, filename):
         try:
@@ -204,36 +125,3 @@ class LSTMModel():
         except:
             logging.error("\nmodel file load failed!")
             exit()
-
-    def plot(self):
-        train_loss = self.history.get_loss()
-        train_t1_accu, _ = self.history.get_accu()
-        val_loss = self.history.get_val_loss()
-        val_t1_accu, val_t2_accu = self.history.get_val()
-        epochs = range(1, len(train_loss)+1)
-        plt.plot(epochs, train_loss, label='Train Loss')
-        plt.plot(epochs, val_loss, label='Validation Loss')
-        plt.plot(epochs, val_t1_accu, label='Validation T1 Accuracy')
-        plt.plot(epochs, train_t1_accu, label='Train T1 Accuracy')
-        plt.xlabel('Epoch')
-        plt.ylabel('Loss')
-        plt.title('Loss Curve and Accuracy')
-        plt.legend()
-        plt.grid(True)
-        plt.show()
-
-    def create_model_sequential(self, shape):
-        self.model_sequential = Sequential([
-            Bidirectional(LSTM(1024, input_shape=shape, kernel_regularizer=l2(0.01),\
-                               return_sequences=True)),
-            Dropout(0.5),
-            Bidirectional(LSTM(256, kernel_regularizer=l2(0.01), \
-                               return_sequences=True)),
-            Dropout(0.4),
-            Bidirectional(LSTM(64, kernel_regularizer=l2(0.01), \
-                               return_sequences=False)),
-            Dense(128, activation='relu', kernel_regularizer=l2(0.01)),
-            Dropout(0.3),
-            Dense(32, activation='relu', kernel_regularizer=l2(0.01)),
-            Dense(2)
-        ])

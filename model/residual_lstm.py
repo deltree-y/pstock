@@ -81,35 +81,17 @@ class ResidualLSTMModel:
     回归任务专用残差式 BiLSTM 模型
     """
     def __init__(self,
-                 x=None,
-                 y=None,
-                 test_x=None,
-                 test_y=None,
-                 fn=None,
-                 p=2,
-                 depth=3,
-                 base_units=32,
-                 dropout_rate=0.2,
-                 use_se=True,
-                 se_ratio=8,
-                 l2_reg=1e-5,
-                 loss_fn=None,
-                 class_weights=None,
-                 loss_type=None
+                 x=None, y=None,
+                 test_x=None,test_y=None,
+                 fn=None, p=2,
+                 depth=3, base_units=32,use_se=True, se_ratio=8,
+                 dropout_rate=0.2, l2_reg=1e-5,
+                 loss_fn=None, class_weights=None, loss_type=None
                  ):
-        """
-        p: 放大尺度(向后兼容)
-        depth: 残差块个数
-        base_units: 每个 BiLSTM 内部 units = base_units * p
-        """
         if fn is not None:
             self.load(fn)
             self.model.summary()
             return
-
-        if x is None or y is None:
-            logging.error("ResidualLSTMModel init fail, need x & y or fn.")
-            raise ValueError("No training data provided.")
 
         self.p = p
         self.x = x.astype('float32')
@@ -127,16 +109,7 @@ class ResidualLSTMModel:
         self.se_ratio = se_ratio
         self.l2_reg = l2_reg
         self.loss_fn = loss_fn  # 保存传入的自定义损失（可为 None）
-
-        if class_weights is None:
-            # y_train 是训练集的分箱标签
-            class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=self.y)
-            # 手动提升类别5和0的权重
-            class_weights[0] *= 0.5
-            class_weights[5] *= 2
-            self.class_weight_dict = dict(enumerate(class_weights))
-        else:
-            self.class_weight_dict = class_weights
+        self.class_weight_dict = class_weights
 
         self._build(self.x.shape[1:])
         self.model.summary()
@@ -172,10 +145,10 @@ class ResidualLSTMModel:
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc2")(x_last)
         # 输出层
-        temperature = 2
-        x_last = Dense(NUM_CLASSES, name='logits')(x_last)
-        outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output1')(x_last)
-        #out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(x_last)
+        #temperature = 1
+        #x_last = Dense(NUM_CLASSES, name='logits')(x_last)
+        #outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output1')(x_last)
+        outputs = Dense(NUM_CLASSES, activation='softmax', name='output1')(x_last)
 
         self.model = Model(inputs=inp, outputs=outputs)    
 
@@ -196,12 +169,12 @@ class ResidualLSTMModel:
         )        
         
         # 添加学习率调度和早停
-        warmup_steps = int(0.1 * epochs)  # 10%的步数用于预热
+        warmup_steps, hold_steps = int(0.4 * epochs), int(0.2 * epochs)
         lr_scheduler = WarmUpCosineDecayScheduler(
             learning_rate_base=learning_rate,
             total_steps=epochs,
             warmup_steps=warmup_steps,
-            hold_steps=int(0.05 * epochs)  # 5%的步数保持不变
+            hold_steps=hold_steps
         )
         early_stopping = EarlyStopping(
             monitor='val_loss',

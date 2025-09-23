@@ -35,9 +35,12 @@ def plot_confusion_by_model(model, x, y_true, num_classes=6, title="Confusion Ma
 #基于给定的日期list,使用给定的数据集和模型进行预测并打印结果
 def print_predict_result(t_list, ds, m):
     for t0 in t_list:
-        print(f"Predict for T0[{t0}]")
         data, bp = ds.get_predictable_dataset_by_date(t0)
+        #print("*************************************************************")
+        #print(f"raw data is {data}")
+        #print("*************************************************************\n")
         pred_scaled = m.model.predict(data)
+        print(f"Predict for T0[{t0}]")
         print(f"Predict scaled result: {pred_scaled}")
         Predict(pred_scaled, bp, ds.bins1, ds.bins2).print_predict_result()
         print()

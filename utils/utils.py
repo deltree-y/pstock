@@ -138,7 +138,7 @@ def rolling_kurtosis(arr, window):
     return result
 
 def print_ratio(lst, label=""):
-    logging.info(f"count of {label}:")
+    logging.info(f"count of {label}(min: {lst.min()}, max: {lst.max()}):")
     counter, total = Counter(lst), len(lst)
     for num, count in counter.items():
         percent = count / total

@@ -9,9 +9,9 @@ from sklearn.utils import compute_class_weight
 
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
+from model.lstmmodel import LSTMModel
 from model.residual_lstm import ResidualLSTMModel
 from model.residual_tcn import ResidualTCNModel
-from model.tcn import TCNModel
 from model.transformer import TransformerModel
 from utils.tk import TOKEN
 from utils.const_def import ALL_CODE_LIST, BASE_DIR, MODEL_DIR, NUM_CLASSES
@@ -42,31 +42,32 @@ if __name__ == "__main__":
                       if_use_all_features=False)
 
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
-
-    # 仅使用 y 的第一列作为回归目标（T1低值变化率 *100 后的结果）
-    ty1 = ty[:, 0]#.astype(float)
-    vy1 = vy[:, 0]#.astype(float)
+    
+    #仅取一次预测
+    ty1 = ty[:, 0]
+    vy1 = vy[:, 0]
 
     # ================== 模型选择 ==================
     #model_type = 'transformer'  # <<< 修改这里即可切换模型
     #model_type = 'residual_tcn'  # <<< 修改这里即可切换模型
     model_type = 'residual_lstm'
+    #model_type = 'mini'
 
     # ================== 训练参数 ==================
     n_repeat = 3
-    epochs = 120
+    epochs = 100
     batch_size = 1024
-    learning_rate = 0.00003
-    patience = 60
+    learning_rate = 0.005
+    patience = 30
     p = 2
-    dropout_rate = 0.5
-    l2_reg = 1e-4
+    dropout_rate = 0.3
+    l2_reg = 1e-5
     loss_type = 'focal_loss'#'focal_loss'#'cross_entropy'#'weighted_cross_entropy'
      
     # 显著降低类别0权重，提高类别4权重
     class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty1)
-    #class_weights[0] *= 0.2
-    #class_weights[4] *= 3.0
+    #class_weights[0] *= 0.3
+    #class_weights[4] *= 5
     cls_weights = dict(enumerate(class_weights))
     #cls_weights = dict(enumerate([0.46946348, 0.97702727, 1.18450308, 1.18450308, 1.18450308]))
     
@@ -114,11 +115,18 @@ if __name__ == "__main__":
             l2_reg=l2_reg, causal=causal
         )
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_TCN_ep{epochs}_bs{batch_size}_p{p}.h5")
+    elif model_type == 'mini':
+        # LSTM Mini模型参数
+        model = LSTMModel(
+            x=tx, y=ty1, test_x=vx, test_y=vy1, p=p,
+            dropout_rate=dropout_rate
+        )
+        save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_LSTMmini_ep{epochs}_bs{batch_size}_p{p}.h5")
     else:
         raise ValueError(f"Unknown model_type: {model_type}")
 
     print(f"Class weights: {cls_weights}")
-    print(f"\nbins1: {ds.bins1.prop_bins}\nbins2: {ds.bins2.prop_bins}")
+    print(f"\nbins1: {ds.bins1.bins}\nbins2: {ds.bins2.bins}")
     print_ratio(ty1, "ty1")
 
     # ================== 训练 ==================
@@ -153,7 +161,7 @@ if __name__ == "__main__":
         print_predict_result(t_list, ds, model)
         #plot_confusion_by_model(model, vx, vy1, num_classes=NUM_CLASSES, title=f"3.2 数据增强训练: Confusion Matrix")
 
-    if True:
+    if False:
         # 3.3 多次训练（可以和增权、增强结合）
         logging.info(f"3.3 多次训练: tx shape: {hard_x.shape}, ty1 shape: {hard_y.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
         new_lr = learning_rate * 0.5
@@ -163,7 +171,7 @@ if __name__ == "__main__":
         plot_confusion_by_model(model, vx, vy1, num_classes=NUM_CLASSES, title=f"3.3 多次训练: Confusion Matrix")
 
     # 或者将增强后的 hard 样本拼回主数据集再训练
-    if False:
+    if True:
         # 3.4 将增强后的 hard 样本拼回主数据集再训练
         final_train_x = np.concatenate([tx, aug_x])
         final_train_y = np.concatenate([ty1, aug_y])
