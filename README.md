@@ -12,7 +12,7 @@
 
 ## 项目结构
 
-```
+```bash
 pstock/
 ├── datasets/           # 数据处理模块
 │   ├── stock.py       # 股票数据类
@@ -49,16 +49,16 @@ pip install -r requirements.txt
 2. 获取API令牌
 3. 复制模板文件并配置令牌：
 
-```bash
-cp utils/tk.py.template utils/tk.py
-```
+    ```bash
+    cp utils/tk.py.template utils/tk.py
+    ```
 
 4. 编辑 `utils/tk.py` 文件，将 `YOUR_TUSHARE_TOKEN_HERE` 替换为您的实际令牌
 
-```python
-# utils/tk.py
-TOKEN = "your_actual_tushare_token_here"
-```
+    ```python
+    # utils/tk.py
+    TOKEN = "your_actual_tushare_token_here"
+    ```
 
 **注意**: `utils/tk.py` 文件已在 `.gitignore` 中排除，不会被提交到版本控制。
 
@@ -85,16 +85,19 @@ python predict.py
 ## 模型说明
 
 ### 支持的模型
+
 - **Residual LSTM**: 残差连接的LSTM网络，解决梯度消失问题
 - **TCN**: 时序卷积网络，适合长序列建模
 - **Transformer**: 基于注意力机制的模型
 
 ### 数据特征
+
 - 价格数据：开盘价、收盘价、最高价、最低价、成交量
 - 技术指标：移动平均线、RSI、MACD等
 - 宏观数据：利率、汇率、宏观经济指标
 
 ### 预测目标
+
 - T1低值变化率：下一个交易日的最低价变化
 - T2高值变化率：下两个交易日的最高价变化
 

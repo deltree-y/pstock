@@ -5,7 +5,7 @@ import tensorflow as tf
 from datetime import datetime
 from pathlib import Path
 from keras.models import Model
-from keras.layers import Input, Dense, Dropout, BatchNormalization, LayerNormalization, MultiHeadAttention, Add, Flatten
+from keras.layers import Input, Dense, Dropout, BatchNormalization, LayerNormalization, MultiHeadAttention, Add, Flatten, Lambda
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from keras.optimizers import Adam
 from keras.regularizers import l2
@@ -171,11 +171,13 @@ class TransformerModel():
         x = Dense(64, activation='gelu', kernel_regularizer=l2(self.l2_reg))(x)
         x = Dropout(self.dropout_rate/2)(x)  # 输出层前降低dropout以稳定训练
         
-        # 多分类输出层
-        out = Dense(NUM_CLASSES, activation='softmax', kernel_regularizer=l2(self.l2_reg), name='output1')(x)
-        self.model = Model(inputs=inputs, outputs=out)
-        
+        # 输出层
+        temperature = 1.25
+        x_last = Dense(NUM_CLASSES, name='logits')(x)
+        outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output1')(x_last)
 
+        self.model = Model(inputs=inputs, outputs=outputs)
+        
 
     def train(self, tx, ty, epochs=80, batch_size=512, learning_rate=0.002, weight_decay=1e-5, patience=30):
         """
@@ -203,12 +205,12 @@ class TransformerModel():
         )        
 
         # 添加学习率调度和早停
-        warmup_steps = int(0.1 * epochs)  # 10%的步数用于预热
+        warmup_steps, hold_steps = int(0.2 * epochs), int(0.2 * epochs)
         lr_scheduler = WarmUpCosineDecayScheduler(
             learning_rate_base=learning_rate,
             total_steps=epochs,
             warmup_steps=warmup_steps,
-            hold_steps=int(0.05 * epochs)  # 5%的步数保持不变
+            hold_steps=hold_steps  # 5%的步数保持不变
         )
         early_stopping = EarlyStopping(
             monitor='val_loss',

@@ -25,9 +25,12 @@ def plot_confusion_by_model(model, x, y_true, num_classes=6, title="Confusion Ma
     y_pred_probs = model.model.predict(x)
     y_pred = np.argmax(y_pred_probs, axis=1)
     print_ratio(y_pred, "y_pred_label")
-    auto_adjust_class_weights(y_pred, num_classes)
-    confusion_based_weights(y_true, y_pred, num_classes)
-    print("各类别召回率:", recall_score(y_true, y_pred, average=None))    # [0.5, 0.5, 0.75, 0.5, 0.75]
+    #auto_adjust_class_weights(y_pred, num_classes)
+    #confusion_based_weights(y_true, y_pred, num_classes)
+    recall_score_list = recall_score(y_true, y_pred, average=None) 
+    recall_score_list = [round(x, 3) for x in recall_score_list]
+    print(f"分类召回率: {recall_score_list}")
+    print(f"宏召回率: {round(recall_score(y_true, y_pred, average='macro'),3)}")
 
     #ret = plot_confusion(y_true, y_pred, num_classes=num_classes, title=title)
     #return ret
@@ -41,7 +44,8 @@ def print_predict_result(t_list, ds, m):
         #print("*************************************************************\n")
         pred_scaled = m.model.predict(data)
         print(f"Predict for T0[{t0}]")
-        print(f"Predict scaled result: {pred_scaled}")
+        predict_list = [round(x, 3) for x in pred_scaled[0]]
+        print(f"Predict raw result: {predict_list}")
         Predict(pred_scaled, bp, ds.bins1, ds.bins2).print_predict_result()
         print()
 

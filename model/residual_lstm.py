@@ -145,7 +145,7 @@ class ResidualLSTMModel:
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc2")(x_last)
         # 输出层
-        #temperature = 1
+        #temperature = 1.25
         #x_last = Dense(NUM_CLASSES, name='logits')(x_last)
         #outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output1')(x_last)
         outputs = Dense(NUM_CLASSES, activation='softmax', name='output1')(x_last)
@@ -169,7 +169,7 @@ class ResidualLSTMModel:
         )        
         
         # 添加学习率调度和早停
-        warmup_steps, hold_steps = int(0.4 * epochs), int(0.2 * epochs)
+        warmup_steps, hold_steps = int(0.2 * epochs), int(0.2 * epochs)
         lr_scheduler = WarmUpCosineDecayScheduler(
             learning_rate_base=learning_rate,
             total_steps=epochs,

@@ -36,7 +36,7 @@ if __name__ == "__main__":
                       idx_code_list=index_code_list,
                       rel_code_list=related_stock_list,
                       si=si,
-                      start_date='20200104',
+                      start_date='20190104',
                       end_date='20250903',
                       train_size=0.9,
                       if_use_all_features=False)
@@ -56,12 +56,12 @@ if __name__ == "__main__":
     # ================== 训练参数 ==================
     n_repeat = 3
     epochs = 100
-    batch_size = 1024
-    learning_rate = 0.005
+    batch_size = 2048
+    learning_rate = 0.0002
     patience = 30
     p = 2
-    dropout_rate = 0.3
-    l2_reg = 1e-5
+    dropout_rate = 0.2
+    l2_reg = 0.00001
     loss_type = 'focal_loss'#'focal_loss'#'cross_entropy'#'weighted_cross_entropy'
      
     # 显著降低类别0权重，提高类别4权重
@@ -159,9 +159,9 @@ if __name__ == "__main__":
         logging.info(f"3.2 数据增强训练: tx shape: {aug_x.shape}, ty1 shape: {aug_y.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
         model.train(tx=aug_x, ty=aug_y, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
         print_predict_result(t_list, ds, model)
-        #plot_confusion_by_model(model, vx, vy1, num_classes=NUM_CLASSES, title=f"3.2 数据增强训练: Confusion Matrix")
+        plot_confusion_by_model(model, vx, vy1, num_classes=NUM_CLASSES, title=f"3.3 多次训练: Confusion Matrix")
 
-    if False:
+    if True:
         # 3.3 多次训练（可以和增权、增强结合）
         logging.info(f"3.3 多次训练: tx shape: {hard_x.shape}, ty1 shape: {hard_y.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
         new_lr = learning_rate * 0.5
@@ -171,7 +171,7 @@ if __name__ == "__main__":
         plot_confusion_by_model(model, vx, vy1, num_classes=NUM_CLASSES, title=f"3.3 多次训练: Confusion Matrix")
 
     # 或者将增强后的 hard 样本拼回主数据集再训练
-    if True:
+    if False:
         # 3.4 将增强后的 hard 样本拼回主数据集再训练
         final_train_x = np.concatenate([tx, aug_x])
         final_train_y = np.concatenate([ty1, aug_y])

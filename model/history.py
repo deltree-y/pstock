@@ -15,6 +15,7 @@ class LossHistory(Callback):
     def on_epoch_end(self, epoch, logs=None):
         self.losses.append(logs.get('loss'))
         self.val_losses.append(logs.get('val_loss'))
+        self.val_t1_accu.append(logs.get('val_accuracy'))
 
         loss_diff = self.val_losses[-1] - self.val_losses[-2] if epoch > 0 else self.val_losses[-1]
         spend_time = datetime.now() - self.start_time
@@ -24,14 +25,24 @@ class LossHistory(Callback):
         # 只输出回归损失
         if logs:
             print(f"\n{epoch + 1}/{self.epoch}: "
-                  f"l/a=[{logs.get('loss'):.4f}/{logs.get('accuracy')*100:.2f}], "
-                  f"val l/a=[{logs.get('val_loss'):.4f}/{logs.get('val_accuracy')*100:.2f}]({loss_diff:+.4f}),",
-                  f"lr({self.model.learning_rate_status}):{tf.keras.backend.get_value(self.model.optimizer.lr):.8f}",
-                  f"{speed:.1f}s/epo,ed:{finished_time}({min_remaining/60:.1f}h)", end="", flush=True)
+                  f"t:[{logs.get('loss'):.4f}/{logs.get('accuracy')*100:.2f}], "
+                  f"v:[{logs.get('val_loss'):.4f}/{logs.get('val_accuracy')*100:.2f}]({loss_diff:+.4f}),",
+                  f"lr({self.model.learning_rate_status}):{tf.keras.backend.get_value(self.model.optimizer.lr):.6f}",
+                  f"{speed:.1f}s/ep, ed:{finished_time}({min_remaining/60:.1f}h)", end="", flush=True)
                     
+            loss_improve_str, val_improve_str = None, None
             if epoch > 0 and logs.get('val_loss') < min(self.val_losses[:-1]):
-                print(f" <-- [{min(self.val_losses[:-1])-logs.get('val_loss'):.5f}]", end="", flush=True)
-
+                #print(f" <-- [{min(self.val_losses[:-1])-logs.get('val_loss'):.5f}]", end="", flush=True)
+                loss_improve_str = f"[{min(self.val_losses[:-1])-logs.get('val_loss'):.5f}]"
+            if epoch > 0 and logs.get('val_accuracy') > max(self.val_t1_accu[:-1]):
+                val_improve_str = f"[{(logs.get('val_accuracy')-max(self.val_t1_accu[:-1]))*100:.2f}]"
+            if loss_improve_str is not None or val_improve_str is not None:
+                print("  <-- ", end="")
+                if loss_improve_str is not None:
+                    print(f"l{loss_improve_str}", end=" ")
+                if val_improve_str is not None:
+                    print(f"v{val_improve_str}", end=" ")
+                print("", end="", flush=True)
 
         ### 以下所有行多分类时使用 ###
         if False:

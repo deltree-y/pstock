@@ -138,11 +138,12 @@ def rolling_kurtosis(arr, window):
     return result
 
 def print_ratio(lst, label=""):
-    logging.info(f"count of {label}(min: {lst.min()}, max: {lst.max()}):")
+    print(f"count of {label}(min: {lst.min()}, max: {lst.max()}):")
     counter, total = Counter(lst), len(lst)
-    for num, count in counter.items():
+    for num, count in sorted(counter.items()):
         percent = count / total
-        logging.info(f"{num}: {percent:.2%}")    
+        print(f"[{num}: {percent:.1%}]", end=' ')
+    print()
 
 class SuperList(list):
     def append(self, item):

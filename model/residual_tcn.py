@@ -118,7 +118,7 @@ class ResidualTCNModel:
         x = Dropout(self.dropout_rate)(x)
         x = Activation('relu')(x)
         # 输出层
-        temperature = 1.5
+        temperature = 1.25
         x_last = Dense(NUM_CLASSES, name='logits')(x)
         outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output1')(x_last)
         self.model = Model(inputs=inputs, outputs=outputs)
@@ -135,7 +135,7 @@ class ResidualTCNModel:
             loss={'output1': loss_fn},
             metrics={'output1': 'accuracy'}
         )
-        warmup_steps, hold_steps = int(0.2 * epochs), int(0.3 * epochs)
+        warmup_steps, hold_steps = int(0.4 * epochs), int(0.2 * epochs)
         lr_scheduler = WarmUpCosineDecayScheduler(
             learning_rate_base=learning_rate,
             total_steps=epochs,
