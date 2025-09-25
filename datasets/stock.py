@@ -28,6 +28,7 @@ class Stock():
         self.ffn = os.path.join(BASE_DIR, STOCK_DIR, self.ts_code + ".csv") if self.asset=='E' else os.path.join(BASE_DIR, INDEX_DIR, self.ts_code + ".csv")
         self.first_date, self.latest_date = 0, 0
         self.df_raw, self.df_filtered = None, None
+        self.is_print_load_info = False #是否打印加载信息
 
         self.load()
         self.load(if_force_load_from_tushare=True) if self.if_need_re_update() else None
@@ -40,7 +41,7 @@ class Stock():
             self.df_raw = pd.read_csv(self.ffn)
             self.df_raw['trade_date'] = self.df_raw['trade_date'].astype(np.int64)
             self.update_first_last_date()
-            logging.info(f"[{self.name}({self.ts_code})]从<{self.ffn}>读取成功, <{self.df_raw.shape[0]}>行,[{self.first_date}]-[{self.latest_date}]")
+            logging.info(f"[{self.name}({self.ts_code})]从<{self.ffn}>读取成功, <{self.df_raw.shape[0]}>行,[{self.first_date}]-[{self.latest_date}]") if self.is_print_load_info else None
         else:
             self.update_from_tushare()
             self.update_first_last_date()
