@@ -173,19 +173,14 @@ config.ini
 *.pem
 
 # Data and model files (large files)
-data/
-data/stock/
-data/index/
-data/model/
-data/temp/
-data/global/
-data/bins/
-data/scaler
+*.json
 *.h5
 *.pkl
 *.joblib
 *.csv
+*.xlsx
 *.parquet
+*.save
 
 # Logs
 *.log

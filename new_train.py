@@ -56,7 +56,7 @@ if __name__ == "__main__":
 
     # 循环训练调试参数
     #for para1,para2 in zip([4,4,4,6,6,6,8,8,8],[16,32,64,16,32,64,16,32,64]):
-    for lr in [0.002]:
+    for lr in [0.001, 0.0005]:
         # ================== 训练参数 ==================
         n_repeat = 3
         epochs = 100
@@ -147,7 +147,7 @@ if __name__ == "__main__":
         #plot_confusion_by_model(vx_pred_raw, vy1, num_classes=NUM_CLASSES, title=f"1. 正常训练 Confusion Matrix")
         
         # ================== 重点训练 ==================
-        if True:
+        if False:
             # 2. 获取 hard 样本
             logging.info("\n2. 获取hard样本\增强样本\hard权重")
             tx_pred_raw = model.model.predict(tx)
