@@ -24,9 +24,9 @@ if __name__ == "__main__":
     si = StockInfo(TOKEN)
     primary_stock_code = '600036.SH'
     #t_list = ['20250804', '20250805', '20250806', '20250807', '20250808', '20250811', '20250812', '20250813', '20250814', '20250815', '20250818', '20250819', '20250820', '20250821', '20250822', '20250825', '20250826', '20250827', '20250828', '20250829', '20250901', '20250902', '20250903']
-    t_df = si.get_trade_open_dates('20250101', '20250903')
+    t_df = si.get_trade_open_dates('20250601', '20250903')
     t_list = t_df['trade_date'].tolist()
-    index_code_list = []
+    index_code_list = ['000001.SH','399001.SZ']
     related_stock_list = ALL_CODE_LIST
     predict_type = PredictType.BINARY_T1L_L10  #二分类预测 T1 low <= -1.0%
     #predict_type = PredictType.CLASSIFY  #多分类预测 T1 low 分箱类别
@@ -60,7 +60,7 @@ if __name__ == "__main__":
         # ================== 训练参数 ==================
         n_repeat = 3
         epochs = 100
-        batch_size = 2048
+        batch_size = 1024
         learning_rate = lr
         patience = 20
         p = 2
@@ -84,7 +84,7 @@ if __name__ == "__main__":
         if model_type == 'residual_lstm':
             # 残差LSTM模型参数
             depth = 6
-            base_units = 32
+            base_units = 48
             use_se = True
 
             model = ResidualLSTMModel(
@@ -165,6 +165,8 @@ if __name__ == "__main__":
                 logging.info(f"\n3.1 增权训练: tx shape: {tx.shape}, ty shape: {ty.shape}, vx shape: {vx.shape}, vy shape: {vy.shape}")
                 train_ret = model.train(tx=tx, ty=ty, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
                 print_predict_result(t_list, ds, model, predict_type)
+                vx_pred_raw = model.model.predict(vx)
+                print_recall_score(vx_pred_raw, vy, predict_type)
                 #plot_confusion_by_model(model, vx, vy, num_classes=NUM_CLASSES, title=f"3.1 增权训练: Confusion Matrix")
 
             if False:
@@ -172,6 +174,8 @@ if __name__ == "__main__":
                 logging.info(f"\n3.2 数据增强训练: tx shape: {aug_x.shape}, ty shape: {aug_y.shape}, vx shape: {vx.shape}, vy shape: {vy.shape}")
                 model.train(tx=aug_x, ty=aug_y, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
                 print_predict_result(t_list, ds, model, predict_type)
+                vx_pred_raw = model.model.predict(vx)
+                print_recall_score(vx_pred_raw, vy, predict_type)
                 plot_confusion_by_model(model, vx, vy, num_classes=NUM_CLASSES, title=f"3.3 多次训练: Confusion Matrix")
 
             if True:
@@ -183,6 +187,8 @@ if __name__ == "__main__":
                 for _ in range(n_repeat):
                     model.train(tx=hard_x, ty=hard_y, epochs=epochs, batch_size=batch_size, learning_rate=new_lr, patience=patience)
                 print_predict_result(t_list, ds, model, predict_type)
+                vx_pred_raw = model.model.predict(vx)
+                print_recall_score(vx_pred_raw, vy, predict_type)
                 #plot_confusion_by_model(model, vx, vy, num_classes=NUM_CLASSES, title=f"3.3 多次训练: Confusion Matrix")
 
             # 或者将增强后的 hard 样本拼回主数据集再训练
@@ -193,6 +199,8 @@ if __name__ == "__main__":
                 logging.info(f"\n3.4 将增强后的 hard 样本拼回主数据集再训练: tx shape: {final_train_x.shape}, ty shape: {final_train_y.shape}, vx shape: {vx.shape}, vy shape: {vy.shape}")
                 model.train(tx=final_train_x, ty=final_train_y, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
                 print_predict_result(t_list, ds, model, predict_type)
+                vx_pred_raw = model.model.predict(vx)
+                print_recall_score(vx_pred_raw, vy, predict_type)
                 plot_confusion_by_model(model, vx, vy, num_classes=NUM_CLASSES, title=f"3.4 将增强后的 hard 样本拼回主数据集再训练: Confusion Matrix")
 
         # ================== 评估 ==================
