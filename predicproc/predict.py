@@ -19,7 +19,9 @@ class Predict():
 
     def print_predict_result(self):
         if self.predict_type in [PredictType.CLASSIFY]:
-            logging.info(f"Predict t0p[{self.bp}] t1l label[{self.y1r.get_label()}] pct min/avg/max is <{self.y1r.get_rate_from_label('min')*100:.2f}%/{self.y1r.get_rate_from_label('avg')*100:.2f}%/{self.y1r.get_rate_from_label('max')*100:.2f}%> price is <{self.y1r.get_rate_from_label('min')*self.bp+self.bp:.2f}/{self.y1r.get_rate_from_label('avg')*self.bp+self.bp:.2f}/{self.y1r.get_rate_from_label('max')*self.bp+self.bp:.2f}>")
+            predict_list = [round(x, 3) for x in self.predicted_data[0]]
+            print(f"Predict raw result: {predict_list}")            
+            print(f"Predict t0p[{self.bp}] t1l label[{self.y1r.get_label()}] pct min/avg/max is <{self.y1r.get_rate_from_label('min')*100:.2f}%/{self.y1r.get_rate_from_label('avg')*100:.2f}%/{self.y1r.get_rate_from_label('max')*100:.2f}%> price is <{self.y1r.get_rate_from_label('min')*self.bp+self.bp:.2f}/{self.y1r.get_rate_from_label('avg')*self.bp+self.bp:.2f}/{self.y1r.get_rate_from_label('max')*self.bp+self.bp:.2f}>")
         elif self.predict_type.is_bin():
             if self.predicted_data[0,0]>0.5:
                 label = f'<={self.predict_type.value:.1f}%({self.bp*(1+self.predict_type.value/100):.2f})'
@@ -27,7 +29,7 @@ class Predict():
             else:
                 label = f'> {self.predict_type.value:.1f}%({self.bp*(1+self.predict_type.value/100):.2f})'
                 prob_rate = (1 - self.predicted_data[0,0])*100
-            logging.info(f"原始预测值[{self.predicted_data[0,0]:<.3f}], T0基础价格[{self.bp}], T1l 预测:[{label}], 预测准确概率:[{prob_rate:.2f}%]")
+            print(f"原始预测值[{self.predicted_data[0,0]:<.3f}], T0基础价格[{self.bp}], T1l 预测:[{label}], 预测准确概率:[{prob_rate:.2f}%]")
 
 
 class RegPredict():

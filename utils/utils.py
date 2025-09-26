@@ -12,7 +12,8 @@ def setup_logging():
     logging.basicConfig(
         #level=logging.DEBUG,
         level=logging.INFO,
-        format='%(levelname)s %(message)s',
+        format='%(message)s',
+        #format='%(levelname)s %(message)s',
         #format='%(asctime)s %(levelname)s %(message)s',
         #format='%(asctime)s %(levelname)s [%(filename)s:%(lineno)d] %(message)s',
         #format='%(asctime)s %(levelname)s [%(filename)s:%(lineno)d %(funcName)s] %(message)s',

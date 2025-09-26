@@ -159,7 +159,7 @@ class ResidualLSTMModel:
             if self.predict_type == PredictType.CLASSIFY:
                 loss_fn = focal_loss(gamma=2.0, alpha=0.25)
             elif self.predict_type.is_bin():
-                loss_fn = binary_focal_loss(gamma=2.0, alpha=0.25)
+                loss_fn = binary_focal_loss(gamma=2.0, alpha=0.5)
             else:
                 raise ValueError("Unsupported predict_type for focal_loss.")
         else:

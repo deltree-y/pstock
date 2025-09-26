@@ -179,7 +179,7 @@ class StockDataset():
     def get_normalized_data(self, raw_data):
         if raw_data is not None:
             df = pd.DataFrame(raw_data)
-            scaled_data = self.scaler.transform(df)
+            scaled_data = self.scaler.transform(df) #归一化
         else:
             logging.error("Invalid parameters.")
             exit()
@@ -188,11 +188,11 @@ class StockDataset():
     #获取归一化参数
     def get_scaler(self, new_data=None, if_update=False, if_save=True):
         is_modified = False
-        self.scaler = StandardScaler()
-        #self.scaler = RobustScaler()#
-        #self.scaler = MinMaxScaler(feature_range=(-1, 1))  # 替换RobustScaler
 
         if new_data is not None or not os.path.exists(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + "_scaler.save")):    #如果有新的数据,则更新归一化的参数配置
+            self.scaler = StandardScaler()
+            #self.scaler = RobustScaler()#
+            #self.scaler = MinMaxScaler(feature_range=(-1, 1))  # 替换RobustScaler
             df = pd.DataFrame(new_data)
             self.scaler.fit(df)
             is_modified = True
@@ -221,7 +221,7 @@ class StockDataset():
     
     #获取归一化,窗口化后的x数据
     def get_normalized_windowed_x(self, raw_x):
-        self.get_scaler() if self.scaler is None else None
+        self.get_scaler() if self.scaler is None else None  #如果还没有归一化参数,则先获取
         normalized_x = self.get_normalized_data(raw_x)
         return self.get_windowed_x_by_raw(normalized_x)
 
@@ -237,26 +237,19 @@ class StockDataset():
     
     #获取某一天的模型输入数据(已归一化, 预测用),以及对应的收盘价
     def get_predictable_dataset_by_date(self, date):
-        """
-        根据指定日期，获取归一化且窗口化的数据集及该日期的收盘价。
-        参数:
-            date: 要检索数据集的日期。类型应与数据集中日期列的类型一致。
-        返回:
-                x (np.ndarray): 从指定日期开始的归一化、窗口化特征数据。
-                closed_price (float): 指定日期的收盘价。
-        异常:
-            如果在数据集中未找到指定日期，则记录错误日志并退出程序。
-        """
         date = type(self.full_raw_data[0, 0])(date)
         try:
             idx = np.where(self.full_raw_data[:, 0] == date)[0][0]
         except Exception as e:
             logging.error(f"StockDataset.get_predictable_dataset_by_date() - Invalid date: {e}")
             exit()
-        closed_price = self.full_raw_data[idx, self.p_trade.col_close+1] #取出对应日期的收盘价, +1是因为full_raw_data含日期列
-        #logging.info(f"full_raw_data \n{pd.DataFrame(self.full_raw_data[idx])}")
-        raw_x = self.full_raw_data[idx:idx+self.window_size, 1:]#取出对应日期及之后window_size天的数据
+        if idx + self.window_size > self.full_raw_data.shape[0]:
+            raise ValueError(f"Not enough data for window: idx={idx}, window_size={self.window_size}, data_len={self.full_raw_data.shape[0]}")
+
+        closed_price = self.full_raw_data[idx, self.p_trade.col_close + 1] #取出对应日期的收盘价, +1是因为full_raw_data含日期列
+        raw_x = self.full_raw_data[idx : idx + self.window_size, 1:]#取出对应日期及之后window_size天的数据
         x = self.get_normalized_windowed_x(raw_x) #归一化,窗口化
+        #print(f"DEBUG: date={date}, idx={idx}, raw_x.shape={raw_x.shape}, x.shape={x.shape}, closed_price={closed_price}")
         return x, closed_price
     
     #按指定列进行左连接
@@ -362,14 +355,15 @@ if __name__ == "__main__":
     #download_list = si.get_filtered_stock_list(mmv=3000000)
     primary_stock_code = '600036.SH'
     idx_code_list = []#'000001.SH','399001.SZ']#,'000300.SH','000905.SH']
-    #rel_code_list = ALL_CODE_LIST
-    rel_code_list = []
+    rel_code_list = ALL_CODE_LIST
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
-    ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20000104', end_date='20250923', 
-                      train_size=0.8, if_use_all_features=True, predict_type=PredictType.BINARY_T1L_L05)
+    ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20190104', end_date='20250903', 
+                      train_size=0.8, if_use_all_features=False, predict_type=PredictType.BINARY_T1L_L10)
     pd.set_option('display.max_columns', None)
     start_idx = 2000
-    print("Raw x sample:")
-    print(pd.DataFrame(ds.raw_train_x).iloc[start_idx:start_idx+10])
-    print("\nRaw y sample:")
-    print(pd.DataFrame(ds.train_y).iloc[start_idx:start_idx+10])
+    print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_train_x).iloc[start_idx:start_idx+10]}")
+    print(f"\nraw y sample: \n{pd.DataFrame(ds.train_y).iloc[start_idx:start_idx+10]}")
+    #data, bp = ds.get_predictable_dataset_by_date("20250829")
+    #print(f"data shape: {data.shape}, bp: {bp}")
+    #print(f"{ds.p_trade.remain_list}")
+    #print(f"data: \n{pd.DataFrame(data[0])}")

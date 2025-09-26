@@ -262,6 +262,7 @@ class StockInfo():
     
     #获取给定范围的所有交易日数据
     def get_trade_open_dates(self, start_date, end_date):
+        start_date, end_date = type(self.trade_date_list['cal_date'][0])(start_date), type(self.trade_date_list['cal_date'][0])(end_date)
         self.__update_list()
         df = self.trade_date_list[(self.trade_date_list['cal_date'] >= start_date) & (self.trade_date_list['cal_date'] <= end_date)]
         if df.empty:
@@ -305,8 +306,8 @@ class StockInfo():
             #data_basic = self.get_trade_open_dates(start_date=start_date, end_date=end_date)
             #data_basic = self.get_daily(ts_code=ts_code, start_date=start_date, end_date=end_date)
             data_basic = self.get_tushare_data(api_name='daily', ts_code=ts_code, start_date=start_date, end_date=end_date)
-            data_basic['industry_idx'] = self.get_industry_idx(ts_code)
-            data_basic['stock_idx'] = self.get_stock_idx(ts_code)
+            data_basic['industry_idx'] = self.get_industry_idx(ts_code) if asset == 'E' else -1
+            data_basic['stock_idx'] = self.get_stock_idx(ts_code) if asset == 'E' else -1
             data_part0 = pd.DataFrame(columns=['trade_date'])
         elif spec_date is not None: #若spec_date不为空，则默认为取指定日期的所有stock数据
             spec_colunm = 'ts_code'

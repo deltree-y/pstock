@@ -102,7 +102,7 @@ def get_sample_weights(y, hard_mask, base_weight=1.0, hard_weight=3.0):
     sample_weight[hard_mask] = hard_weight
     return sample_weight
 
-def get_hard_samples(x, y, model, threshold=0.5):
+def get_hard_samples(x, y, y_pred_raw, predict_type, threshold=0.5):
     """
     找到置信度低于 threshold 的样本，为后续重点训练做准备
     x: 特征数据 [N, ...]
@@ -111,11 +111,16 @@ def get_hard_samples(x, y, model, threshold=0.5):
     threshold: 置信度阈值，默认 0.5
     返回 (hard_x, hard_y) 置信度低的样本
     """
-    # 得到每个样本预测的概率分布
-    y_pred_prob = model.predict(x)  # shape: [N, num_classes]
-    # 置信度=最大概率
-    conf = np.max(y_pred_prob, axis=1)
-    hard_mask = conf < threshold
+    if predict_type == predict_type.CLASSIFY:
+        # 置信度=最大概率
+        conf = np.max(y_pred_raw, axis=1)
+        hard_mask = conf < threshold
+    elif predict_type.is_bin():
+        # 置信度=离0.5的距离
+        if y_pred_raw.ndim == 2 and y_pred_raw.shape[1] == 1:
+            y_pred_raw = y_pred_raw.reshape(-1)
+        conf = np.abs(y_pred_raw - 0.5) * 2  # 归一到 [0,1]
+        hard_mask = conf < threshold
     hard_x = x[hard_mask]
     hard_y = y[hard_mask]
     return hard_x, hard_y

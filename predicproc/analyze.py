@@ -47,7 +47,7 @@ def print_recall_score(pred_raw, y_true, predict_type):
         recall = round(recall_score(y_true, y_pred), 3)  #保留三位小数
         acc = round(accuracy_score(y_true, y_pred), 3)
         f1 = round(f1_score(y_true, y_pred), 3)
-        print(f"二分类 准确率: {acc}, 召回率: {recall}, F1: {f1}")
+        print(f"二分类 准确率: {acc:.3f}, 召回率: {recall:.3f}, F1: {f1:.3f}")
     else:
         raise ValueError(f"print_recall_score() - Unknown predict_type: {predict_type}")
 
@@ -58,11 +58,8 @@ def print_predict_result(t_list, ds, m, predict_type):
         #print("*************************************************************")
         #print(f"raw data is {data}")
         #print("*************************************************************\n")
-        pred_scaled = m.model.predict(data)
-        print(f"Predict for T0[{t0}]")
-        if predict_type in [PredictType.CLASSIFY]:
-            predict_list = [round(x, 3) for x in pred_scaled[0]]
-            print(f"Predict raw result: {predict_list}")
+        pred_scaled = m.model.predict(data, verbose=0)
+        print(f"T0[{t0}]", end="")
         Predict(pred_scaled, bp, ds.bins1, ds.bins2, predict_type).print_predict_result()
         print()
 
