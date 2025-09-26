@@ -167,7 +167,7 @@ class Trade():
         if stock_type == StockType.PRIMARY or stock_type == StockType.RELATED:
             #皮尔逊+互信息+树模型交集特征
             basic_features = ['ts_code', 'trade_date', 'high', 'low', 'close', 'industry_idx', 'stock_idx', 'date_full']
-            extra_features_18 = ['1m', 'ps', 'dv_ratio', 'on', 'pe', 'BBB_20_2.0', 'natr_14', 'volatility_5d', 'total_mv', 'pb', 'willr_14', '2w', 'turnover_rate_f', '1w', 'stddev_10', 'volatility_10d', 'return_5d', '1y']
+            extra_features_16 = [ 'ps', 'dv_ratio', 'on', 'pe', 'BBB_20_2.0', 'natr_14', 'volatility_5d', 'total_mv', 'pb', 'willr_14', 'turnover_rate_f', '1w', 'stddev_10', 'volatility_10d', 'return_5d', '1y']
             extra_features_20 = ['natr_14', 'volatility_10d', 'date_full', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio',  'turnover_rate_f', 'total_mv', \
                                  'pb', 'pe', 'atr_14', 'ADX_14', 'ps', 'stddev_10', 'DMP_14', 'roc_10', 'return_10d', 'stock_idx', 'return_5d', 'rsi_14']
             extra_features_25 = ['natr_14', 'volatility_10d', 'date_full', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', 'turnover_rate_f', 'total_mv', 'pb', \
@@ -180,7 +180,7 @@ class Trade():
             extra_features_45 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', 'date_full', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'stock_idx', 'atr_14', 'stddev_10', 'ps', 'ADX_14', 'industry_idx', 'log_volume', 'DMP_14', 'amount', 'return_10d', 'roc_10', 'BBU_20_2.0', 'return_5d']
             extra_features_55 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', 'date_full', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'stock_idx', 'atr_14', 'stddev_10', 'ps', 'ADX_14', 'industry_idx', 'log_volume', 'DMP_14', 'amount', 'return_10d', 'roc_10', 'BBU_20_2.0', 'return_5d', 'e_factor', 'sma_10', 'ema_10', 'wma_10', 'BBM_20_2.0', 'pre_close', 'high', 'close', 'low', 'obv']
             advanced_features = ['return_1d', 'return_10d', 'volatility_5d', 'high_20d_max', 'close_to_high_20d', 'is_new_high_20d', 'amplitude', 'vol_ratio_20d', 'macd_cross']
-            remain_list = list(dict.fromkeys(chain(basic_features, extra_features_34, advanced_features)))    #取并集
+            remain_list = list(dict.fromkeys(chain(basic_features, extra_features_45, advanced_features)))    #取并集
             remain_list = self.trade_df.columns.to_list() if self.if_use_all_features else remain_list
             #logging.info(f"After feature selection, remain {len(remain_list)}")
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2

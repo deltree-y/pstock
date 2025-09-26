@@ -77,3 +77,18 @@ def focal_loss(gamma=2.0, alpha=0.25):
         focal_factor = alpha * tf.pow(1. - p_t, gamma)
         return tf.reduce_mean(focal_factor * cross_entropy)
     return loss
+
+def binary_focal_loss(gamma=2.0, alpha=0.25):
+    def loss(y_true, y_pred):
+        # flatten
+        y_true = tf.cast(y_true, tf.float32)
+        y_pred = tf.cast(y_pred, tf.float32)
+        # 防止数值不稳定
+        epsilon = tf.keras.backend.epsilon()
+        y_pred = tf.clip_by_value(y_pred, epsilon, 1. - epsilon)
+        # focal loss公式
+        pt = tf.where(tf.equal(y_true, 1), y_pred, 1 - y_pred)
+        focal_factor = alpha * tf.pow(1. - pt, gamma)
+        ce = -tf.math.log(pt)
+        return tf.reduce_mean(focal_factor * ce)
+    return loss

@@ -7,6 +7,7 @@ from sklearn.metrics import accuracy_score, recall_score, f1_score
 from model.utils import auto_adjust_class_weights, confusion_based_weights
 from predicproc.predict import Predict
 from utils.utils import print_ratio
+from utils.utils import PredictType
 
 # 假设 y_true, y_pred 已经是一维的分箱标签数组，如 [0,1,2,2,5,...]
 # 你可以把INFO count of vy_reg和y_pred_label的原始数据直接传进来
@@ -21,22 +22,37 @@ def plot_confusion(y_true, y_pred, num_classes=6, title="Confusion Matrix"):
     plt.show()
     return cm
 
-def plot_confusion_by_model(model, x, y_true, num_classes=6, title="Confusion Matrix"):
-    y_pred_probs = model.model.predict(x)
-    y_pred = np.argmax(y_pred_probs, axis=1)
-    print_ratio(y_pred, "y_pred_label")
-    #auto_adjust_class_weights(y_pred, num_classes)
-    #confusion_based_weights(y_true, y_pred, num_classes)
-    recall_score_list = recall_score(y_true, y_pred, average=None) 
-    recall_score_list = [round(x, 3) for x in recall_score_list]
-    print(f"分类召回率: {recall_score_list}")
-    print(f"宏召回率: {round(recall_score(y_true, y_pred, average='macro'),3)}")
+def auto_adjust_class_weights(pred_raw, y_true, num_classes):
+    y_pred = np.argmax(pred_raw, axis=1)
+    auto_adjust_class_weights(y_pred, num_classes)
+    confusion_based_weights(y_true, y_pred, num_classes)
 
-    #ret = plot_confusion(y_true, y_pred, num_classes=num_classes, title=title)
-    #return ret
+def plot_confusion_by_model(pred_raw, y_true, num_classes=6, title="Confusion Matrix"):
+    y_pred = np.argmax(pred_raw, axis=1)
+    ret = plot_confusion(y_true, y_pred, num_classes=num_classes, title=title)
+    return ret
+
+def print_recall_score(pred_raw, y_true, predict_type):
+    if predict_type in [PredictType.CLASSIFY]:
+        y_pred = np.argmax(pred_raw, axis=1)
+        print_ratio(y_pred, "y_pred_label")
+        recall_score_list = recall_score(y_true, y_pred, average=None) 
+        recall_score_list = [round(x, 3) for x in recall_score_list]    #保留三位小数
+        macro_recall = round(recall_score(y_true, y_pred, average='macro'), 3)  #保留三位小数
+        print(f"分类召回率: {recall_score_list}")
+        print(f"宏召回率: {macro_recall}")
+    elif predict_type.is_bin():
+        y_pred = (pred_raw[:,0]>0.5).astype(int)
+        print_ratio(y_pred, "y_pred_label")
+        recall = round(recall_score(y_true, y_pred), 3)  #保留三位小数
+        acc = round(accuracy_score(y_true, y_pred), 3)
+        f1 = round(f1_score(y_true, y_pred), 3)
+        print(f"二分类 准确率: {acc}, 召回率: {recall}, F1: {f1}")
+    else:
+        raise ValueError(f"print_recall_score() - Unknown predict_type: {predict_type}")
 
 #基于给定的日期list,使用给定的数据集和模型进行预测并打印结果
-def print_predict_result(t_list, ds, m):
+def print_predict_result(t_list, ds, m, predict_type):
     for t0 in t_list:
         data, bp = ds.get_predictable_dataset_by_date(t0)
         #print("*************************************************************")
@@ -44,8 +60,9 @@ def print_predict_result(t_list, ds, m):
         #print("*************************************************************\n")
         pred_scaled = m.model.predict(data)
         print(f"Predict for T0[{t0}]")
-        predict_list = [round(x, 3) for x in pred_scaled[0]]
-        print(f"Predict raw result: {predict_list}")
-        Predict(pred_scaled, bp, ds.bins1, ds.bins2).print_predict_result()
+        if predict_type in [PredictType.CLASSIFY]:
+            predict_list = [round(x, 3) for x in pred_scaled[0]]
+            print(f"Predict raw result: {predict_list}")
+        Predict(pred_scaled, bp, ds.bins1, ds.bins2, predict_type).print_predict_result()
         print()
 

@@ -33,7 +33,7 @@ class Stock():
         self.load()
         self.load(if_force_load_from_tushare=True) if self.if_need_re_update() else None
         self.df_filtered = self.get_df_between(self.start_date, self.end_date)
-        #logging.info(f"[{self.name}({self.ts_code})]要求获取[{start_date}]-[{end_date}], 实际获取[{self.df_filtered['trade_date'].min()}]-[{self.df_filtered['trade_date'].max()}], 共<{self.df_filtered.shape[0]}>行")
+        logging.info(f"[{self.name}({self.ts_code})]要求获取[{start_date}]-[{end_date}], 实际获取[{self.df_filtered['trade_date'].min()}]-[{self.df_filtered['trade_date'].max()}], 共<{self.df_filtered.shape[0]}>行")
 
     #根据csv文件是否存在,选择是从文件加载还是从tushare获取
     def load(self, if_force_load_from_tushare=False):

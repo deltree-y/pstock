@@ -155,3 +155,24 @@ class StockType(Enum):
     PRIMARY = auto()
     RELATED = auto()
     INDEX = auto()
+
+class PredictType(Enum):
+    CLASSIFY = auto()
+    BINARY_T1L_L05 = -0.5
+    BINARY_T1L_L10 = -1.0
+    BINARY_T1L_L15 = -1.5
+    BINARY_T1L_L20 = -2.0
+    BINARY_T1L_L25 = -2.5
+    BINARY_T1L_L30 = -3.0
+    REGRESS = auto()
+
+    def is_bin(self):
+        return self in [
+            PredictType.BINARY_T1L_L05,
+            PredictType.BINARY_T1L_L10,
+            PredictType.BINARY_T1L_L15,
+            PredictType.BINARY_T1L_L20,
+            PredictType.BINARY_T1L_L25,
+            PredictType.BINARY_T1L_L30,
+        ]
+    

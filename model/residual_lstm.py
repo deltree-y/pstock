@@ -9,9 +9,10 @@ from keras.callbacks import EarlyStopping
 from keras.regularizers import l2
 from keras.optimizers import Adam
 from utils.const_def import NUM_CLASSES
+from utils.utils import PredictType
 from model.history import LossHistory
 from model.utils import WarmUpCosineDecayScheduler
-from model.losses import focal_loss
+from model.losses import focal_loss, binary_focal_loss
 from sklearn.utils.class_weight import compute_class_weight
 from keras.layers import (
     Input, LSTM, Bidirectional, Dropout, LayerNormalization,
@@ -43,13 +44,6 @@ def residual_bilstm_block(x,
                           se_ratio=8,
                           block_id=0,
                           l2_reg=1e-5):
-    """
-    单个残差块:
-    输入: x (batch, time, features)
-    主路径: BiLSTM(return_sequences=True) -> LayerNorm -> Dropout -> (SE 可选)
-    shortcut投影: 若输入与输出通道不等，用1x1 Conv1D 做线性映射
-    最终: Add + 激活
-    """
     shortcut = x
     y = Bidirectional(
         LSTM(units,
@@ -77,16 +71,14 @@ def residual_bilstm_block(x,
     return out
 
 class ResidualLSTMModel:
-    """
-    回归任务专用残差式 BiLSTM 模型
-    """
     def __init__(self,
                  x=None, y=None,
                  test_x=None,test_y=None,
                  fn=None, p=2,
                  depth=3, base_units=32,use_se=True, se_ratio=8,
                  dropout_rate=0.2, l2_reg=1e-5,
-                 loss_fn=None, class_weights=None, loss_type=None
+                 loss_fn=None, class_weights=None, loss_type=None,
+                 predict_type=PredictType.CLASSIFY
                  ):
         if fn is not None:
             self.load(fn)
@@ -100,6 +92,7 @@ class ResidualLSTMModel:
         self.test_y = test_y.astype(int) if test_y is not None else None
         self.loss_type = loss_type
         self.learning_rate_status = "init"
+        self.predict_type = predict_type
 
         self.history = LossHistory()
         self.depth = depth
@@ -147,8 +140,13 @@ class ResidualLSTMModel:
         # 输出层
         #temperature = 1.25
         #x_last = Dense(NUM_CLASSES, name='logits')(x_last)
-        #outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output1')(x_last)
-        outputs = Dense(NUM_CLASSES, activation='softmax', name='output1')(x_last)
+        #outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output')(x_last)
+        if self.predict_type == PredictType.CLASSIFY:
+            outputs = Dense(NUM_CLASSES, activation='softmax', name='output')(x_last)
+        elif self.predict_type.is_bin():
+            outputs = Dense(1, activation='sigmoid', name='output')(x_last)
+        else:
+            raise ValueError("Unsupported predict_type for classification model.")
 
         self.model = Model(inputs=inp, outputs=outputs)    
 
@@ -156,16 +154,26 @@ class ResidualLSTMModel:
         self.x = tx.astype('float32') if tx is not None else self.x
         self.y = ty.astype(int) if ty is not None else self.y
 
-        # 多分类损失
+        # 根据输入值及预测类型来选择损失函数
         if self.loss_type == 'focal_loss':
-            loss_fn = focal_loss(gamma=2.0, alpha=0.25)
+            if self.predict_type == PredictType.CLASSIFY:
+                loss_fn = focal_loss(gamma=2.0, alpha=0.25)
+            elif self.predict_type.is_bin():
+                loss_fn = binary_focal_loss(gamma=2.0, alpha=0.25)
+            else:
+                raise ValueError("Unsupported predict_type for focal_loss.")
         else:
-            loss_fn = 'sparse_categorical_crossentropy'
+            if self.predict_type == PredictType.CLASSIFY:
+                loss_fn = 'sparse_categorical_crossentropy'
+            elif self.predict_type.is_bin():
+                loss_fn = 'binary_crossentropy'
+            else:
+                raise ValueError("Unsupported predict_type for classification model.")
 
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss={'output1': loss_fn},
-            metrics={'output1': 'accuracy'}
+            loss={'output': loss_fn},
+            metrics={'output': 'accuracy'}
         )        
         
         # 添加学习率调度和早停

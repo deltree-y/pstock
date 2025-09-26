@@ -116,16 +116,7 @@ class TransformerModel():
         self.use_pos_encoding = use_pos_encoding
         self.loss_type = loss_type
         
-        if class_weights is None:
-            # y_train 是训练集的分箱标签
-            class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=self.y)
-            # 手动提升类别0和5的权重，假设这些是稀有类
-            if len(class_weights) > 5:
-                class_weights[0] *= 1.5  # 增加第一个类的权重
-                class_weights[-1] *= 2.0  # 增加最后一个类的权重
-            self.class_weight_dict = dict(enumerate(class_weights))
-        else:
-            self.class_weight_dict = class_weights
+        self.class_weight_dict = class_weights
 
         self.history = LossHistory()
         logging.info(f"Transformer input shape: {x.shape}, output shape: {y.shape}")

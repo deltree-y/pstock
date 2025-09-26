@@ -1,12 +1,7 @@
 # coding=utf-8
-import os, sys, logging
+import os, logging
 import numpy as np
 from sklearn.utils import compute_class_weight
-#from pathlib import Path
-#o_path = os.getcwd()
-#sys.path.append(o_path)
-#sys.path.append(str(Path(__file__).resolve().parents[0]))
-
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
 from model.lstmmodel import LSTMModel
@@ -15,8 +10,9 @@ from model.residual_tcn import ResidualTCNModel
 from model.transformer import TransformerModel
 from utils.tk import TOKEN
 from utils.const_def import ALL_CODE_LIST, BASE_DIR, MODEL_DIR, NUM_CLASSES
+from utils.utils import PredictType
 from utils.utils import setup_logging, print_ratio
-from predicproc.analyze import plot_confusion_by_model, print_predict_result
+from predicproc.analyze import plot_confusion_by_model, print_predict_result, print_recall_score
 from model.utils import  get_hard_samples, get_sample_weights
 
 if __name__ == "__main__":
@@ -30,6 +26,8 @@ if __name__ == "__main__":
     t_list = ['20250829', '20250901', '20250902', '20250903']
     index_code_list = []
     related_stock_list = ALL_CODE_LIST
+    predict_type = PredictType.BINARY_T1L_L05  #二分类预测 T1 low <= -0.5%
+    #predict_type = PredictType.CLASSIFY  #多分类预测 T1 low 分箱类别
 
     # 注意：train_size 设大容易使验证集过少，这里保持 0.9 但你可以回退到 0.85 观察稳定性
     ds = StockDataset(ts_code=primary_stock_code,
@@ -39,7 +37,8 @@ if __name__ == "__main__":
                       start_date='20190104',
                       end_date='20250903',
                       train_size=0.9,
-                      if_use_all_features=True)
+                      if_use_all_features=False,
+                      predict_type=predict_type)
 
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     
@@ -55,25 +54,29 @@ if __name__ == "__main__":
 
     # 循环训练调试参数
     #for para1,para2 in zip([4,4,4,6,6,6,8,8,8],[16,32,64,16,32,64,16,32,64]):
-    for lr in [0.005]:
+    for lr in [0.002]:
         # ================== 训练参数 ==================
         n_repeat = 3
         epochs = 100
         batch_size = 2048
         learning_rate = lr
-        patience = 30
+        patience = 20
         p = 2
-        dropout_rate = 0.2
-        l2_reg = 0.00001
+        dropout_rate = 0.3
+        l2_reg = 0.0001
         loss_type = 'focal_loss'#'focal_loss'#'cross_entropy'#'weighted_cross_entropy'
         
-        # 显著降低类别0权重，提高类别4权重
-        class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty1)
-        #class_weights[0] *= 0.3
-        #class_weights[4] *= 5
-        cls_weights = dict(enumerate(class_weights))
-        #cls_weights = dict(enumerate([0.46946348, 0.97702727, 1.18450308, 1.18450308, 1.18450308]))
-        
+        if predict_type == PredictType.CLASSIFY:
+            # 显著降低类别0权重，提高类别4权重
+            class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty1)
+            #class_weights[0] *= 0.3
+            #class_weights[4] *= 5
+            cls_weights = dict(enumerate(class_weights))
+            #cls_weights = dict(enumerate([0.46946348, 0.97702727, 1.18450308, 1.18450308, 1.18450308]))
+        else:
+            cls_weights = None
+
+        save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_{model_type}_{predict_type}_ep{epochs}_bs{batch_size}.h5")
         # ================== 模型选择 ==================
         if model_type == 'residual_lstm':
             # 残差LSTM模型参数
@@ -83,11 +86,11 @@ if __name__ == "__main__":
 
             model = ResidualLSTMModel(
                 x=tx, y=ty1, test_x=vx, test_y=vy1, p=p,
-                depth=depth,base_units=base_units,dropout_rate=dropout_rate,use_se=use_se, 
-                se_ratio=8,l2_reg=l2_reg,
-                class_weights=cls_weights, loss_type = loss_type
+                depth=depth, base_units=base_units, dropout_rate=dropout_rate, use_se=use_se,
+                se_ratio=8, l2_reg=l2_reg,
+                class_weights=cls_weights, loss_type=loss_type,
+                predict_type=predict_type
             )
-            save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_ResidualLSTM_ep{epochs}_bs{batch_size}_p{p}_d{depth}.h5")
         elif model_type == 'transformer':
             # Transformer模型参数
             d_model = 256
@@ -101,7 +104,6 @@ if __name__ == "__main__":
                 l2_reg=l2_reg, use_pos_encoding=True, use_gating=True,
                 class_weights=cls_weights, loss_type = loss_type
             )
-            save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_Transformer_ep{epochs}_bs{batch_size}_p{p}.h5")
         elif model_type == 'residual_tcn':
             # TCN模型参数
             dilations = [1, 2, 4, 8, 16, 32]
@@ -117,14 +119,12 @@ if __name__ == "__main__":
                 class_weights=cls_weights, loss_type = loss_type,
                 l2_reg=l2_reg, causal=causal
             )
-            save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_TCN_ep{epochs}_bs{batch_size}_p{p}.h5")
         elif model_type == 'mini':
             # LSTM Mini模型参数
             model = LSTMModel(
                 x=tx, y=ty1, test_x=vx, test_y=vy1, p=p,
                 dropout_rate=dropout_rate
             )
-            save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_LSTMmini_ep{epochs}_bs{batch_size}_p{p}.h5")
         else:
             raise ValueError(f"Unknown model_type: {model_type}")
 
@@ -137,8 +137,11 @@ if __name__ == "__main__":
         logging.info(f"1. 正常训练: epochs={epochs}, batch={batch_size}, lr={learning_rate}")
         logging.info(f"tx shape: {tx.shape}, ty1 shape: {ty1.shape}, vx shape: {vx.shape}, vy1 shape: {vy1.shape}")
         train_ret = model.train(tx=tx, ty=ty1, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
-        print_predict_result(t_list, ds, model)
-        plot_confusion_by_model(model, vx, vy1, num_classes=NUM_CLASSES, title=f"1. 正常训练 Confusion Matrix")
+        print_predict_result(t_list, ds, model, predict_type)
+        vx_pred_raw = model.model.predict(vx)
+        print_recall_score(vx_pred_raw, vy1, predict_type)
+
+        #plot_confusion_by_model(vx_pred_raw, vy1, num_classes=NUM_CLASSES, title=f"1. 正常训练 Confusion Matrix")
         
         # ================== 重点训练 ==================
         if False:
