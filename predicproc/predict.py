@@ -24,10 +24,10 @@ class Predict():
             print(f"Predict t0p[{self.bp}] t1l label[{self.y1r.get_label()}] pct min/avg/max is <{self.y1r.get_rate_from_label('min')*100:.2f}%/{self.y1r.get_rate_from_label('avg')*100:.2f}%/{self.y1r.get_rate_from_label('max')*100:.2f}%> price is <{self.y1r.get_rate_from_label('min')*self.bp+self.bp:.2f}/{self.y1r.get_rate_from_label('avg')*self.bp+self.bp:.2f}/{self.y1r.get_rate_from_label('max')*self.bp+self.bp:.2f}>")
         elif self.predict_type.is_binary():
             if self.predicted_data[0,0]>0.5:
-                label = f'<={self.predict_type.value:.1f}%({self.bp*(1+self.predict_type.value/100):.2f})'
+                label = f'<={self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})'
                 prob_rate = self.predicted_data[0,0]*100
             else:
-                label = f'> {self.predict_type.value:.1f}%({self.bp*(1+self.predict_type.value/100):.2f})'
+                label = f'> {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})'
                 prob_rate = (1 - self.predicted_data[0,0])*100
             print(f"RAW<{self.predicted_data[0,0]:<.3f}>, T0价格[{self.bp:.2f}], T1l :[{label}], 置信率:[{prob_rate:.2f}%]")
 

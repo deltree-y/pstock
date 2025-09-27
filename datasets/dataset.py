@@ -43,6 +43,7 @@ class StockDataset():
         self.if_update_scaler = if_update_scaler
         self.predict_type = predict_type
         self.scaler, self.bins1, self.bins2 = None, None, None
+        self.y_cnt = self.p_trade.y_cnt
         
         #处理主股票数据
         self.raw_dataset, self.raw_data = self.get_trade_data(self.p_trade)  #raw_dataset包含y不含t1t2数据, raw_data包含t1t2数据不含y
@@ -60,16 +61,9 @@ class StockDataset():
         ### 每只股票单独切分训练/测试，再合并 ###
         # 1. 合并主股票与相关联股票的原始数据
         raw_dataset_list = [self.raw_dataset] + list(self.rel_raw_dataset_list) if self.if_has_related else [self.raw_dataset]
-        #self.raw_dataset = np.vstack(raw_dataset_list)  #当前raw_dataset为主股票与相关联股票叠加后的原始数据
-        #print(f"DEBUG: raw_dataset.shape={self.raw_dataset.shape}")
-        #if self.if_has_index:
-        #    for idx_raw_dataset in self.idx_raw_dataset_list: #逐个将指数数据并接到主股票及关联股票数据上, 如果批量处理的话, 会打乱已有的raw_dataset顺序
-        #        self.raw_dataset = self.left_join_pd_with_move_last(self.raw_dataset, idx_raw_dataset, move_last_n_cols=2) if self.if_has_index else self.raw_dataset    #已包括主股票, 关联股票及指数数据
-        #        print(f"DEBUG: raw_dataset.shape={self.raw_dataset.shape}")
 
         # 1.5 基于所有的原始y数据生成分箱器
-        #raw_y = self.raw_dataset[:, -2:].astype(float) #取出最后2列作为y
-        raw_y = np.vstack(raw_dataset_list)[:, -2:].astype(float) #取出最后2列作为y
+        raw_y = self.get_y_from_raw_dataset(np.vstack(raw_dataset_list)) #取出y
         self.bins1, self.bins2 = self.get_bins(raw_y)
 
         # 2. 按股票分离测试集与验证集,并对y进行分箱,返回对应的y
@@ -92,6 +86,10 @@ class StockDataset():
     #所有从trade获取的数据都由此方法返回
     def get_trade_data(self, trade):
         return trade.combine_data_np, trade.raw_data_np
+    
+    #从原始数据集中取出y数据
+    def get_y_from_raw_dataset(self, raw_dataset):
+        return raw_dataset[:, -1*self.y_cnt:].astype(float) #取出最后n列作为y
 
     #返回数据集的x和y(注意此处还未按窗口处理)
     #格式:
@@ -105,8 +103,8 @@ class StockDataset():
     #   ... ]
     def get_dataset_xy(self, raw_data):
         dataset_all = np.delete(raw_data, 0, axis=1) #删除日期列
-        dataset_x = dataset_all[:, :-2] #删除最后2列
-        dataset_y = dataset_all[:, -2:] #取最后2列
+        dataset_x = dataset_all[:, :-1*self.y_cnt] #删除最后n列
+        dataset_y = dataset_all[:, -1*self.y_cnt:] #取最后n列
         return np.array(dataset_x).astype(float), np.array(dataset_y).astype(float)
 
 
@@ -140,16 +138,6 @@ class StockDataset():
         y2_binned = np.digitize(y2, bins=T2H_SCALE, right=True)
         return (np.array([y1_binned, y2_binned]).astype(int)).transpose()
 
-    #划分数据集(注意此处数据还未按窗口处理)
-    #返回格式:
-    ## (train_x, train_y), (test_x, test_y) 
-    #def split_train_test_dataset(self, train_size):
-    #    test_size = 1-train_size
-    #    test_count = int(len(self.raw_dataset_x) * test_size)
-    #    raw_test_x, raw_train_x = np.array(self.raw_dataset_x[:test_count]).astype(float), np.array(self.raw_dataset_x[test_count:]).astype(float)
-    #    test_y, train_y = self.dataset_y[:test_count].astype(float), self.dataset_y[test_count:].astype(float)
-    #    return (raw_train_x, train_y), (raw_test_x, test_y)
-
     # 新增：每只股票单独切分训练/测试集，再合并
     def split_train_test_dataset_by_stock(self, raw_dataset_list, train_size):
         train_x_list, train_y_list, test_x_list, test_y_list = [], [], [], []
@@ -157,16 +145,25 @@ class StockDataset():
             raw_data_with_idx = raw_data 
             if self.if_has_index:
                 for idx_raw_data in self.idx_raw_data_list:
-                    raw_data_with_idx = self.left_join_pd_with_move_last(raw_data_with_idx, idx_raw_data, move_last_n_cols=2) if self.if_has_index else raw_data    #并接指数数据
+                    raw_data_with_idx = self.left_join_pd_with_move_last(raw_data_with_idx, idx_raw_data, move_last_n_cols=self.y_cnt) if self.if_has_index else raw_data    #并接指数数据
             raw_x, raw_y = self.get_dataset_xy(raw_data_with_idx)
             if len(raw_x) < NUM_CLASSES:
                 logging.error(f"StockDataset.split_train_test_dataset_by_stock() - Too few data, will be skipped. data shape: {raw_data.shape}")
                 continue
             if self.predict_type.is_classify():#多分类
-                dataset_y = self.get_binned_y_use_qcut(raw_y)
+                dataset_y = self.get_binned_y_use_qcut(raw_y[:,[0,3]])  #只对t1l和t2h分箱
             elif self.predict_type.is_binary():#二分类
-                #按不同的二分类预测类型,生成对应的二分类y
-                dataset_y = (raw_y[:, 0]*100 <= self.predict_type.value).astype(int).reshape(-1, 1)
+                #按不同的二分类预测类型,生成对应的二分类y(0或1)
+                if self.predict_type.is_binary_t1_low():
+                    dataset_y = (raw_y[:, 0]*100 <= self.predict_type.val).astype(int).reshape(-1, 1)
+                elif self.predict_type.is_binary_t1_high():
+                    dataset_y = (raw_y[:, 1]*100 >= self.predict_type.val).astype(int).reshape(-1, 1)
+                elif self.predict_type.is_binary_t2_low():
+                    dataset_y = (raw_y[:, 2]*100 <= self.predict_type.val).astype(int).reshape(-1, 1)
+                elif self.predict_type.is_binary_t2_high():
+                    dataset_y = (raw_y[:, 3]*100 >= self.predict_type.val).astype(int).reshape(-1, 1)
+                else:
+                    raise ValueError(f"StockDataset.split_train_test_dataset_by_stock() - Unknown predict_type: {self.predict_type}")
             else:
                 raise ValueError(f"StockDataset.split_train_test_dataset_by_stock() - Unknown predict_type: {self.predict_type}")
             train_count = int(len(raw_x) * train_size)
@@ -352,15 +349,15 @@ if __name__ == "__main__":
     si = StockInfo(TOKEN)
     #download_list = si.get_filtered_stock_list(mmv=3000000)
     primary_stock_code = '600036.SH'
-    idx_code_list = ['000001.SH','399001.SZ']#'000001.SH','399001.SZ']#,'000300.SH','000905.SH']
+    idx_code_list = ['000001.SH']#,'399001.SZ']#'000001.SH','399001.SZ']#,'000300.SH','000905.SH']
     rel_code_list = BANK_CODE_LIST#ALL_CODE_LIST
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
     ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20190104', end_date='20250903', 
-                      train_size=0.8, if_use_all_features=False, predict_type=PredictType.BINARY_T1L_L10)
+                      train_size=0.9, if_use_all_features=False, predict_type=PredictType.BINARY_T1_H10)
     pd.set_option('display.max_columns', None)
-    start_idx = 20000
-    print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_train_x).iloc[start_idx:start_idx+10]}")
-    print(f"\nraw y sample: \n{pd.DataFrame(ds.train_y).iloc[start_idx:start_idx+10]}")
+    start_idx = 2100
+    print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_train_x).iloc[start_idx:start_idx+20]}")
+    print(f"\nraw y sample: \n{pd.DataFrame(ds.train_y).iloc[start_idx:start_idx+20]}")
     #data, bp = ds.get_predictable_dataset_by_date("20250829")
     #print(f"data shape: {data.shape}, bp: {bp}")
     #print(f"{ds.p_trade.remain_list}")

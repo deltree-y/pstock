@@ -4,17 +4,11 @@ import pandas as pd
 import numpy as np
 import pandas_ta as ta
 from datetime import datetime
-from pathlib import Path
 from itertools import chain
-
-o_path = os.getcwd()
-sys.path.append(o_path)
-sys.path.append(str(Path(__file__).resolve().parents[0]))
 from stock import Stock
 from stockinfo import StockInfo
 from utils.utils import StockType, setup_logging, rolling_skew, rolling_kurtosis
 from utils.tk import TOKEN
-from utils.const_def import BASE_DIR, TMP_DIR
 
 #数据说明：
 #       self.raw_data_np           原始数据,包含T1,T2的数据,第一列为数据所属日期
@@ -38,6 +32,7 @@ class Trade():
         self.stock = Stock(ts_code, si, self.start_date, self.end_date)
         self.trade_count = len(self.stock.df_filtered['trade_date'].values)
         logging.debug(f"[{self.stock.name}({self.ts_code})]交易数据行数:<{self.trade_count}>")
+        self.y_cnt = 0  #y的列数
 
         #0. 获取原始数据,所有的特征都需要通过此原始数据计算得到
         self.raw_data_df = self.stock.df_filtered.copy().reset_index(drop=True)  #原始数据的DataFrame格式
@@ -59,11 +54,6 @@ class Trade():
 
         #4. 统一对齐所有后续需要使用的数据(剪切头尾数据)
         self.combine_data_np, self.raw_data_np = self.get_aligned_trade_dates(max_cut_days)
-
-        #logging.info(f"combine_data_np head -\n{pd.DataFrame(self.combine_data_np).head(5)}\ncombine_data_np tail -\n{pd.DataFrame(self.combine_data_np).tail(5)}")
-        #logging.info(f"raw_data_np head -\n{pd.DataFrame(self.raw_data_np).head(5)}\nraw_data_np tail -\n{pd.DataFrame(self.raw_data_np).tail(5)}")
-        #logging.info(f"combine_data_np shape: {self.combine_data_np.shape}, raw_data_np shape: {self.raw_data_np.shape}")
-        #logging.info(f"[{self.stock.name}({self.ts_code})]Trade处理完毕! 最终可用数据行数:<{self.__trade_datas.shape[0]}>，特征列数:<{self.raw_data_np.shape[1]-1}>")
 
     #新增特征列
     def update_new_feature(self):
@@ -205,11 +195,15 @@ class Trade():
         #1. 根据数据剪掉部分头部数据,进行对齐
         self.__trade_datas = self.__raw_data_pure_np[2:, :]     #从第三天开始对齐
         self.__trade_date_list = self.__trade_date_list[2:]  #从第三天开始对齐
-        self.__t1_change_rate = self.__t1_change_rate[1:]    #从第二天开始对齐
-        #self.t2_change_rate = self.t2_change_rate       #从第三天开始对齐,不需要变动
-        
+        self.__t1l_change_rate = self.__t1l_change_rate[1:]    #从第二天开始对齐
+        self.__t1h_change_rate = self.__t1h_change_rate[1:]    #从第二天开始对齐
+        #self.t2l_change_rate = self.t2l_change_rate    #从第三天开始对齐,不需要变动
+        #self.t2h_change_rate = self.t2h_change_rate    #从第三天开始对齐,不需要变动
+
         #2. 组合生成头部对齐的数据
-        self.combine_data_np = np.column_stack((self.__trade_date_list, self.__trade_datas, self.__t1_change_rate, self.__t2_change_rate))
+        #self.combine_data_np = np.column_stack((self.__trade_date_list, self.__trade_datas, self.__t1l_change_rate, self.__t2h_change_rate))
+        self.combine_data_np = np.column_stack((self.__trade_date_list, self.__trade_datas, self.__t1l_change_rate, self.__t1h_change_rate, self.__t2l_change_rate, self.__t2h_change_rate))
+        self.y_cnt = 4  #y的列数,表示t1l,t1h,t2l,t2h变化率
         
         #3. 统一剪掉尾部并返回
         return self.combine_data_np[:-max_cut_days], self.raw_data_np[:-max_cut_days]
@@ -217,21 +211,29 @@ class Trade():
     #计算t1,t2变化率
     #t1_change_rate表示T1低值的变化率
     def update_t1_change_rate(self):#表示T1低值的变化率
-        ##计算说明:t1_change_rate = t1_low - t0_close / t0_close
+        ##计算说明:
+        # t1l_change_rate = t1_low  - t0_close / t0_close
+        # t1h_change_rate = t1_high - t0_close / t0_close
         if self.trade_count < 2:
             logging.error("Not enough data to calculate T1 change rate.")
             return
-        self.__t1_change_rate = (self.__raw_data_pure_np[:-1, self.col_low] - self.__raw_data_pure_np[1:, self.col_close]) / self.__raw_data_pure_np[1:, self.col_close] \
+        self.__t1l_change_rate = (self.__raw_data_pure_np[:-1, self.col_low] - self.__raw_data_pure_np[1:, self.col_close]) / self.__raw_data_pure_np[1:, self.col_close] \
+            if self.stock_type != StockType.INDEX else self.__raw_data_pure_np[:-1, 0]-self.__raw_data_pure_np[:-1, 0]
+        self.__t1h_change_rate = (self.__raw_data_pure_np[:-1, self.col_high] - self.__raw_data_pure_np[1:, self.col_close]) / self.__raw_data_pure_np[1:, self.col_close] \
             if self.stock_type != StockType.INDEX else self.__raw_data_pure_np[:-1, 0]-self.__raw_data_pure_np[:-1, 0]
         #self.t1_change_rate = np.array([RateCat(rate=x,scale=T1L_SCALE).get_label() for x in self.t1_change_rate])
     
     #t2_change_rate表示T2高值的变化率
     def update_t2_change_rate(self):#表示T2高值的变化率
-        ##计算说明:t2_change_rate = t2_high - t0_close / t0_close
+        ##计算说明:
+        # t2l_change_rate = t2_low  - t0_close / t0_close
+        # t2h_change_rate = t2_high - t0_close / t0_close
         if self.trade_count < 3:
             logging.error("Not enough data to calculate T2 change rate.")
             return
-        self.__t2_change_rate = (self.__raw_data_pure_np[:-2, self.col_high] - self.__raw_data_pure_np[2:, self.col_close]) / self.__raw_data_pure_np[2:, self.col_close] \
+        self.__t2l_change_rate = (self.__raw_data_pure_np[:-2, self.col_low] - self.__raw_data_pure_np[2:, self.col_close]) / self.__raw_data_pure_np[2:, self.col_close] \
+            if self.stock_type != StockType.INDEX else self.__raw_data_pure_np[:-2, 0]-self.__raw_data_pure_np[:-2, 0]
+        self.__t2h_change_rate = (self.__raw_data_pure_np[:-2, self.col_high] - self.__raw_data_pure_np[2:, self.col_close]) / self.__raw_data_pure_np[2:, self.col_close] \
             if self.stock_type != StockType.INDEX else self.__raw_data_pure_np[:-2, 0]-self.__raw_data_pure_np[:-2, 0]
         #self.t2_change_rate = np.array([RateCat(rate=x,scale=T2H_SCALE).get_label() for x in self.t2_change_rate])
 

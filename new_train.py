@@ -24,7 +24,7 @@ if __name__ == "__main__":
     primary_stock_code = '600036.SH'
     index_code_list = ['000001.SH']#,'399001.SZ']
     related_stock_list = ALL_CODE_LIST
-    predict_type = PredictType.BINARY_T1L_L10  #二分类预测 T1 low <= -1.0%
+    predict_type = PredictType.BINARY_T1_L10  #二分类预测 T1 low <= -1.0%
 
     # 注意：train_size 设大容易使验证集过少，这里保持 0.9 但你可以回退到 0.85 观察稳定性
     ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
@@ -39,22 +39,23 @@ if __name__ == "__main__":
 
     # ================== 模型选择 ==================
     #model_type = 'transformer'  
-    model_type = 'residual_tcn'  
-    #model_type = 'residual_lstm'
+    #model_type = 'residual_tcn'  
+    model_type = 'residual_lstm'
     #model_type = 'mini'
 
     # 循环训练调试参数
-    for ns in [4]:
+    #for ns in [1]:
     #for l2 in [0.00001, 0.0001, 0.001, 0.01]:
     #for dp,bu in zip([4,4,4,6,6,6,8,8,8],[16,32,64,16,32,64,16,32,64]):
     #for lr in [0.001]:
+    for drop in [0.2, 0.5]:
         # ================== 训练参数 ==================
         epochs = 120
         batch_size = 1024
         learning_rate = 0.001#lr
         patience = 30
         p = 2
-        dropout_rate = 0.3
+        dropout_rate = drop#0.2#0.3#0.4#0.5
         l2_reg = 0.00001#l2
         loss_type = 'binary_crossentropy'#'focal_loss'#'cross_entropy'#'weighted_cross_entropy'#'binary_crossentropy'
         hard_threshold = 0.4  #预测置信度低于此阈值的样本视为 hard 样本
@@ -69,8 +70,8 @@ if __name__ == "__main__":
         ff_dim = 512
         num_layers = 4#nl#4
         # TCN模型参数
-        nb_stacks = ns  #增大nb_stacks会整体重复残差结构，直接增加模型深度
-        dilations = [1, 2, 4, 8, 16, 32]    #[1, 2, 4, 8] #每个stack内的dilation设置，增大dilation可以让模型看到更长时间的历史
+        nb_stacks = 2#ns  #增大nb_stacks会整体重复残差结构，直接增加模型深度
+        dilations = [1, 2, 4, 8, 16]#, 32]    #[1, 2, 4, 8] #每个stack内的dilation设置，增大dilation可以让模型看到更长时间的历史
         nb_filters = 64 #有多少组专家分别提取不同类型的特征
         kernel_size = 8 #每个专家一次能看到多长时间的历史窗口
         # LSTM Mini模型参数

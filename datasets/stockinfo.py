@@ -12,7 +12,7 @@ sys.path.append(o_path)
 sys.path.append(str(Path(__file__).resolve().parents[0]))
 from utils.utils import setup_logging
 from utils.tk import TOKEN
-from utils.const_def import FIRST_TRADE_DATE, NAN_FILL, MIN_TOTAL_MV, LATEST_DATE, STANDARD_DATE, IS_PRINT_TUSHARE_CALL_INFO, INDUSTRY_LIST
+from utils.const_def import NAN_FILL, IS_PRINT_TUSHARE_CALL_INFO, INDUSTRY_LIST
 from utils.const_def import BASE_DIR, GLOBAL_DIR
 
 #StockInfo用于存储所有股票、指数的基本信息数据，其中
@@ -65,7 +65,7 @@ class StockInfo():
             logging.error("读取文件错误.")
             logging.error(e)
 
-    def update_stock_list_filter(self, mmv=MIN_TOTAL_MV):
+    def update_stock_list_filter(self, mmv=1000000):
         self.__update_list()
         df_mv = self.get_daily_basic(trade_date=str(STANDARD_DATE))
         self.stock_list = pd.merge(self.stock_list, df_mv[['ts_code','total_mv']], how='left', on=['ts_code'])
@@ -76,7 +76,7 @@ class StockInfo():
         self.filtered_stock_list = self.filtered_list_df['ts_code'].values.tolist()
         logging.info(f"get filtered stock count - < {len(self.filtered_stock_list)} >")
 
-    def get_filtered_stock_list(self, mmv=MIN_TOTAL_MV):
+    def get_filtered_stock_list(self, mmv=1000000):
         self.update_stock_list_filter(mmv)
         return self.filtered_stock_list
 

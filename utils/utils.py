@@ -144,26 +144,82 @@ class StockType(Enum):
     INDEX = auto()
 
 class PredictType(Enum):
-    CLASSIFY = auto()
-    BINARY_T1L_L05 = -0.5
-    BINARY_T1L_L10 = -1.0
-    BINARY_T1L_L15 = -1.5
-    BINARY_T1L_L20 = -2.0
-    BINARY_T1L_L25 = -2.5
-    BINARY_T1L_L30 = -3.0
-    REGRESS = auto()
+    BINARY_T1_L05 = ("BINARY_T1_L05", -0.5)
+    BINARY_T1_L10 = ("BINARY_T1_L10", -1.0)
+    BINARY_T1_L15 = ("BINARY_T1_L15", -1.5)
+
+    BINARY_T1_H05 = ("BINARY_T1_H05", 0.5)
+    BINARY_T1_H10 = ("BINARY_T1_H10", 1.0)
+    BINARY_T1_H15 = ("BINARY_T1_H15", 1.5)
+
+    BINARY_T2_L05 = ("BINARY_T2_L05", -0.5)
+    BINARY_T2_L10 = ("BINARY_T2_L10", -1.0)
+    BINARY_T2_L15 = ("BINARY_T2_L15", -1.5)
+
+    BINARY_T2_H05 = ("BINARY_T2_H05", 0.5)
+    BINARY_T2_H10 = ("BINARY_T2_H10", 1.0)
+    BINARY_T2_H15 = ("BINARY_T2_H15", 1.5)
+
+
+    CLASSIFY = ("classify", 100.0)
+    REGRESS = ("regress", 1000.0)
 
     def is_binary(self):
         return self in [
-            PredictType.BINARY_T1L_L05,
-            PredictType.BINARY_T1L_L10,
-            PredictType.BINARY_T1L_L15,
-            PredictType.BINARY_T1L_L20,
-            PredictType.BINARY_T1L_L25,
-            PredictType.BINARY_T1L_L30,
+            PredictType.BINARY_T1_L05,
+            PredictType.BINARY_T1_L10,
+            PredictType.BINARY_T1_L15,
+            PredictType.BINARY_T1_H05,
+            PredictType.BINARY_T1_H10,
+            PredictType.BINARY_T1_H15,
+            PredictType.BINARY_T2_L05,
+            PredictType.BINARY_T2_L10,
+            PredictType.BINARY_T2_L15,
+            PredictType.BINARY_T2_H05,
+            PredictType.BINARY_T2_H10,
+            PredictType.BINARY_T2_H15
         ]
     
+    def is_binary_t1_low(self):
+        return self in [
+            PredictType.BINARY_T1_L05,
+            PredictType.BINARY_T1_L10,
+            PredictType.BINARY_T1_L15
+        ]
+    
+    def is_binary_t1_high(self):
+        return self in [
+            PredictType.BINARY_T1_H05,
+            PredictType.BINARY_T1_H10,
+            PredictType.BINARY_T1_H15
+        ]
+    
+    def is_binary_t2_low(self):
+        return self in [
+            PredictType.BINARY_T2_L05,
+            PredictType.BINARY_T2_L10,
+            PredictType.BINARY_T2_L15
+        ]
+    
+    def is_binary_t2_high(self):
+        return self in [
+            PredictType.BINARY_T2_H05,
+            PredictType.BINARY_T2_H10,
+            PredictType.BINARY_T2_H15
+        ]
+
     def is_classify(self):
         return self in [
             PredictType.CLASSIFY
             ]
+    
+    def is_regress(self):
+        return self in [
+            PredictType.REGRESS
+            ]
+
+    @property
+    def val(self):
+        """返回阈值(float), 无则None"""
+        v = self.value[1]
+        return v if isinstance(v, float) else None
