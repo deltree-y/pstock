@@ -8,7 +8,7 @@ from keras.models import Model, load_model
 from keras.callbacks import EarlyStopping
 from keras.regularizers import l2
 from keras.optimizers import Adam
-from utils.const_def import NUM_CLASSES
+from utils.const_def import NUM_CLASSES, IS_PRINT_MODEL_SUMMARY
 from utils.utils import PredictType
 from model.history import LossHistory
 from model.utils import WarmUpCosineDecayScheduler
@@ -105,7 +105,7 @@ class ResidualLSTMModel:
         self.class_weight_dict = class_weights
 
         self._build(self.x.shape[1:])
-        self.model.summary()
+        self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
         logging.info(f"ResidualLSTMModel: input shape={self.x.shape}, y shape={self.y.shape}")
 
     def _build(self, input_shape):
@@ -148,7 +148,7 @@ class ResidualLSTMModel:
         else:
             raise ValueError("Unsupported predict_type for classification model.")
 
-        self.model = Model(inputs=inp, outputs=outputs)    
+        self.model = Model(inputs=inp, outputs=outputs)
 
     def train(self, tx, ty, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
         self.x = tx.astype('float32') if tx is not None else self.x

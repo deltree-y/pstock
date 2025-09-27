@@ -12,7 +12,7 @@ from keras.optimizers import Adam
 from model.history import LossHistory
 from sklearn.utils.class_weight import compute_class_weight
 from model.utils import WarmUpCosineDecayScheduler
-from utils.const_def import BASE, NUM_CLASSES
+from utils.const_def import NUM_CLASSES, IS_PRINT_MODEL_SUMMARY
 
 o_path = os.getcwd()
 sys.path.append(o_path)
@@ -52,7 +52,7 @@ class LSTMModel():
 
         self.history = LossHistory()
         self.create_model_mini(x[0].shape)
-        self.model.summary()
+        self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
         logging.info(f"LSTM Mini Model: input shape={self.x.shape}, y shape={self.y.shape}")
 
     def create_model_mini(self, shape):

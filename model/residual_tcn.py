@@ -7,8 +7,9 @@ from keras.layers import Input, Dense, Dropout, Add, LayerNormalization, Activat
 from keras.callbacks import EarlyStopping
 from keras.optimizers import Adam
 from datetime import datetime
-from utils.const_def import NUM_CLASSES
-from model.losses import focal_loss
+from utils.utils import PredictType
+from utils.const_def import NUM_CLASSES, IS_PRINT_MODEL_SUMMARY
+from model.losses import binary_focal_loss, focal_loss
 from model.history import LossHistory
 from model.utils import WarmUpCosineDecayScheduler
 
@@ -68,7 +69,9 @@ class ResidualTCNModel:
     def __init__(self, x=None, y=None, test_x=None, test_y=None, fn=None, p=2,
                  nb_filters=64, kernel_size=8, nb_stacks=1, dilations=None, dropout_rate=0.1,
                  l2_reg=1e-5, causal=True,
-                 class_weights=None, loss_type=None):
+                 class_weights=None, loss_type=None,
+                 predict_type=PredictType.CLASSIFY
+                 ):
         if fn is not None:
             self.load(fn)
             self.model.summary()
@@ -87,11 +90,13 @@ class ResidualTCNModel:
         self.test_y = test_y.astype(int) if test_y is not None else None
         self.class_weights = class_weights
         self.loss_type = loss_type
+        self.predict_type = predict_type
+
         self.learning_rate_status = "init"
         self.history = LossHistory()
         logging.info(f"ResidualTCN input shape: {self.x.shape}, output shape: {self.y.shape}")
         self.create_model(self.x.shape[1:])
-        self.model.summary()
+        self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
 
     def create_model(self, input_shape):
         inputs = Input(shape=input_shape)
@@ -117,23 +122,43 @@ class ResidualTCNModel:
         x = LayerNormalization()(x)
         x = Dropout(self.dropout_rate)(x)
         x = Activation('relu')(x)
+
         # 输出层
-        temperature = 1.25
-        x_last = Dense(NUM_CLASSES, name='logits')(x)
-        outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output1')(x_last)
+        #temperature = 1.25
+        #x_last = Dense(NUM_CLASSES, name='logits')(x)
+        #outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output')(x_last)
+        if self.predict_type == PredictType.CLASSIFY:
+            outputs = Dense(NUM_CLASSES, activation='softmax', name='output')(x)
+        elif self.predict_type.is_bin():
+            outputs = Dense(1, activation='sigmoid', name='output')(x)
+        else:
+            raise ValueError("Unsupported predict_type for classification model.")            
         self.model = Model(inputs=inputs, outputs=outputs)
 
     def train(self, tx, ty, epochs=120, batch_size=256, learning_rate=0.001, patience=20):
         self.x = tx.astype('float32') if tx is not None else self.x
         self.y = ty.astype(int) if ty is not None else self.y
+
+        # 根据输入值及预测类型来选择损失函数
         if self.loss_type == 'focal_loss':
-            loss_fn = focal_loss(gamma=2.0, alpha=0.25)
+            if self.predict_type == PredictType.CLASSIFY:
+                loss_fn = focal_loss(gamma=2.0, alpha=0.25)
+            elif self.predict_type.is_bin():
+                loss_fn = binary_focal_loss(gamma=2.0, alpha=0.5)
+            else:
+                raise ValueError("Unsupported predict_type for focal_loss.")
         else:
-            loss_fn = 'sparse_categorical_crossentropy'
+            if self.predict_type == PredictType.CLASSIFY:
+                loss_fn = 'sparse_categorical_crossentropy'
+            elif self.predict_type.is_bin():
+                loss_fn = 'binary_crossentropy'
+            else:
+                raise ValueError("Unsupported predict_type for classification model.")
+
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss={'output1': loss_fn},
-            metrics={'output1': 'accuracy'}
+            loss={'output': loss_fn},
+            metrics={'output': 'accuracy'}
         )
         warmup_steps, hold_steps = int(0.4 * epochs), int(0.2 * epochs)
         lr_scheduler = WarmUpCosineDecayScheduler(

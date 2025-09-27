@@ -18,24 +18,16 @@ from model.utils import  get_hard_samples, get_sample_weights
 if __name__ == "__main__":
     setup_logging()
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
-
-
     # ================== 数据集准备 ==================
     si = StockInfo(TOKEN)
+    t_list = (si.get_trade_open_dates('20250801', '20250903'))['trade_date'].tolist()
     primary_stock_code = '600036.SH'
-    #t_list = ['20250804', '20250805', '20250806', '20250807', '20250808', '20250811', '20250812', '20250813', '20250814', '20250815', '20250818', '20250819', '20250820', '20250821', '20250822', '20250825', '20250826', '20250827', '20250828', '20250829', '20250901', '20250902', '20250903']
-    t_df = si.get_trade_open_dates('20250601', '20250903')
-    t_list = t_df['trade_date'].tolist()
-    index_code_list = ['000001.SH','399001.SZ']
+    index_code_list = ['000001.SH']#,'399001.SZ']
     related_stock_list = ALL_CODE_LIST
     predict_type = PredictType.BINARY_T1L_L10  #二分类预测 T1 low <= -1.0%
-    #predict_type = PredictType.CLASSIFY  #多分类预测 T1 low 分箱类别
 
     # 注意：train_size 设大容易使验证集过少，这里保持 0.9 但你可以回退到 0.85 观察稳定性
-    ds = StockDataset(ts_code=primary_stock_code,
-                      idx_code_list=index_code_list,
-                      rel_code_list=related_stock_list,
-                      si=si,
+    ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
                       start_date='20190104',
                       end_date='20250903',
                       train_size=0.9,
@@ -43,32 +35,50 @@ if __name__ == "__main__":
                       predict_type=predict_type)
 
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
-    
-    #仅取一次预测
-    ty = ty[:, 0]
-    vy = vy[:, 0]
+    ty, vy = ty[:, 0], vy[:, 0]
 
     # ================== 模型选择 ==================
-    #model_type = 'transformer'  # <<< 修改这里即可切换模型
-    #model_type = 'residual_tcn'  # <<< 修改这里即可切换模型
+    #model_type = 'transformer'  
+    #model_type = 'residual_tcn'  
     model_type = 'residual_lstm'
     #model_type = 'mini'
 
     # 循环训练调试参数
-    #for para1,para2 in zip([4,4,4,6,6,6,8,8,8],[16,32,64,16,32,64,16,32,64]):
-    for lr in [0.001, 0.0005]:
+    for l2 in [0.00001, 0.0001, 0.001, 0.01]:
+    #for dp,bu in zip([4,4,4,6,6,6,8,8,8],[16,32,64,16,32,64,16,32,64]):
+    #for lr in [0.001]:
         # ================== 训练参数 ==================
-        n_repeat = 3
-        epochs = 100
+        epochs = 120
         batch_size = 1024
-        learning_rate = lr
-        patience = 20
+        learning_rate = 0.001#lr
+        patience = 30
         p = 2
         dropout_rate = 0.3
-        l2_reg = 0.0001
+        l2_reg = l2
         loss_type = 'binary_crossentropy'#'focal_loss'#'cross_entropy'#'weighted_cross_entropy'#'binary_crossentropy'
         hard_threshold = 0.4  #预测置信度低于此阈值的样本视为 hard 样本
+        n_repeat = 3
         
+        # 残差LSTM模型参数
+        depth = 6
+        base_units = 32
+        use_se = True
+        # Transformer模型参数
+        d_model = 256
+        num_heads = 4
+        ff_dim = 512
+        num_layers = 4
+        # TCN模型参数
+        dilations = [1, 2, 4, 8, 16, 32]
+        nb_filters = 64
+        kernel_size = 8
+        nb_stacks = 2
+        causal = True  # 因为是时间序列，建议使用因果卷积
+        # LSTM Mini模型参数
+        # 直接使用默认参数
+
+        print(f"\n{'='*20} 开始训练: model={model_type}, epochs={epochs}, batch={batch_size}, lr={learning_rate} {'='*20}\n")        
+        # ================== 根据上面的选择和参数自动配置模型参数 ==================
         if predict_type == PredictType.CLASSIFY:
             # 显著降低类别0权重，提高类别4权重
             class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
@@ -82,63 +92,31 @@ if __name__ == "__main__":
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_{model_type}_{predict_type}_ep{epochs}_bs{batch_size}.h5")
         # ================== 模型选择 ==================
         if model_type == 'residual_lstm':
-            # 残差LSTM模型参数
-            depth = 6
-            base_units = 48
-            use_se = True
-
             model = ResidualLSTMModel(
-                x=tx, y=ty, test_x=vx, test_y=vy, p=p,
-                depth=depth, base_units=base_units, dropout_rate=dropout_rate, use_se=use_se,
-                se_ratio=8, l2_reg=l2_reg,
-                class_weights=cls_weights, loss_type=loss_type,
-                predict_type=predict_type
+                x=tx, y=ty, test_x=vx, test_y=vy, p=p, depth=depth, base_units=base_units, dropout_rate=dropout_rate, use_se=use_se, se_ratio=8, l2_reg=l2_reg, class_weights=cls_weights, loss_type=loss_type, predict_type=predict_type
             )
         elif model_type == 'transformer':
-            # Transformer模型参数
-            d_model = 256
-            num_heads = 4
-            ff_dim = 512
-            num_layers = 4
-
             model = TransformerModel(
-                x=tx, y=ty, test_x=vx, test_y=vy, p=p,
-                d_model=d_model, num_heads=num_heads, ff_dim=ff_dim, dropout_rate=dropout_rate, num_layers=num_layers,
-                l2_reg=l2_reg, use_pos_encoding=True, use_gating=True,
-                class_weights=cls_weights, loss_type = loss_type
+                x=tx, y=ty, test_x=vx, test_y=vy, p=p, d_model=d_model, num_heads=num_heads, ff_dim=ff_dim, dropout_rate=dropout_rate, num_layers=num_layers, l2_reg=l2_reg, use_pos_encoding=True, use_gating=True, class_weights=cls_weights, loss_type=loss_type, predict_type=predict_type
             )
         elif model_type == 'residual_tcn':
-            # TCN模型参数
-            dilations = [1, 2, 4, 8, 16, 32]
-            nb_filters = 64
-            kernel_size = 8
-            nb_stacks = 2
-            causal = True  # 因为是时间序列，建议使用因果卷积
-
             model = ResidualTCNModel(
-                x=tx, y=ty, test_x=vx, test_y=vy, p=p,
-                nb_filters=nb_filters, kernel_size=kernel_size, nb_stacks=nb_stacks,
-                dilations=dilations, dropout_rate=dropout_rate,
-                class_weights=cls_weights, loss_type = loss_type,
-                l2_reg=l2_reg, causal=causal
+                x=tx, y=ty, test_x=vx, test_y=vy, p=p, nb_filters=nb_filters, kernel_size=kernel_size, nb_stacks=nb_stacks,dilations=dilations, dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, l2_reg=l2_reg, causal=causal, predict_type=predict_type
             )
         elif model_type == 'mini':
-            # LSTM Mini模型参数
             model = LSTMModel(
-                x=tx, y=ty, test_x=vx, test_y=vy, p=p,
-                dropout_rate=dropout_rate
+                x=tx, y=ty, test_x=vx, test_y=vy, p=p, dropout_rate=dropout_rate, predict_type=predict_type
             )
         else:
             raise ValueError(f"Unknown model_type: {model_type}")
 
         print(f"Class weights: {cls_weights}")
-        print(f"\nbins1: {ds.bins1.bins}\nbins2: {ds.bins2.bins}")
+        #print(f"\nbins1: {ds.bins1.bins}\nbins2: {ds.bins2.bins}")
         print_ratio(ty, "ty")
 
         # ================== 训练 ==================
         # 1. 正常训练
-        logging.info(f"\n1. 正常训练: epochs={epochs}, batch={batch_size}, lr={learning_rate}")
-        logging.info(f"tx shape: {tx.shape}, ty shape: {ty.shape}, vx shape: {vx.shape}, vy shape: {vy.shape}")
+        logging.info(f"\n1. 正常训练: tx shape: {tx.shape}, ty shape: {ty.shape}, vx shape: {vx.shape}, vy shape: {vy.shape}")
         train_ret = model.train(tx=tx, ty=ty, epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
         print_predict_result(t_list, ds, model, predict_type)
         vx_pred_raw = model.model.predict(vx)

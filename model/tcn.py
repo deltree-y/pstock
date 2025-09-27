@@ -8,8 +8,9 @@ from keras.optimizers import Adam
 from keras import layers
 from datetime import datetime
 from tcn import TCN
-from model.losses import focal_loss
-from utils.const_def import NUM_CLASSES
+from model.losses import binary_focal_loss, focal_loss
+from utils.utils import PredictType
+from utils.const_def import NUM_CLASSES, IS_PRINT_MODEL_SUMMARY
 from model.history import LossHistory
 from model.utils import WarmUpCosineDecayScheduler
 
@@ -18,7 +19,8 @@ class TCNModel():
                  nb_filters=64, kernel_size=8, nb_stacks=1,
                  dilations=[1, 2, 4, 8, 16, 32], dropout_rate=0.3,
                  class_weights=None, loss_type=None,
-                 l2_reg=1e-5
+                 l2_reg=1e-5,
+                 predict_type=PredictType.CLASSIFY
                  ):
         if fn != None:
             self.load(fn)
@@ -34,6 +36,7 @@ class TCNModel():
             self.l2_reg = l2_reg
             self.loss_type = loss_type
             self.learning_rate_status = "init"
+            self.predict_type = predict_type
 
             self.x, self.y = x.astype(float), y.astype(int)
             self.test_x, self.test_y = test_x.astype(float), test_y.astype(int)
@@ -41,7 +44,7 @@ class TCNModel():
             logging.info(f"TCN input shape: {x.shape}, output shape: {y.shape}")
 
             self.create_model(x[0].shape)
-            self.model.summary()
+            self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
         else:
             logging.error("RCNModel init fail, no fn or x/y input!")
             exit()
@@ -94,31 +97,47 @@ class TCNModel():
         x = layers.Dense(64, activation='relu')(x)
         x = layers.Dropout(0.2)(x)
         x = layers.Dense(32, activation='relu')(x)
-        # 多分类输出
-        outputs = layers.Dense(NUM_CLASSES, activation='softmax', name='output1')(x)
 
         # 使用温度缩放调整输出分布
-        temperature = 1.5  # 调整这个值，>1会使分布更平滑，<1会使分布更尖锐
-        x_last = Dense(NUM_CLASSES, name='logits')(x)
-        outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output1')(x_last)
-        
+        #temperature = 1.5  # 调整这个值，>1会使分布更平滑，<1会使分布更尖锐
+        #x_last = Dense(NUM_CLASSES, name='logits')(x)
+        #outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output')(x_last)
+
+        # 输出层
+        if self.predict_type == PredictType.CLASSIFY:   #多分类
+            outputs = layers.Dense(NUM_CLASSES, activation='softmax', name='output')(x)
+        elif self.predict_type.is_bin():    #二分类
+            outputs = layers.Dense(1, activation='sigmoid', name='output')(x)
+        else:
+            raise ValueError("Unsupported predict_type for classification model.")
+
         self.model = Model(inputs=inputs, outputs=outputs)
 
     def train(self, tx, ty, epochs=120, batch_size=256, learning_rate=0.001, patience=20):
         self.x = tx.astype('float32') if tx is not None else self.x
         self.y = ty.astype(int) if ty is not None else self.y
 
-        # 多分类损失
+        # 根据输入值及预测类型来选择损失函数
         if self.loss_type == 'focal_loss':
-            loss_fn = focal_loss(gamma=2.0, alpha=0.25)
+            if self.predict_type == PredictType.CLASSIFY:
+                loss_fn = focal_loss(gamma=2.0, alpha=0.25)
+            elif self.predict_type.is_bin():
+                loss_fn = binary_focal_loss(gamma=2.0, alpha=0.5)
+            else:
+                raise ValueError("Unsupported predict_type for focal_loss.")
         else:
-            loss_fn = 'sparse_categorical_crossentropy'
+            if self.predict_type == PredictType.CLASSIFY:
+                loss_fn = 'sparse_categorical_crossentropy'
+            elif self.predict_type.is_bin():
+                loss_fn = 'binary_crossentropy'
+            else:
+                raise ValueError("Unsupported predict_type for classification model.")
 
         # Huber损失函数，对异常值更鲁棒
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss={'output1': loss_fn},
-            metrics={'output1': 'accuracy'}
+            loss={'output': loss_fn},
+            metrics={'output': 'accuracy'}
         )
 
         # 添加学习率调度和早停

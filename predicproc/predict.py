@@ -29,7 +29,7 @@ class Predict():
             else:
                 label = f'> {self.predict_type.value:.1f}%({self.bp*(1+self.predict_type.value/100):.2f})'
                 prob_rate = (1 - self.predicted_data[0,0])*100
-            print(f"原始预测值[{self.predicted_data[0,0]:<.3f}], T0基础价格[{self.bp:.2f}], T1l 预测:[{label}], 预测准确概率:[{prob_rate:.2f}%]")
+            print(f"RAW<{self.predicted_data[0,0]:<.3f}>, T0价格[{self.bp:.2f}], T1l :[{label}], 置信率:[{prob_rate:.2f}%]")
 
 
 class RegPredict():

@@ -39,7 +39,7 @@ class BinManager:
                 logging.error(f"数据: {(data_or_filename)}, 分组数量: {n_bins}")
                 raise ValueError("分组数量 n_bins 不能大于或等于数据长度.")
             _, bins = pd.qcut(data_or_filename, q=n_bins, retbins=True, duplicates='drop')
-            print(f"生成的分箱边界: {bins}")
+            #print(f"生成的分箱边界: {bins}")
             self._validate_bins(bins)
             self._bins = bins
             self._n_bins = len(bins) - 1

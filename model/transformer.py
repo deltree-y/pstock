@@ -3,7 +3,7 @@ import os, sys, logging
 import numpy as np
 import tensorflow as tf
 from datetime import datetime
-from pathlib import Path
+#from pathlib import Path
 from keras.models import Model
 from keras.layers import Input, Dense, Dropout, BatchNormalization, LayerNormalization, MultiHeadAttention, Add, Flatten, Lambda
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
@@ -11,13 +11,14 @@ from keras.optimizers import Adam
 from keras.regularizers import l2
 from sklearn.utils import compute_class_weight
 from model.utils import WarmUpCosineDecayScheduler
-from utils.const_def import NUM_CLASSES
+from utils.utils import PredictType
+from utils.const_def import NUM_CLASSES, IS_PRINT_MODEL_SUMMARY
 from model.history import LossHistory
-from model.losses import focal_loss
+from model.losses import binary_focal_loss, focal_loss
 
-o_path = os.getcwd()
-sys.path.append(o_path)
-sys.path.append(str(Path(__file__).resolve().parents[0]))
+#o_path = os.getcwd()
+#sys.path.append(o_path)
+#sys.path.append(str(Path(__file__).resolve().parents[0]))
 
 def positional_encoding(length, depth):
     """
@@ -77,7 +78,8 @@ def transformer_encoder_block(x, d_model, num_heads, ff_dim, dropout_rate, l2_re
 class TransformerModel():
     def __init__(self, x=None, y=None, test_x=None, test_y=None, 
                  d_model=256, num_heads=4, ff_dim=512, dropout_rate=0.2, num_layers=4, p=2,
-                 l2_reg=1e-5, use_gating=False, use_pos_encoding=True, class_weights=None, loss_type='focal_loss'
+                 l2_reg=1e-5, use_gating=False, use_pos_encoding=True, class_weights=None, loss_type='focal_loss',
+                 predict_type=PredictType.CLASSIFY
                  ):
         """
         优化建议2: 增加更多模型配置选项
@@ -111,7 +113,8 @@ class TransformerModel():
         self.p = p
         self.l2_reg = l2_reg
         self.learning_rate_status = "init"
-        
+        self.predict_type = predict_type
+
         self.use_gating = use_gating
         self.use_pos_encoding = use_pos_encoding
         self.loss_type = loss_type
@@ -121,7 +124,7 @@ class TransformerModel():
         self.history = LossHistory()
         logging.info(f"Transformer input shape: {x.shape}, output shape: {y.shape}")
         self.create_model(x[0].shape)
-        self.model.summary()
+        self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
 
     def create_model(self, shape):
         """
@@ -163,9 +166,15 @@ class TransformerModel():
         x = Dropout(self.dropout_rate/2)(x)  # 输出层前降低dropout以稳定训练
         
         # 输出层
-        temperature = 1.25
-        x_last = Dense(NUM_CLASSES, name='logits')(x)
-        outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output1')(x_last)
+        #temperature = 1.25
+        #x = Dense(NUM_CLASSES, name='logits')(x)
+        #outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output')(x)
+        if self.predict_type == PredictType.CLASSIFY:
+            outputs = Dense(NUM_CLASSES, activation='softmax', name='output')(x)
+        elif self.predict_type.is_bin():
+            outputs = Dense(1, activation='sigmoid', name='output')(x)
+        else:
+            raise ValueError("Unsupported predict_type for classification model.")
 
         self.model = Model(inputs=inputs, outputs=outputs)
         
@@ -182,17 +191,26 @@ class TransformerModel():
         optimizer = optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5)#AdamW(learning_rate=learning_rate, weight_decay=weight_decay, clipnorm=0.5)
 
         # 优化建议7: 支持不同的损失函数
+        # 根据输入值及预测类型来选择损失函数
         if self.loss_type == 'focal_loss':
-            loss = focal_loss(gamma=2.0, alpha=0.25)
-        elif self.loss_type == 'weighted_cross_entropy':
-            loss = 'sparse_categorical_crossentropy'
-        else:  # 默认交叉熵
-            loss = 'sparse_categorical_crossentropy'
+            if self.predict_type == PredictType.CLASSIFY:
+                loss_fn = focal_loss(gamma=2.0, alpha=0.25)
+            elif self.predict_type.is_bin():
+                loss_fn = binary_focal_loss(gamma=2.0, alpha=0.5)
+            else:
+                raise ValueError("Unsupported predict_type for focal_loss.")
+        else:
+            if self.predict_type == PredictType.CLASSIFY:
+                loss_fn = 'sparse_categorical_crossentropy'
+            elif self.predict_type.is_bin():
+                loss_fn = 'binary_crossentropy'
+            else:
+                raise ValueError("Unsupported predict_type for classification model.")
 
         self.model.compile(
             optimizer=optimizer,
-            loss={'output1': loss},
-            metrics={'output1': 'accuracy'}
+            loss={'output': loss_fn},
+            metrics={'output': 'accuracy'}
         )        
 
         # 添加学习率调度和早停

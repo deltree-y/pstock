@@ -61,4 +61,5 @@ def print_predict_result(t_list, ds, m, predict_type):
         pred_scaled = m.model.predict(data, verbose=0)
         print(f"T0[{t0}]", end="")
         Predict(pred_scaled, bp, ds.bins1, ds.bins2, predict_type).print_predict_result()
+    print("-------------------------------------------------------------")
 
