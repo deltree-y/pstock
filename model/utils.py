@@ -4,6 +4,7 @@ import tensorflow as tf
 from sklearn.metrics import confusion_matrix
 import numpy as np
 
+# 学习率调度器
 class WarmUpCosineDecayScheduler(tf.keras.callbacks.Callback):
     def __init__(self,
                  learning_rate_base,
@@ -19,25 +20,24 @@ class WarmUpCosineDecayScheduler(tf.keras.callbacks.Callback):
         self.verbose = verbose
         self.learning_rates = []
 
+    # 每个epoch开始时调用
     def on_epoch_begin(self, epoch, logs=None):
-        #self.global_steps = self.model.optimizer.iterations.numpy()
         lr = self.get_lr(epoch)
-        #if lr != tf.keras.backend.get_value(self.model.optimizer.lr):
-        #    print(f" lr change from <{tf.keras.backend.get_value(self.model.optimizer.lr):.8f}> to <{lr:.8f}>",end='')
         tf.keras.backend.set_value(self.model.optimizer.lr, lr)
         self.learning_rates.append(lr)
 
+    # 获取当前学习率
     def get_lr(self, epoch):
         # 预热阶段
         if epoch < self.warmup_steps:
             lr = self.learning_rate_base * (epoch / self.warmup_steps)
             self.model.learning_rate_status = "wup"
-            #print("\n(warmup)", end='')
+
         # 恒定学习率阶段
         elif epoch < self.warmup_steps + self.hold_steps:
             lr = self.learning_rate_base
             self.model.learning_rate_status = "hld"
-            #print("\n(hold)", end='')
+            
         # 余弦衰减阶段
         else:
             steps_since_hold = epoch - self.warmup_steps - self.hold_steps
@@ -45,20 +45,10 @@ class WarmUpCosineDecayScheduler(tf.keras.callbacks.Callback):
             progress = steps_since_hold / cosine_steps
             lr = 0.5 * self.learning_rate_base * (1 + np.cos(np.pi * progress))
             self.model.learning_rate_status = "cos"
-            #print("\n(cosine decay)", end='')
         return lr
 
-
+# 自动调整类别权重，预测比例越高，权重越低
 def auto_adjust_class_weights(y_pred, num_classes=6, min_weight=0.5, max_weight=5.0, power=1.0):
-    """
-    自动根据预测分布调整类别权重
-    :param y_pred: 预测标签，一维数组，如[0,0,1,5,2...]
-    :param num_classes: 类别总数
-    :param min_weight: 最低权重限制
-    :param max_weight: 最高权重限制
-    :param power: 调整权重时的幂指数（可用于加剧或缓和权重差异，1.0为线性）
-    :return: 类别权重列表
-    """
     # 统计预测分布
     counts = np.bincount(y_pred, minlength=num_classes)
     total = counts.sum()
@@ -80,6 +70,7 @@ def auto_adjust_class_weights(y_pred, num_classes=6, min_weight=0.5, max_weight=
     print("自动调整的类别权重：", weights)
     return weights.tolist()
 
+# 基于混淆矩阵调整类别权重
 def confusion_based_weights(y_true, y_pred, num_classes=6, min_weight=0.5, max_weight=5.0):
     cm = confusion_matrix(y_true, y_pred, labels=np.arange(num_classes))
     # 计算每个类别被误判为其它类别的总次数
@@ -91,26 +82,14 @@ def confusion_based_weights(y_true, y_pred, num_classes=6, min_weight=0.5, max_w
     print(f"基于混淆矩阵调整的类别权重：{weights.tolist()}")
     return weights.tolist()
 
+# 获取样本权重，给 hard 样本更高的权重
 def get_sample_weights(y, hard_mask, base_weight=1.0, hard_weight=3.0):
-    """
-    为hard样本增权，普通样本权重为base_weight，hard样本权重为hard_weight
-    y: 标签 [N,]
-    hard_mask: bool数组 [N,]，True代表hard样本
-    返回: sample_weight数组 [N,]
-    """
     sample_weight = np.full_like(y, base_weight, dtype=float)
     sample_weight[hard_mask] = hard_weight
     return sample_weight
 
+# 获取模型预测的 hard 样本
 def get_hard_samples(x, y, y_pred_raw, predict_type, threshold=0.5):
-    """
-    找到置信度低于 threshold 的样本，为后续重点训练做准备
-    x: 特征数据 [N, ...]
-    y: 标签 [N,]
-    model: 已训练好的 Keras 模型
-    threshold: 置信度阈值，默认 0.5
-    返回 (hard_x, hard_y) 置信度低的样本
-    """
     if predict_type.is_classify():
         # 置信度=最大概率
         conf = np.max(y_pred_raw, axis=1)

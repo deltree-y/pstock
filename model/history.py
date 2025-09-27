@@ -32,7 +32,6 @@ class LossHistory(Callback):
                     
             loss_improve_str, val_improve_str = None, None
             if epoch > 0 and logs.get('val_loss') < min(self.val_losses[:-1]):
-                #print(f" <-- [{min(self.val_losses[:-1])-logs.get('val_loss'):.5f}]", end="", flush=True)
                 loss_improve_str = f"[{min(self.val_losses[:-1])-logs.get('val_loss'):.5f}]"
             if epoch > 0 and logs.get('val_accuracy') > max(self.val_t1_accu[:-1]):
                 val_improve_str = f"[{(logs.get('val_accuracy')-max(self.val_t1_accu[:-1]))*100:.2f}]"
@@ -72,7 +71,6 @@ class LossHistory(Callback):
         return min(val_loss)
     
     def get_best_val(self):
-        #return max(self.t1_accu), max(self.t2_accu)
         return max(self.val_t1_accu)
    
     def get_history(self):

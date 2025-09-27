@@ -68,13 +68,6 @@ def get_mind_value(value, base_value):
 
 
 def plot_regression_result(y_true, y_pred, title="回归预测结果", save_path=None):
-    """
-    可视化回归预测结果
-    :param y_true: 测试集真实标签 (一维数组)
-    :param y_pred: 测试集预测值 (一维数组)
-    :param title: 图标题
-    :param save_path: 若指定则保存图片
-    """
     plt.figure(figsize=(10,5))
     plt.plot(y_true, label="real", marker='o', linestyle='-', alpha=0.7)
     plt.plot(y_pred, label="pred", marker='x', linestyle='--', alpha=0.7)
@@ -89,13 +82,6 @@ def plot_regression_result(y_true, y_pred, title="回归预测结果", save_path
     plt.show()
 
 def plot_error_distribution(y_true, y_pred, title="mae/rmse distribution", save_path=None):
-    """
-    可视化预测误差分布
-    :param y_true: 测试集真实标签 (一维数组)
-    :param y_pred: 测试集预测值 (一维数组)
-    :param title: 图标题
-    :param save_path: 若指定则保存图片
-    """
     errors = y_pred - y_true
     plt.figure(figsize=(8,5))
     plt.hist(errors, bins=30, edgecolor='black', alpha=0.7)

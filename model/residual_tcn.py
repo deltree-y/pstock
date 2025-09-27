@@ -37,7 +37,19 @@ class ResidualBlock(tf.keras.layers.Layer):
 
         self.use_projection = False
         self.projection = None
-
+    
+    def get_config(self):
+        config = super().get_config()
+        config.update({
+            "nb_filters": self.conv1.filters,
+            "kernel_size": self.conv1.kernel_size[0],
+            "dilation_rate": self.conv1.dilation_rate[0],
+            "dropout_rate": self.dropout1.rate,
+            "l2_reg": self.conv1.kernel_regularizer.l2 if self.conv1.kernel_regularizer else 0.0,
+            "causal": self.causal,
+        })
+        return config
+    
     def build(self, input_shape):
         # 若输入通道和输出通道不同，用1x1卷积投影
         if input_shape[-1] != self.conv1.filters:

@@ -171,7 +171,6 @@ class StockDataset():
                 raise ValueError(f"StockDataset.split_train_test_dataset_by_stock() - Unknown predict_type: {self.predict_type}")
             train_count = int(len(raw_x) * train_size)
             test_count = len(raw_x) - train_count
-            #print(f"train start date: {raw_data[-1,0]}, end date: {raw_data[test_count,0]}, count: {train_count}, test start date: {raw_data[test_count,0]}, end date: {raw_data[0,0]}, count: {test_count}")
             train_x_list.append(raw_x[test_count:])
             train_y_list.append(dataset_y[test_count:])
             test_x_list.append(raw_x[:test_count])
@@ -347,15 +346,6 @@ class StockDataset():
         
         return X_aug, y_aug
     
-    #打印归一化前后的数据对比
-    def print_comp_data(self, i=0, col=47):
-        tx = self.normalized_windowed_train_x
-        raw_x = self.get_windowed_x_by_raw(self.raw_dataset_x)
-        logging.info(f"raw_x shape:{raw_x.shape}, raw_x:\n{raw_x[0,0]}")
-        logging.info(f"print_comp_data - i:[{i}], col:[{col}]")
-        for idx, (val, val_raw) in enumerate(zip(tx[i,:,col], raw_x[i,:,col])):
-            logging.info(f"[{self.date_list[idx+i]}] val/raw_val <{val:+.5f}/{val_raw}>")
-
 
 if __name__ == "__main__":
     setup_logging()
