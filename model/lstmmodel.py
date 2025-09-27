@@ -11,7 +11,9 @@ from keras.regularizers import l2
 from keras.optimizers import Adam
 from model.history import LossHistory
 from sklearn.utils.class_weight import compute_class_weight
+from model.losses import get_loss
 from model.utils import WarmUpCosineDecayScheduler
+from utils.utils import PredictType
 from utils.const_def import NUM_CLASSES, IS_PRINT_MODEL_SUMMARY
 
 o_path = os.getcwd()
@@ -22,10 +24,11 @@ class LSTMModel():
     def __init__(self,
                  x=None, y=None,
                  test_x=None,test_y=None,
-                 fn=None, p=2,
+                 fn=None, p=1,
                  depth=3, base_units=32,use_se=True, se_ratio=8,
                  dropout_rate=0.2, l2_reg=1e-5,
-                 loss_fn=None, class_weights=None, loss_type=None
+                 loss_fn=None, class_weights=None, loss_type=None,
+                 predict_type=PredictType.CLASSIFY
                  ):
         if fn is not None:
             self.load(fn)
@@ -49,6 +52,7 @@ class LSTMModel():
         self.l2_reg = l2_reg
         self.loss_fn = loss_fn  # 保存传入的自定义损失（可为 None）
         self.class_weight_dict = class_weights
+        self.predict_type = predict_type
 
         self.history = LossHistory()
         self.create_model_mini(x[0].shape)
@@ -57,19 +61,26 @@ class LSTMModel():
 
     def create_model_mini(self, shape):
         inputs = Input(shape)
-        x = LSTM(128, return_sequences=False)(inputs)
-        x = Dense(32, activation='relu')(x)
-        out1 = Dense(NUM_CLASSES, activation='softmax', name='output1')(x)
-        self.model = Model(inputs=inputs, outputs=out1)
+        x = LSTM(128*self.p, return_sequences=False)(inputs)
+        x = Dense(32*self.p, activation='relu')(x)
+        # 输出层
+        if self.predict_type.is_classify():
+            outputs = Dense(NUM_CLASSES, activation='softmax', name='output')(x)
+        elif self.predict_type.is_binary():
+            outputs = Dense(1, activation='sigmoid', name='output')(x)
+        else:
+            raise ValueError("Unsupported predict_type for classification model.")
+        self.model = Model(inputs=inputs, outputs=outputs)
 
     def train(self, tx, ty, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
         self.x = tx.astype('float32') if tx is not None else self.x
         self.y = ty.astype(int) if ty is not None else self.y
         
+        loss_fn = get_loss(self.loss_type, self.predict_type)
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss={'output1': 'sparse_categorical_crossentropy'},
-            metrics={'output1': 'accuracy'}
+            loss={'output': loss_fn},
+            metrics={'output': 'accuracy'}
         )        
         
         # 添加学习率调度和早停

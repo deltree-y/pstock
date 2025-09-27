@@ -62,7 +62,6 @@ if __name__ == "__main__":
         # 残差LSTM模型参数
         depth = 6
         base_units = 32
-        use_se = True
         # Transformer模型参数
         d_model = 256
         num_heads = 4
@@ -73,13 +72,12 @@ if __name__ == "__main__":
         nb_filters = 64
         kernel_size = 8
         nb_stacks = 2
-        causal = True  # 因为是时间序列，建议使用因果卷积
         # LSTM Mini模型参数
         # 直接使用默认参数
 
         print(f"\n{'='*20} 开始训练: model={model_type}, epochs={epochs}, batch={batch_size}, lr={learning_rate} {'='*20}\n")        
         # ================== 根据上面的选择和参数自动配置模型参数 ==================
-        if predict_type == PredictType.CLASSIFY:
+        if predict_type.is_classify():
             # 显著降低类别0权重，提高类别4权重
             class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
             #class_weights[0] *= 0.3
@@ -93,7 +91,7 @@ if __name__ == "__main__":
         # ================== 模型选择 ==================
         if model_type == 'residual_lstm':
             model = ResidualLSTMModel(
-                x=tx, y=ty, test_x=vx, test_y=vy, p=p, depth=depth, base_units=base_units, dropout_rate=dropout_rate, use_se=use_se, se_ratio=8, l2_reg=l2_reg, class_weights=cls_weights, loss_type=loss_type, predict_type=predict_type
+                x=tx, y=ty, test_x=vx, test_y=vy, p=p, depth=depth, base_units=base_units, dropout_rate=dropout_rate, use_se=True, se_ratio=8, l2_reg=l2_reg, class_weights=cls_weights, loss_type=loss_type, predict_type=predict_type
             )
         elif model_type == 'transformer':
             model = TransformerModel(
@@ -101,7 +99,7 @@ if __name__ == "__main__":
             )
         elif model_type == 'residual_tcn':
             model = ResidualTCNModel(
-                x=tx, y=ty, test_x=vx, test_y=vy, p=p, nb_filters=nb_filters, kernel_size=kernel_size, nb_stacks=nb_stacks,dilations=dilations, dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, l2_reg=l2_reg, causal=causal, predict_type=predict_type
+                x=tx, y=ty, test_x=vx, test_y=vy, p=p, nb_filters=nb_filters, kernel_size=kernel_size, nb_stacks=nb_stacks,dilations=dilations, dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, l2_reg=l2_reg, causal=True, predict_type=predict_type
             )
         elif model_type == 'mini':
             model = LSTMModel(
@@ -131,9 +129,9 @@ if __name__ == "__main__":
             tx_pred_raw = model.model.predict(tx)
             hard_x, hard_y = get_hard_samples(tx, ty, tx_pred_raw, predict_type, threshold=hard_threshold)
             aug_x, aug_y = ds.time_series_augmentation_4x(hard_x, hard_y, noise_level=0.01)
-            if predict_type == PredictType.CLASSIFY:
+            if predict_type.is_classify():
                 hard_mask = np.max(tx_pred_raw, axis=1) < hard_threshold
-            elif predict_type.is_bin():
+            elif predict_type.is_binary():
                 hard_mask = np.abs(tx_pred_raw[:,0]-0.5)*2 < hard_threshold
             model.class_weight_dict = dict(enumerate(get_sample_weights(ty, hard_mask)))
 

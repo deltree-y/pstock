@@ -167,7 +167,7 @@ class PredictType(Enum):
     BINARY_T1L_L30 = -3.0
     REGRESS = auto()
 
-    def is_bin(self):
+    def is_binary(self):
         return self in [
             PredictType.BINARY_T1L_L05,
             PredictType.BINARY_T1L_L10,
@@ -177,3 +177,7 @@ class PredictType(Enum):
             PredictType.BINARY_T1L_L30,
         ]
     
+    def is_classify(self):
+        return self in [
+            PredictType.CLASSIFY
+            ]

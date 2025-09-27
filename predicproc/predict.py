@@ -18,11 +18,11 @@ class Predict():
         #self.y2r = RateCat(one_hot=self.predicted_data[1,:], scale=self.bins2.bins, tag='T2H')
 
     def print_predict_result(self):
-        if self.predict_type in [PredictType.CLASSIFY]:
+        if self.predict_type.is_classify():
             predict_list = [round(x, 3) for x in self.predicted_data[0]]
             print(f"Predict raw result: {predict_list}")            
             print(f"Predict t0p[{self.bp}] t1l label[{self.y1r.get_label()}] pct min/avg/max is <{self.y1r.get_rate_from_label('min')*100:.2f}%/{self.y1r.get_rate_from_label('avg')*100:.2f}%/{self.y1r.get_rate_from_label('max')*100:.2f}%> price is <{self.y1r.get_rate_from_label('min')*self.bp+self.bp:.2f}/{self.y1r.get_rate_from_label('avg')*self.bp+self.bp:.2f}/{self.y1r.get_rate_from_label('max')*self.bp+self.bp:.2f}>")
-        elif self.predict_type.is_bin():
+        elif self.predict_type.is_binary():
             if self.predicted_data[0,0]>0.5:
                 label = f'<={self.predict_type.value:.1f}%({self.bp*(1+self.predict_type.value/100):.2f})'
                 prob_rate = self.predicted_data[0,0]*100

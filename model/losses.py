@@ -1,25 +1,7 @@
-# coding: utf-8
-"""
-Custom losses used by training scripts.
-
-Provides mse_with_variance_push(var_floor_ratio=0.5, penalty_weight=0.1)
-which returns a callable loss(y_true, y_pred) compatible with tf.keras.
-"""
 import tensorflow as tf
+from utils.utils import PredictType
 
 def mse_with_variance_push(var_floor_ratio: float = 0.5, penalty_weight: float = 0.05, eps: float = 1e-9):
-    """
-    Return a loss function that is MSE plus a penalty if prediction std is less than var_floor_ratio * std(y_true).
-
-    Parameters:
-      var_floor_ratio: fraction of true-batch-std to require (e.g. 0.5 means require pred_std >= 0.5 * true_std)
-      penalty_weight: weight of the penalty term added to MSE
-      eps: small constant to avoid div-by-zero
-
-    Behavior:
-      loss = mse + penalty_weight * relu(var_floor - pred_std)
-      where var_floor = var_floor_ratio * stop_gradient(std(y_true))
-    """
     def loss_fn(y_true, y_pred):
         # ensure float32 tensors
         y_true_f = tf.cast(y_true, tf.float32)
@@ -56,9 +38,6 @@ def direction_weighted_mse(y_true, y_pred):
     return direction_weight * mse
 
 def custom_asymmetric_loss(y_true, y_pred):
-    """
-    自定义非对称损失函数，对上涨预测错误惩罚更重
-    """
     from keras import backend as K
     error = y_pred - y_true
     # 上涨预测为下跌的惩罚权重更大
@@ -92,3 +71,21 @@ def binary_focal_loss(gamma=2.0, alpha=0.25):
         ce = -tf.math.log(pt)
         return tf.reduce_mean(focal_factor * ce)
     return loss
+
+# 根据输入值及预测类型来选择损失函数
+def get_loss(loss_type, predict_type):
+    if loss_type == 'focal_loss':
+        if predict_type.is_classify():
+            loss_fn = focal_loss(gamma=2.0, alpha=0.25)
+        elif predict_type.is_binary():
+            loss_fn = binary_focal_loss(gamma=2.0, alpha=0.25)
+        else:
+            raise ValueError("Unsupported predict_type for focal_loss.")
+    else:
+        if predict_type.is_classify():
+            loss_fn = 'sparse_categorical_crossentropy'
+        elif predict_type.is_binary():
+            loss_fn = 'binary_crossentropy'
+        else:
+            raise ValueError("Unsupported predict_type for classification model.")
+    return loss_fn

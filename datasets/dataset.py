@@ -162,9 +162,9 @@ class StockDataset():
             if len(raw_x) < NUM_CLASSES:
                 logging.error(f"StockDataset.split_train_test_dataset_by_stock() - Too few data, will be skipped. data shape: {raw_data.shape}")
                 continue
-            if self.predict_type == PredictType.CLASSIFY:
+            if self.predict_type.is_classify():#多分类
                 dataset_y = self.get_binned_y_use_qcut(raw_y)
-            elif self.predict_type.is_bin():#二分类
+            elif self.predict_type.is_binary():#二分类
                 #按不同的二分类预测类型,生成对应的二分类y
                 dataset_y = (raw_y[:, 0]*100 <= self.predict_type.value).astype(int).reshape(-1, 1)
             else:

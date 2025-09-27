@@ -111,11 +111,11 @@ def get_hard_samples(x, y, y_pred_raw, predict_type, threshold=0.5):
     threshold: 置信度阈值，默认 0.5
     返回 (hard_x, hard_y) 置信度低的样本
     """
-    if predict_type == predict_type.CLASSIFY:
+    if predict_type.is_classify():
         # 置信度=最大概率
         conf = np.max(y_pred_raw, axis=1)
         hard_mask = conf < threshold
-    elif predict_type.is_bin():
+    elif predict_type.is_binary():
         # 置信度=离0.5的距离
         if y_pred_raw.ndim == 2 and y_pred_raw.shape[1] == 1:
             y_pred_raw = y_pred_raw.reshape(-1)

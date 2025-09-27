@@ -9,7 +9,7 @@ from keras.optimizers import Adam
 from datetime import datetime
 from utils.utils import PredictType
 from utils.const_def import NUM_CLASSES, IS_PRINT_MODEL_SUMMARY
-from model.losses import binary_focal_loss, focal_loss
+from model.losses import binary_focal_loss, focal_loss, get_loss
 from model.history import LossHistory
 from model.utils import WarmUpCosineDecayScheduler
 
@@ -127,9 +127,9 @@ class ResidualTCNModel:
         #temperature = 1.25
         #x_last = Dense(NUM_CLASSES, name='logits')(x)
         #outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output')(x_last)
-        if self.predict_type == PredictType.CLASSIFY:
+        if self.predict_type.is_classify():
             outputs = Dense(NUM_CLASSES, activation='softmax', name='output')(x)
-        elif self.predict_type.is_bin():
+        elif self.predict_type.is_binary():
             outputs = Dense(1, activation='sigmoid', name='output')(x)
         else:
             raise ValueError("Unsupported predict_type for classification model.")            
@@ -139,22 +139,7 @@ class ResidualTCNModel:
         self.x = tx.astype('float32') if tx is not None else self.x
         self.y = ty.astype(int) if ty is not None else self.y
 
-        # 根据输入值及预测类型来选择损失函数
-        if self.loss_type == 'focal_loss':
-            if self.predict_type == PredictType.CLASSIFY:
-                loss_fn = focal_loss(gamma=2.0, alpha=0.25)
-            elif self.predict_type.is_bin():
-                loss_fn = binary_focal_loss(gamma=2.0, alpha=0.5)
-            else:
-                raise ValueError("Unsupported predict_type for focal_loss.")
-        else:
-            if self.predict_type == PredictType.CLASSIFY:
-                loss_fn = 'sparse_categorical_crossentropy'
-            elif self.predict_type.is_bin():
-                loss_fn = 'binary_crossentropy'
-            else:
-                raise ValueError("Unsupported predict_type for classification model.")
-
+        loss_fn = get_loss(self.loss_type, self.predict_type)
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
             loss={'output': loss_fn},
