@@ -45,15 +45,19 @@ def residual_bilstm_block(x,
                           block_id=0,
                           l2_reg=1e-5):
     shortcut = x
+    # 原有一层 BiLSTM
     y = Bidirectional(
-        LSTM(units,
-             return_sequences=True,
-             kernel_regularizer=l2(l2_reg)),
-        name=f"bilstm_{block_id}"
-    )(x)
+        LSTM(units, return_sequences=True, kernel_regularizer=l2(l2_reg)),
+        name=f"bilstm_{block_id}")(x)
     y = LayerNormalization(name=f"ln_{block_id}")(y)
     y = Dropout(dropout_rate, name=f"drop_{block_id}")(y)
-
+    # 新增一层 BiLSTM
+    #y = Bidirectional(
+    #    LSTM(units, return_sequences=True),
+    #    name=f"bilstm_{block_id}_2")(y)
+    #y = LayerNormalization(name=f"ln_{block_id}_2")(y)
+    #y = Dropout(dropout_rate, name=f"drop_{block_id}_2")(y)
+    # SE 模块
     if use_se:
         y = se_block(y, ratio=se_ratio, name_prefix=f"se_{block_id}")
 
@@ -130,13 +134,17 @@ class ResidualLSTMModel:
         x_last = Dropout(self.dropout_rate, name="drop_last")(x_last)
 
         # 回归头
-        x_last = Dense(self.base_units * self.p, activation=activations.swish,
+        x_last = Dense(self.base_units * self.p * 2, activation=activations.swish,
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc1")(x_last)
         x_last = Dropout(self.dropout_rate, name="fc1_drop")(x_last)
-        x_last = Dense(32, activation=activations.swish,
+        x_last = Dense(self.base_units * self.p, activation=activations.swish,
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc2")(x_last)
+        #x_last = Dropout(self.dropout_rate, name="fc2_drop")(x_last)
+        #x_last = Dense(32, activation=activations.swish,
+        #               kernel_regularizer=l2(self.l2_reg),
+        #               name="fc3")(x_last)
         # 输出层
         #temperature = 1.25
         #x_last = Dense(NUM_CLASSES, name='logits')(x_last)

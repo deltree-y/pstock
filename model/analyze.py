@@ -22,6 +22,19 @@ def plot_confusion(y_true, y_pred, num_classes=6, title="Confusion Matrix"):
     plt.show()
     return cm
 
+def plot_l2_loss_curves(history_dict, epochs, save_path=None):
+    plt.figure(figsize=(10, 6))
+    for l2_reg, record in history_dict.items():
+        plt.plot(record['val_loss'], label=f'l2={l2_reg}')
+    plt.xlabel('Epoch')
+    plt.ylabel('Validation Loss')
+    plt.title('Validation Loss Curve for Different l2_reg')
+    plt.legend()
+    plt.grid(True)
+    if save_path:
+        plt.savefig(save_path, dpi=150)
+    plt.show()
+
 def auto_adjust_class_weights(pred_raw, y_true, num_classes):
     y_pred = np.argmax(pred_raw, axis=1)
     auto_adjust_class_weights(y_pred, num_classes)
@@ -50,16 +63,4 @@ def print_recall_score(pred_raw, y_true, predict_type):
         print(f"二分类 准确率: {acc:.3f}, 召回率: {recall:.3f}, F1: {f1:.3f}")
     else:
         raise ValueError(f"print_recall_score() - Unknown predict_type: {predict_type}")
-
-#基于给定的日期list,使用给定的数据集和模型进行预测并打印结果
-def print_predict_result(t_list, ds, m, predict_type):
-    for t0 in t_list:
-        data, bp = ds.get_predictable_dataset_by_date(t0)
-        #print("*************************************************************")
-        #print(f"raw data is {data}")
-        #print("*************************************************************\n")
-        pred_scaled = m.model.predict(data, verbose=0)
-        print(f"T0[{t0}]", end="")
-        Predict(pred_scaled, bp, ds.bins1, ds.bins2, predict_type).print_predict_result()
-    print("-------------------------------------------------------------")
 

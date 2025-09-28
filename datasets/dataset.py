@@ -353,11 +353,12 @@ if __name__ == "__main__":
     rel_code_list = BANK_CODE_LIST#ALL_CODE_LIST
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
     ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20190104', end_date='20250903', 
-                      train_size=0.9, if_use_all_features=False, predict_type=PredictType.BINARY_T1_H10)
+                      train_size=0.9, if_use_all_features=False, predict_type=PredictType.BINARY_T2_L10)
+    logging.info(f"ds.train_y shape: {ds.train_y.shape}, ds.test_y shape: {ds.test_y.shape}")
     pd.set_option('display.max_columns', None)
     start_idx = 2100
-    print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_train_x).iloc[start_idx:start_idx+20]}")
-    print(f"\nraw y sample: \n{pd.DataFrame(ds.train_y).iloc[start_idx:start_idx+20]}")
+    print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_train_x).iloc[start_idx:start_idx+10]}")
+    print(f"\nraw y sample: \n{pd.DataFrame(ds.train_y).iloc[start_idx:start_idx+10]}")
     #data, bp = ds.get_predictable_dataset_by_date("20250829")
     #print(f"data shape: {data.shape}, bp: {bp}")
     #print(f"{ds.p_trade.remain_list}")

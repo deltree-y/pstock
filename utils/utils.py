@@ -66,34 +66,6 @@ def get_mind_value(value, base_value):
     return value
 
 
-
-def plot_regression_result(y_true, y_pred, title="回归预测结果", save_path=None):
-    plt.figure(figsize=(10,5))
-    plt.plot(y_true, label="real", marker='o', linestyle='-', alpha=0.7)
-    plt.plot(y_pred, label="pred", marker='x', linestyle='--', alpha=0.7)
-    plt.ylim(-8, 2)
-    plt.title(title)
-    plt.xlabel("sn")
-    plt.ylabel("chg_pct(%)")
-    plt.legend()
-    plt.grid(True)
-    if save_path:
-        plt.savefig(save_path, dpi=150)
-    plt.show()
-
-def plot_error_distribution(y_true, y_pred, title="mae/rmse distribution", save_path=None):
-    errors = y_pred - y_true
-    plt.figure(figsize=(8,5))
-    plt.hist(errors, bins=30, edgecolor='black', alpha=0.7)
-    plt.title(title)
-    plt.xlabel("mae(pred-real,%)")
-    plt.ylabel("sample count")
-    plt.xlim(-5, 5)
-    plt.grid(True)
-    if save_path:
-        plt.savefig(save_path, dpi=150)
-    plt.show()
-
 @njit
 def rolling_skew(arr, window):
     n = arr.shape[0]
@@ -144,21 +116,21 @@ class StockType(Enum):
     INDEX = auto()
 
 class PredictType(Enum):
-    BINARY_T1_L05 = ("BINARY_T1_L05", -0.5)
-    BINARY_T1_L10 = ("BINARY_T1_L10", -1.0)
-    BINARY_T1_L15 = ("BINARY_T1_L15", -1.5)
+    BINARY_T1_L05 = ("BINARY_T1_L05", -0.5, "T1L")
+    BINARY_T1_L10 = ("BINARY_T1_L10", -1.0, "T1L")
+    BINARY_T1_L15 = ("BINARY_T1_L15", -1.5, "T1L")
 
-    BINARY_T1_H05 = ("BINARY_T1_H05", 0.5)
-    BINARY_T1_H10 = ("BINARY_T1_H10", 1.0)
-    BINARY_T1_H15 = ("BINARY_T1_H15", 1.5)
+    BINARY_T1_H05 = ("BINARY_T1_H05", 0.5, "T1H")
+    BINARY_T1_H10 = ("BINARY_T1_H10", 1.0, "T1H")
+    BINARY_T1_H15 = ("BINARY_T1_H15", 1.5, "T1H")
 
-    BINARY_T2_L05 = ("BINARY_T2_L05", -0.5)
-    BINARY_T2_L10 = ("BINARY_T2_L10", -1.0)
-    BINARY_T2_L15 = ("BINARY_T2_L15", -1.5)
+    BINARY_T2_L05 = ("BINARY_T2_L05", -0.5, "T2L")
+    BINARY_T2_L10 = ("BINARY_T2_L10", -1.0, "T2L")
+    BINARY_T2_L15 = ("BINARY_T2_L15", -1.5, "T2L")
 
-    BINARY_T2_H05 = ("BINARY_T2_H05", 0.5)
-    BINARY_T2_H10 = ("BINARY_T2_H10", 1.0)
-    BINARY_T2_H15 = ("BINARY_T2_H15", 1.5)
+    BINARY_T2_H05 = ("BINARY_T2_H05", 0.5, "T2H")
+    BINARY_T2_H10 = ("BINARY_T2_H10", 1.0, "T2H")
+    BINARY_T2_H15 = ("BINARY_T2_H15", 1.5, "T2H")
 
 
     CLASSIFY = ("classify", 100.0)
@@ -223,3 +195,8 @@ class PredictType(Enum):
         """返回阈值(float), 无则None"""
         v = self.value[1]
         return v if isinstance(v, float) else None
+    
+    @property
+    def label(self):
+        """返回标签(str), 无则None"""
+        return self.value[2] if self.value else None

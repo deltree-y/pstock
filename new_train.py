@@ -1,6 +1,6 @@
 # coding=utf-8
-import os, logging
-import numpy as np
+import logging
+import os, random, numpy as np, tensorflow as tf
 from sklearn.utils import compute_class_weight
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
@@ -12,8 +12,14 @@ from utils.tk import TOKEN
 from utils.const_def import ALL_CODE_LIST, BASE_DIR, MODEL_DIR, NUM_CLASSES
 from utils.utils import PredictType
 from utils.utils import setup_logging, print_ratio
-from predicproc.analyze import plot_confusion_by_model, print_predict_result, print_recall_score
+from model.analyze import plot_confusion_by_model, print_recall_score
 from model.utils import  get_hard_samples, get_sample_weights
+from predicproc.show import print_predict_result
+
+os.environ['PYTHONHASHSEED'] = '0'
+np.random.seed(42)
+random.seed(42)
+tf.random.set_seed(42)
 
 if __name__ == "__main__":
     setup_logging()
@@ -46,24 +52,26 @@ if __name__ == "__main__":
     # 循环训练调试参数
     #for ns in [1]:
     #for l2 in [0.00001, 0.0001, 0.001, 0.01]:
-    #for dp,bu in zip([4,4,4,6,6,6,8,8,8],[16,32,64,16,32,64,16,32,64]):
+    #for dp,bu in zip([4,4,6,6,8,8,12,12],[32,64,32,64,32,64,32,64]):
     #for lr in [0.001]:
-    for drop in [0.2, 0.5]:
+    for drop in [0.3]:
+        print(f"\n{'#'*60}\n")
+        #print(f"当前循环训练参数: model={model_type}, pred_depth={dp}, base_units={bu}")
         # ================== 训练参数 ==================
         epochs = 120
-        batch_size = 1024
-        learning_rate = 0.001#lr
-        patience = 30
-        p = 2
-        dropout_rate = drop#0.2#0.3#0.4#0.5
-        l2_reg = 0.00001#l2
+        batch_size = 2048
+        learning_rate = 0.002#lr
+        patience = 25
+        dropout_rate = 0.3#drop#0.2#0.3#0.4#0.5
+        l2_reg = 0.00008#l2
         loss_type = 'binary_crossentropy'#'focal_loss'#'cross_entropy'#'weighted_cross_entropy'#'binary_crossentropy'
         hard_threshold = 0.4  #预测置信度低于此阈值的样本视为 hard 样本
         n_repeat = 3
+        p = 2
         
         # 残差LSTM模型参数
-        depth = 6
-        base_units = 32
+        depth = 6#dp#6
+        base_units = 32#bu#32
         # Transformer模型参数
         d_model = 256
         num_heads = 4
@@ -77,7 +85,6 @@ if __name__ == "__main__":
         # LSTM Mini模型参数
         # 直接使用默认参数
 
-        print(f"\n{'='*20} 开始训练: model={model_type}, epochs={epochs}, batch={batch_size}, lr={learning_rate} {'='*20}\n")        
         # ================== 根据上面的选择和参数自动配置模型参数 ==================
         if predict_type.is_classify():
             # 显著降低类别0权重，提高类别4权重
@@ -110,7 +117,9 @@ if __name__ == "__main__":
         else:
             raise ValueError(f"Unknown model_type: {model_type}")
 
-        print(f"Class weights: {cls_weights}")
+        print(f"\n{'='*5} 开始训练: model={model_type}, predict_type={predict_type} {'='*5}")        
+        print(f"{'='*5} 参   数: batch={batch_size}, lr={learning_rate}, drop={dropout_rate}, l2={l2_reg}, dep={depth},  bu={base_units}, patience={patience} {'='*5}\n")
+        #print(f"Class weights: {cls_weights}")
         #print(f"\nbins1: {ds.bins1.bins}\nbins2: {ds.bins2.bins}")
         print_ratio(ty, "ty")
 
