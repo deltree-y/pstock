@@ -1,0 +1,105 @@
+# coding=utf-8
+import os
+import sys
+import argparse
+import numpy as np
+from datasets.stockinfo import StockInfo
+from dataset import StockDataset
+from utils.tk import TOKEN
+from utils.const_def import BASE_DIR, MODEL_DIR, NUM_CLASSES
+from utils.utils import PredictType, setup_logging
+from model.residual_lstm import ResidualLSTMModel
+from model.residual_tcn import ResidualTCNModel
+from model.transformer import TransformerModel
+from model.lstmmodel import LSTMModel
+from predicproc.predict import Predict, RegPredict
+
+def get_model_path(filename):
+    if os.path.isabs(filename):
+        return filename
+    if os.path.exists(filename):
+        return filename
+    model_path = os.path.join(BASE_DIR, MODEL_DIR, filename)
+    if not model_path.endswith(".h5"):
+        model_path += ".h5"
+    if not os.path.exists(model_path):
+        raise FileNotFoundError(f"模型文件未找到: {model_path}")
+    return model_path
+
+def load_model_by_type(model_type, model_path, predict_type):
+    if model_type == "residual_lstm":
+        model = ResidualLSTMModel(fn=model_path, predict_type=predict_type)
+    elif model_type == "residual_tcn":
+        model = ResidualTCNModel(fn=model_path, predict_type=predict_type)
+    elif model_type == "transformer":
+        model = TransformerModel()
+        model.load(model_path)
+    elif model_type == "mini":
+        model = LSTMModel(fn=model_path, predict_type=predict_type)
+    else:
+        raise ValueError(f"Unknown model_type: {model_type}")
+    return model
+
+def main():
+    parser = argparse.ArgumentParser(description="Use trained model for prediction by date")
+    parser.add_argument("--model_file", required=True, help="Model file name (just the file name, not path)")
+    parser.add_argument("--model_type", default="residual_lstm", choices=["residual_lstm", "residual_tcn", "transformer", "mini"], help="Type of model")
+    parser.add_argument("--predict_type", default="BINARY_T1_L10", help="PredictType, e.g., BINARY_T1_L10 or CLASSIFY")
+    parser.add_argument("--dates", nargs="+", required=True, help="List of dates to predict, format: YYYYMMDD")
+    parser.add_argument("--stock_code", default="600036.SH", help="Primary stock code")
+    parser.add_argument("--start_date", default="20190104", help="Start date for data")
+    parser.add_argument("--end_date", default=None, help="End date for data")
+    args = parser.parse_args()
+
+    setup_logging()
+    model_path = get_model_path(args.model_file)
+    print(f"Loading model from {model_path} (type: {args.model_type}) ...")
+
+    predict_type = getattr(PredictType, args.predict_type) if hasattr(PredictType, args.predict_type) else PredictType.BINARY_T1_L10
+    model = load_model_by_type(args.model_type, model_path, predict_type)
+
+    si = StockInfo(TOKEN)
+    ds = StockDataset(
+        ts_code=args.stock_code,
+        idx_code_list=['000001.SH'],
+        rel_code_list=[],
+        si=si,
+        start_date=args.start_date,
+        end_date=args.end_date,
+        train_size=0.99,
+        if_use_all_features=False,
+        predict_type=predict_type
+    )
+
+    for date_str in args.dates:
+        print(f"\n==== 预测日期: {date_str} ====")
+        try:
+            x_input, base_price = ds.get_predictable_dataset_by_date(date_str)
+        except Exception as e:
+            print(f"日期 {date_str} 数据不可用: {e}")
+            continue
+        pred = model.model.predict(x_input, verbose=0)
+
+        # 分类/二分类/回归均用Predict类输出
+        if predict_type.is_classify():
+            Predict(pred, base_price, predict_type, ds.bins1, ds.bins2).print_predict_result("预测")
+        elif predict_type.is_binary():
+            Predict(pred, base_price, predict_type).print_predict_result("预测")
+        elif predict_type.is_regress():
+            RegPredict(pred, base_price).print_predict_result("预测")
+        else:
+            print(f"预测值: {pred}")
+
+        # 是否输出真实结果对比
+        idx = np.where(ds.date_list == int(date_str))[0]
+        is_historical = len(idx) > 0 and idx[0] < len(ds.train_y)
+        if is_historical:
+            real_y = ds.train_y[idx[0]]
+            # 用Predict类处理真实标签
+            Predict.from_real_label(real_y, base_price, predict_type, ds.bins1, ds.bins2).print_predict_result("真实")
+        else:
+            print(f"无真实标签，仅输出预测结果。")
+
+if __name__ == "__main__":
+    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
+    main()

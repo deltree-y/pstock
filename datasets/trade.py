@@ -171,7 +171,7 @@ class Trade():
             extra_features_45 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'atr_14', 'stddev_10', 'ps', 'ADX_14', 'log_volume', 'DMP_14', 'amount', 'return_10d', 'roc_10', 'BBU_20_2.0', 'return_5d']
             extra_features_55 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'atr_14', 'stddev_10', 'ps', 'ADX_14', 'log_volume', 'DMP_14', 'amount', 'return_10d', 'roc_10', 'BBU_20_2.0', 'return_5d', 'e_factor', 'sma_10', 'ema_10', 'wma_10', 'BBM_20_2.0', 'pre_close', 'obv']
             advanced_features = ['return_1d', 'volatility_5d', 'is_new_high_20d']
-            remain_list = list(dict.fromkeys(chain(basic_features, extra_features_30, advanced_features)))    #取并集
+            remain_list = list(dict.fromkeys(chain(basic_features, extra_features_37, advanced_features)))    #取并集
             remain_list = self.trade_df.columns.to_list() if self.if_use_all_features else remain_list
             #logging.info(f"After feature selection, remain {len(remain_list)}")
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2 #在raw_data_np中的列索引位置,需要-2(减去ts_code和trade_date两列)

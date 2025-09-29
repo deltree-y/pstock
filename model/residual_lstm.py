@@ -86,7 +86,7 @@ class ResidualLSTMModel:
                  ):
         if fn is not None:
             self.load(fn)
-            self.model.summary()
+            self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
             return
 
         self.p = p

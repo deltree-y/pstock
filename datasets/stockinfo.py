@@ -252,14 +252,20 @@ class StockInfo():
         date = type(self.trade_date_list['cal_date'][0])(date)
         return self.trade_date_list[self.trade_date_list['cal_date']==date]['is_open'].values[0] == 1
 
-    #获取最近前一个交易日的日期
     #若输入日期为交易日,则返回该日期,否则返回前一个交易日
-    def get_recent_trade_date(self, date):
+    def get_previous_or_current_trade_date(self, date):
         self.__update_list()
         date = type(self.trade_date_list['cal_date'][0])(date)
-        logging.debug(f"in get_recent_trade_date(), date={date}, type={type(date)}")
+        logging.debug(f"in get_previous_or_current_trade_date(), date={date}, type={type(date)}")
         return date if self.is_trade_date(date) else self.get_pre_trade_date(date)
     
+    #若输入日期为交易日,则返回该日期,否则返回后一个交易日
+    def get_next_or_current_trade_date(self, date):
+        self.__update_list()
+        date = type(self.trade_date_list['cal_date'][0])(date)
+        logging.debug(f"in get_next_or_current_trade_date(), date={date}, type={type(date)}")
+        return date if self.is_trade_date(date) else self.get_next_trade_date(date)
+
     #获取给定范围的所有交易日数据
     def get_trade_open_dates(self, start_date, end_date):
         start_date, end_date = type(self.trade_date_list['cal_date'][0])(start_date), type(self.trade_date_list['cal_date'][0])(end_date)

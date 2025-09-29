@@ -37,6 +37,7 @@ class StockDataset():
         self.idx_trade_list = [Trade(idx_code, si, stock_type=StockType.INDEX, start_date=start_date, end_date=end_date, if_use_all_features=if_use_all_features) for idx_code in idx_code_list]
         self.rel_trade_list = [Trade(rel_code, si, stock_type=StockType.RELATED, start_date=start_date, end_date=end_date, if_use_all_features=if_use_all_features) for rel_code in rel_code_list]
         self.if_has_index, self.if_has_related = len(self.idx_trade_list) > 0, len(self.rel_trade_list) > 0
+        self.si = si
         self.stock = self.p_trade.stock
         self.window_size = CONTINUOUS_DAYS
         self.train_size = train_size
@@ -249,6 +250,7 @@ class StockDataset():
     
     #获取某一天的模型输入数据(已归一化, 预测用),以及对应的收盘价
     def get_predictable_dataset_by_date(self, date):
+        date = self.si.get_next_or_current_trade_date(date) #若输入日期为交易日,则返回该日期,否则返回后一个交易日
         date = type(self.raw_data[0, 0])(date)
         try:
             idx = np.where(self.raw_data[:, 0] == date)[0][0]

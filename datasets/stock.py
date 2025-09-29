@@ -21,9 +21,9 @@ class Stock():
         self.ts_code = ts_code
         self.si = si
         self.asset = self.si.get_asset(self.ts_code)
-        self.start_date = si.get_recent_trade_date(start_date) if start_date is not None else (self.si.get_start_date(self.ts_code, self.asset))
+        self.start_date = si.get_previous_or_current_trade_date(start_date) if start_date is not None else (self.si.get_start_date(self.ts_code, self.asset))
         self.start_date = self.start_date if (self.si.get_start_date(self.ts_code, self.asset)) < int(self.start_date) else (self.si.get_start_date(self.ts_code, self.asset)) 
-        self.end_date = si.get_recent_trade_date(end_date) if end_date is not None else datetime.today().strftime('%Y%m%d')
+        self.end_date = si.get_previous_or_current_trade_date(end_date) if end_date is not None else datetime.today().strftime('%Y%m%d')
         self.name = self.si.get_name(self.ts_code, self.asset)
         self.ffn = os.path.join(BASE_DIR, STOCK_DIR, self.ts_code + ".csv") if self.asset=='E' else os.path.join(BASE_DIR, INDEX_DIR, self.ts_code + ".csv")
         self.first_date, self.latest_date = 0, 0
