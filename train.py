@@ -5,10 +5,11 @@ import matplotlib.pyplot as plt
 from sklearn.utils import compute_class_weight
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
-from model.analyze import plot_l2_loss_curves
+from model.analyze import plot_l2_loss_curves, print_recall_score
 from model.residual_lstm import ResidualLSTMModel
 from model.residual_tcn import ResidualTCNModel
 from model.transformer import TransformerModel
+from predicproc.show import print_predict_result
 from utils.tk import TOKEN
 from utils.const_def import ALL_CODE_LIST, BASE_DIR, MODEL_DIR, NUM_CLASSES
 from utils.utils import PredictType, setup_logging, print_ratio
@@ -36,6 +37,7 @@ def auto_l2_search():
     index_code_list = ['000001.SH']
     related_stock_list = ALL_CODE_LIST
     predict_type = PredictType.BINARY_T1_L10
+    t_list = (si.get_trade_open_dates('20250801', '20250829'))['trade_date'].tolist()
 
     ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
                       start_date='20190104', end_date='20250903',
@@ -69,6 +71,8 @@ def auto_l2_search():
     patience = 30
     learning_rate = 0.001
     loss_type = 'binary_crossentropy'
+
+    # ===== 根据上面的选择和参数自动配置模型参数 =====
     if predict_type.is_classify():
         class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
         cls_weights = dict(enumerate(class_weights))
@@ -95,13 +99,14 @@ def auto_l2_search():
     train_params = dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
 
     # ===== l2搜索 =====
-    l2_reg_list = [1e-5, 5e-5, 1e-4, 2e-4, 5e-4, 1e-3]
+    l2_reg_list = [0.00007]
     history_dict = {}
     best_l2, best_val, best_model = None, float('inf'), None
 
     for l2_reg in l2_reg_list:
-        print(f"\n{'='*5} 开始训练: model={model_type}, predict_type={predict_type} {'='*5}")        
-        print(f"{'='*5} 参   数: batch={batch_size}, lr={learning_rate}, drop={dropout_rate}, l2={l2_reg}, dep={depth},  bu={base_units}, patience={patience} {'='*5}\n")
+        print(f"\n{'='*5} 开始训练: model={model_type} {'='*5}")        
+        print(f"{'='*5} 训练参数: batch={batch_size}, lr={learning_rate}, drop={dropout_rate}, l2={l2_reg}, dep={depth},  bu={base_units}, patience={patience} {'='*5}")
+        print(f"{'='*5} 模型参数: {model_params} {'='*5}\n")
         save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_{model_type}_{predict_type}_ep{epochs}_bs{batch_size}.h5")
 
         val_losses, model = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
@@ -110,6 +115,10 @@ def auto_l2_search():
         print(f"[INFO] l2={l2_reg}, min val_loss={min_val:.4f}")
         if min_val < best_val:
             best_l2, best_val, best_model = l2_reg, min_val, model
+        print_predict_result(t_list, ds, model, predict_type)
+        vx_pred_raw = model.model.predict(vx)
+        print_recall_score(vx_pred_raw, vy, predict_type)
+
 
     print(f"\n[RESULT] Best l2_reg: {best_l2}, min val_loss: {best_val:.4f}")
     plot_l2_loss_curves(history_dict, epochs)
