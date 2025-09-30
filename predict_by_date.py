@@ -72,7 +72,7 @@ def main():
     )
 
     for date_str in args.dates:
-        print(f"\n==== 预测日期: {date_str} ====")
+        print(f"\n==== T0:[{si.get_next_or_current_trade_date(date_str)}] / T1:[{si.get_next_trade_date(si.get_next_or_current_trade_date(date_str))}] / T2:[{si.get_next_trade_date(si.get_next_trade_date(si.get_next_or_current_trade_date(date_str)))}] ====")
         try:
             x_input, base_price = ds.get_predictable_dataset_by_date(date_str)
         except Exception as e:
@@ -90,7 +90,7 @@ def main():
         else:
             print(f"预测值: {pred}")
 
-        # 是否输出真实结果对比
+        # 是否输出真实结果对比  TODO: 真实标签的获取需要改进,目前只能从训练集里找(应该从raw_y),且存在BUG
         idx = np.where(ds.date_list == int(date_str))[0]
         is_historical = len(idx) > 0 and idx[0] < len(ds.train_y)
         if is_historical:

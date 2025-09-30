@@ -49,6 +49,7 @@ class StockDataset():
         #处理主股票数据
         self.raw_dataset, self.raw_data = self.get_trade_data(self.p_trade)  #raw_dataset包含y不含t1t2数据, raw_data包含t1t2数据不含y
         self.date_list = self.raw_dataset[:,0]
+        self.raw_date_list = self.raw_data[:,0]
         #处理关联股票数据
         self.rel_raw_dataset_list, self.rel_raw_data_list = zip(*[self.get_trade_data(rel_trade) for rel_trade in self.rel_trade_list]) if self.if_has_related else ([], [])
         self.raw_data = np.vstack(([self.raw_data] + list(self.rel_raw_data_list)) if self.if_has_related else self.raw_data)   #已包括主股票及关联股票数据
@@ -81,8 +82,8 @@ class StockDataset():
         self.train_y_no_window, self.test_y_no_window = self.train_y.astype(int), self.test_y.astype(int) #保存未窗口化的y数据,供有需要的使用
         self.train_y, self.test_y = self.train_y[:-self.window_size+1].astype(int), self.test_y[:-self.window_size+1].astype(int) #由于x按窗口化后会减少数据,所以y也要相应减少
 
-        logging.info(f"train x/y shape - <{self.normalized_windowed_train_x.shape}/{self.train_y.shape}>")
-        logging.info(f"test  x/y shape - <{self.normalized_windowed_test_x.shape}/{self.test_y.shape}>")
+        #logging.info(f"train x/y shape - <{self.normalized_windowed_train_x.shape}/{self.train_y.shape}>")
+        #logging.info(f"test  x/y shape - <{self.normalized_windowed_test_x.shape}/{self.test_y.shape}>")
 
     #所有从trade获取的数据都由此方法返回
     def get_trade_data(self, trade):
