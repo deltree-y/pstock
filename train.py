@@ -1,7 +1,9 @@
 # coding=utf-8
 import os
+import random
 import numpy as np
-import matplotlib.pyplot as plt
+import tensorflow as tf
+import torch
 from sklearn.utils import compute_class_weight
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
@@ -12,7 +14,17 @@ from model.transformer import TransformerModel
 from predicproc.show import print_predict_result
 from utils.tk import TOKEN
 from utils.const_def import ALL_CODE_LIST, BASE_DIR, MODEL_DIR, NUM_CLASSES
-from utils.utils import PredictType, setup_logging, print_ratio
+from utils.utils import FeatureType, PredictType, setup_logging, print_ratio
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    tf.random.set_seed(seed)
+
 
 def train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params):
     if model_type == 'residual_lstm':
@@ -28,8 +40,10 @@ def train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_
     val_losses = model.history.val_losses
     return val_losses, model
 
-def auto_l2_search():
+def auto_search():
     setup_logging()
+    set_seed(42)
+
     os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     # ===== 数据准备 =====
     si = StockInfo(TOKEN)
@@ -42,7 +56,7 @@ def auto_l2_search():
     ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
                       start_date='20190104', end_date='20250903',
                       train_size=0.9,
-                      if_use_all_features=False,
+                      feature_type=FeatureType.EXTRA_55,
                       predict_type=predict_type)
     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
     ty, vy = ty[:, 0], vy[:, 0]
@@ -98,32 +112,43 @@ def auto_l2_search():
         raise ValueError("unknown model_type")
     train_params = dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
 
-    # ===== l2搜索 =====
+    # ===== 搜索 =====
     l2_reg_list = [0.00007]
+    feature_type_list = [FeatureType.ALL, FeatureType.EXTRA_16, FeatureType.EXTRA_19, FeatureType.EXTRA_24, FeatureType.EXTRA_32, FeatureType.EXTRA_37,\
+                         FeatureType.EXTRA_15, FeatureType.EXTRA_20, FeatureType.EXTRA_25, FeatureType.EXTRA_30, FeatureType.EXTRA_35, FeatureType.EXTRA_45, FeatureType.EXTRA_55]
     history_dict = {}
-    best_l2, best_val, best_model = None, float('inf'), None
+    best_feature, best_val, best_model = None, float('inf'), None
 
-    for l2_reg in l2_reg_list:
-        print(f"\n{'='*5} 开始训练: model={model_type} {'='*5}")        
-        print(f"{'='*5} 训练参数: batch={batch_size}, lr={learning_rate}, drop={dropout_rate}, l2={l2_reg}, dep={depth},  bu={base_units}, patience={patience} {'='*5}")
-        print(f"{'='*5} 模型参数: {model_params} {'='*5}\n")
-        save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_{model_type}_{predict_type}_ep{epochs}_bs{batch_size}.h5")
+    for ft in feature_type_list:
+        for l2_reg in l2_reg_list:
+            ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
+                            start_date='20190104', end_date='20250903',
+                            train_size=0.9,
+                            feature_type=ft,
+                            predict_type=predict_type)
+            tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
+            ty, vy = ty[:, 0], vy[:, 0]
 
-        val_losses, model = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
-        history_dict[l2_reg] = {'val_loss': val_losses}
-        min_val = np.min(val_losses)
-        print(f"[INFO] l2={l2_reg}, min val_loss={min_val:.4f}")
-        if min_val < best_val:
-            best_l2, best_val, best_model = l2_reg, min_val, model
-        print_predict_result(t_list, ds, model, predict_type)
-        vx_pred_raw = model.model.predict(vx)
-        print_recall_score(vx_pred_raw, vy, predict_type)
+            print(f"\n{'='*5} 开始训练: model={model_type} {'='*5}")
+            print(f"{'='*5} 训练参数: batch={batch_size}, lr={learning_rate}, drop={dropout_rate}, l2={l2_reg}, dep={depth},  bu={base_units}, patience={patience} {'='*5}")
+            print(f"{'='*5} 模型参数: feature={ft} {model_params} {'='*5}\n")
+            save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_{model_type}_{predict_type}_ft{ft}.h5")
+
+            val_losses, model = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
+            history_dict[l2_reg] = {'val_loss': val_losses}
+            min_val = np.min(val_losses)
+            print(f"[INFO] feature={ft}, min val_loss={min_val:.4f}")
+            if min_val < best_val:
+                best_feature, best_val, best_model = ft, min_val, model
+            print_predict_result(t_list, ds, model, predict_type)
+            vx_pred_raw = model.model.predict(vx)
+            print_recall_score(vx_pred_raw, vy, predict_type)
 
 
-    print(f"\n[RESULT] Best l2_reg: {best_l2}, min val_loss: {best_val:.4f}")
+    print(f"\n[RESULT] Best : {best_feature}, min val_loss: {best_val:.4f}")
     plot_l2_loss_curves(history_dict, epochs)
     # 可选: 保存最佳模型
     best_model.save(save_path)
 
 if __name__ == "__main__":
-    auto_l2_search()
+    auto_search()

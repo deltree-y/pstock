@@ -68,6 +68,7 @@ def main():
         end_date=args.end_date,
         train_size=0.99,
         if_use_all_features=False,
+        if_update_scaler=False,
         predict_type=predict_type
     )
 
@@ -90,11 +91,20 @@ def main():
         else:
             print(f"预测值: {pred}")
 
-        # 是否输出真实结果对比  TODO: 真实标签的获取需要改进,目前只能从训练集里找(应该从raw_y),且存在BUG
+        # 是否输出真实结果对比  
         idx = np.where(ds.date_list == int(date_str))[0]
-        is_historical = len(idx) > 0 and idx[0] < len(ds.train_y)
+        is_historical = len(idx) > 0 and idx[0] < len(ds.raw_y)
         if is_historical:
-            real_y = ds.train_y[idx[0]]
+            real_raw_y = ds.raw_y[idx[0]]
+            if predict_type.is_binary_t1_low():
+                real_y = (real_raw_y[0]*100 <= predict_type.val).astype(int).reshape(-1, 1)
+            elif predict_type.is_binary_t1_high():
+                real_y = (real_raw_y[1]*100 >= predict_type.val).astype(int).reshape(-1, 1)
+            elif predict_type.is_binary_t2_low():
+                real_y = (real_raw_y[2]*100 <= predict_type.val).astype(int).reshape(-1, 1)
+            elif predict_type.is_binary_t2_high():
+                real_y = (real_raw_y[3]*100 >= predict_type.val).astype(int).reshape(-1, 1)
+
             # 用Predict类处理真实标签
             Predict.from_real_label(real_y, base_price, predict_type, ds.bins1, ds.bins2).print_predict_result("真实")
         else:

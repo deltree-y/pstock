@@ -115,6 +115,22 @@ class StockType(Enum):
     RELATED = auto()
     INDEX = auto()
 
+class FeatureType(Enum):
+    ALL = 'all_features'
+    EXTRA_16 = 'extra_features_16'
+    EXTRA_19 = 'extra_features_19'
+    EXTRA_24 = 'extra_features_24'
+    EXTRA_32 = 'extra_features_32'
+    EXTRA_37 = 'extra_features_37'
+
+    EXTRA_15 = 'extra_features_15'
+    EXTRA_20 = 'extra_features_20'
+    EXTRA_25 = 'extra_features_25'
+    EXTRA_30 = 'extra_features_30'
+    EXTRA_35 = 'extra_features_35'
+    EXTRA_45 = 'extra_features_45'
+    EXTRA_55 = 'extra_features_55'
+
 class PredictType(Enum):
     BINARY_T1_L05 = ("BINARY_T1_L05", -0.5, "T1L")
     BINARY_T1_L10 = ("BINARY_T1_L10", -1.0, "T1L")

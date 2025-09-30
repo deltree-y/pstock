@@ -12,7 +12,7 @@ from trade import Trade
 from cat import RateCat
 from bins import BinManager
 from utils.tk import TOKEN
-from utils.utils import setup_logging
+from utils.utils import FeatureType, setup_logging
 from utils.utils import StockType, PredictType
 from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, T1L_SCALE, T2H_SCALE, BANK_CODE_LIST, ALL_CODE_LIST
 from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
@@ -31,17 +31,18 @@ from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 # | 归一化, 窗口化后的x            | self.normalized_windowed_train_x  | 归一化, 窗口化后的训练集x, 三维数组                             | numpy.array        |                                  |
 # |                             | self.normalized_windowed_test_x   | 归一化, 窗口化后的测试集x, 三维数组                             | numpy.array        |                                  |
 class StockDataset():
-    def __init__(self, ts_code, idx_code_list, rel_code_list, si, start_date=None, end_date=None, train_size=0.8, if_update_scaler=False, if_use_all_features=False, predict_type=PredictType.CLASSIFY):
+    def __init__(self, ts_code, idx_code_list, rel_code_list, si, start_date=None, end_date=None, train_size=0.8, if_update_scaler=True, feature_type=FeatureType.ALL, predict_type=PredictType.CLASSIFY):
         #logging.debug(f"StockDataset.init - start_date:{start_date}, end_date:{end_date}")
-        self.p_trade = Trade(ts_code, si, start_date=start_date, end_date=end_date, if_use_all_features=if_use_all_features)
-        self.idx_trade_list = [Trade(idx_code, si, stock_type=StockType.INDEX, start_date=start_date, end_date=end_date, if_use_all_features=if_use_all_features) for idx_code in idx_code_list]
-        self.rel_trade_list = [Trade(rel_code, si, stock_type=StockType.RELATED, start_date=start_date, end_date=end_date, if_use_all_features=if_use_all_features) for rel_code in rel_code_list]
+        self.p_trade = Trade(ts_code, si, start_date=start_date, end_date=end_date, feature_type=feature_type)
+        self.idx_trade_list = [Trade(idx_code, si, stock_type=StockType.INDEX, start_date=start_date, end_date=end_date, feature_type=feature_type) for idx_code in idx_code_list]
+        self.rel_trade_list = [Trade(rel_code, si, stock_type=StockType.RELATED, start_date=start_date, end_date=end_date, feature_type=feature_type) for rel_code in rel_code_list]
         self.if_has_index, self.if_has_related = len(self.idx_trade_list) > 0, len(self.rel_trade_list) > 0
         self.si = si
         self.stock = self.p_trade.stock
         self.window_size = CONTINUOUS_DAYS
         self.train_size = train_size
         self.if_update_scaler = if_update_scaler
+        self.feature_type = feature_type
         self.predict_type = predict_type
         self.scaler, self.bins1, self.bins2 = None, None, None
         self.y_cnt = self.p_trade.y_cnt
@@ -203,24 +204,30 @@ class StockDataset():
     def get_scaler(self, new_data=None, if_update=False, if_save=True):
         is_modified = False
 
-        if new_data is not None or not os.path.exists(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + "_scaler.save")):    #如果有新的数据,则更新归一化的参数配置
-            self.scaler = StandardScaler()
-            #self.scaler = RobustScaler()#
-            #self.scaler = MinMaxScaler(feature_range=(-1, 1))  # 替换RobustScaler
-            df = pd.DataFrame(new_data)
-            self.scaler.fit(df)
-            is_modified = True
-            if if_save and is_modified: #如果有更新且需要保存,则保存
-                joblib.dump(self.scaler, os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_scaler.save'))
-                logging.info(f"write scaler cfg to {os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_scaler.save')}")
-        else:   #如果没有输入数据参数,则直接读取已保存的归一化参数配置
+        if if_update:
+            if new_data is not None or not os.path.exists(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + "_scaler.save")):    #如果有输入数据参数或没有保存的归一化参数,则用该数据生成归一化参数
+                self.scaler = StandardScaler()
+                #self.scaler = RobustScaler()#
+                #self.scaler = MinMaxScaler(feature_range=(-1, 1))  # 替换RobustScaler
+                df = pd.DataFrame(new_data)
+                self.scaler.fit(df)
+                is_modified = True
+                if if_save and is_modified: #如果有更新且需要保存,则保存
+                    joblib.dump(self.scaler, os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_' + self.feature_type.value + '_scaler.save'))
+                    logging.info(f"write scaler cfg to {os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_' + self.feature_type.value + '_scaler.save')}")
+            return self.scaler
+        elif os.path.exists(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_' + self.feature_type.value + '_scaler.save')):   #如果没有输入数据参数且有保存的归一化参数,则读取已有的归一化参数
             try:
-                self.scaler = joblib.load(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + "_scaler.save"))
-                logging.info(f"load scaler from {os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_scaler.save')}")
+                self.scaler = joblib.load(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_' + self.feature_type.value + '_scaler.save'))
+                logging.info(f"load scaler from {os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_' + self.feature_type.value + '_scaler.save')}")
+                return self.scaler
             except Exception as e:
                 logging.error(f"StockDataset.get_real_normalize() - Failed to load scaler: {e}")
                 exit()
-        return self.scaler
+        else:
+            logging.error(f"StockDataset.get_real_normalize() - scaler file not exists: {os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_scaler.save')}")
+            exit()
+        
 
     #将输入的二维x,按窗口大小处理成三维的数据
     # 输出x格式 - [样本, 时间步, 特征]
@@ -362,13 +369,26 @@ if __name__ == "__main__":
     idx_code_list = ['000001.SH']#,'399001.SZ']#'000001.SH','399001.SZ']#,'000300.SH','000905.SH']
     rel_code_list = BANK_CODE_LIST#ALL_CODE_LIST
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
-    ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20190104', end_date='20250903', 
-                      train_size=0.9, if_use_all_features=False, predict_type=PredictType.BINARY_T2_L10)
+    #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20190104', end_date='20250903', 
+    #                  train_size=0.9, if_use_all_features=False, predict_type=PredictType.BINARY_T2_L10)
+    ds = StockDataset(
+        ts_code=primary_stock_code,
+        idx_code_list=['000001.SH'],
+        rel_code_list=[],
+        si=si,
+        start_date='20190104',
+        end_date='20250929',
+        train_size=0.99,
+        feature_type=FeatureType.EXTRA_55,
+        if_update_scaler=False,
+        predict_type=PredictType.BINARY_T1_L10
+    )
+
     logging.info(f"ds.train_y shape: {ds.train_y.shape}, ds.test_y shape: {ds.test_y.shape}")
     pd.set_option('display.max_columns', None)
-    start_idx = 2100
-    print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_train_x).iloc[start_idx:start_idx+10]}")
-    print(f"\nraw y sample: \n{pd.DataFrame(ds.train_y).iloc[start_idx:start_idx+10]}")
+    start_idx = 0
+    print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_data).iloc[start_idx:start_idx+10]}")
+    print(f"\nraw y sample: \n{pd.DataFrame(ds.raw_y).iloc[start_idx:start_idx+10]}")
     #data, bp = ds.get_predictable_dataset_by_date("20250829")
     #print(f"data shape: {data.shape}, bp: {bp}")
     #print(f"{ds.p_trade.remain_list}")
