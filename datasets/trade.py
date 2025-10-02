@@ -181,7 +181,6 @@ class Trade():
             t2h_extra_features_55 = ['e_factor', 'natr_14', 'date_full', 'macd_cross', 'vol_max_5d', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', '1y', 'on', 'vol_max_10d', '6m', 'volatility_5d', '1w', 'vol_max_20d', 'total_mv', 'close_to_high_20d', 'pe', 'w52_bd', 'turnover_rate_f', 'y1', 'pb', 'w52_ce', 'y10', 'y5', 'w26_bd', 'w26_ce', 'y5_us_trycr', 'ltc', 'y20', 'cmt', 'y30', 'w4_bd', 'w4_ce', 'm1', 'y10_us_trycr', 'log_volume', 'y30_us_trycr', 'ltr_avg', 'atr_14', 'rsi_14', 'weekday', 'stddev_10', 'DMP_14', 'ps', 'willr_14', 'ADX_14', 'STOCHk_3_3_3', 'roc_10', 'return_10d', 'return_5d', 'sell_elg_vol', 'buy_elg_vol']
             advanced_features = ['return_1d', 'volatility_5d', 'is_new_high_20d', 'is_vol_break_5d', 'close_vs_low', 'close_vs_open']
             remain_list = list(dict.fromkeys(chain(basic_features, locals()[self.feature_type.value], advanced_features))) if self.feature_type != FeatureType.ALL else self.trade_df.columns.to_list()
-            #remain_list = self.trade_df.columns.to_list() if self.feature_type == FeatureType.ALL else remain_list
             #logging.info(f"After feature selection, remain {len(remain_list)}")
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2 #在raw_data_np中的列索引位置,需要-2(减去ts_code和trade_date两列)
         elif stock_type == StockType.RELATED:

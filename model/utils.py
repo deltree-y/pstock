@@ -1,8 +1,9 @@
 # codeing: utf-8
-import logging
+import os
 import tensorflow as tf
-from sklearn.metrics import confusion_matrix
 import numpy as np
+from sklearn.metrics import confusion_matrix
+from utils.const_def import BASE_DIR, MODEL_DIR
 
 # 学习率调度器
 class WarmUpCosineDecayScheduler(tf.keras.callbacks.Callback):
@@ -103,3 +104,8 @@ def get_hard_samples(x, y, y_pred_raw, predict_type, threshold=0.5):
     hard_x = x[hard_mask]
     hard_y = y[hard_mask]
     return hard_x, hard_y
+
+def get_model_file_name(stock_code, model_type, predict_type, feature_type):
+    model_fn = os.path.join(BASE_DIR, MODEL_DIR, f"{stock_code}_{model_type}_{predict_type}_{feature_type}.h5")
+    return model_fn
+

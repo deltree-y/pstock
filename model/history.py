@@ -18,7 +18,7 @@ class LossHistory(Callback):
         self.val_t1_accu.append(logs.get('val_accuracy'))
 
         loss_diff = self.val_losses[-1] - self.val_losses[-2] if epoch > 0 else self.val_losses[-1]
-        loss_diff_ratio = 100*(self.val_losses[-2] - self.val_losses[-1]) / self.val_losses[-2] if epoch > 0 else 0
+        loss_diff_ratio = 100*(self.val_losses[-1] - self.val_losses[-2]) / self.val_losses[-2] if epoch > 0 else 0
         spend_time = datetime.now() - self.start_time
         speed = spend_time.seconds / (epoch + 1)
         min_remaining = speed * (self.epoch - epoch - 1) / 60

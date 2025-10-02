@@ -115,6 +115,19 @@ class StockType(Enum):
     RELATED = auto()
     INDEX = auto()
 
+class ModelType(Enum):
+    RESIDUAL_LSTM = 'ResLSTM'
+    RESIDUAL_TCN = 'ResTCN'
+    TRANSFORMER = 'Transformer'
+    MINI = 'Mini'
+
+    def __str__(self):
+        return self.value
+    
+    def __repr__(self):
+        return self.value
+
+
 class FeatureType(Enum):
     ALL = 'all_features'
 

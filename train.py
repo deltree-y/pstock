@@ -11,10 +11,11 @@ from model.analyze import plot_l2_loss_curves, print_recall_score
 from model.residual_lstm import ResidualLSTMModel
 from model.residual_tcn import ResidualTCNModel
 from model.transformer import TransformerModel
+from model.utils import get_model_file_name
 from predicproc.show import print_predict_result
 from utils.tk import TOKEN
-from utils.const_def import ALL_CODE_LIST, BASE_DIR, MODEL_DIR, NUM_CLASSES
-from utils.utils import FeatureType, PredictType, setup_logging, print_ratio
+from utils.const_def import ALL_CODE_LIST, NUM_CLASSES
+from utils.utils import FeatureType, PredictType, ModelType, setup_logging, print_ratio
 
 def set_seed(seed=42):
     random.seed(seed)
@@ -27,11 +28,11 @@ def set_seed(seed=42):
 
 
 def train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params):
-    if model_type == 'residual_lstm':
+    if model_type == ModelType.RESIDUAL_LSTM:
         model = ResidualLSTMModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
-    elif model_type == 'residual_tcn':
+    elif model_type == ModelType.RESIDUAL_TCN:
         model = ResidualTCNModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
-    elif model_type == 'transformer':
+    elif model_type == ModelType.TRANSFORMER:
         model = TransformerModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
     else:
         raise ValueError(f"Unknown model_type: {model_type}")
@@ -53,7 +54,7 @@ def auto_search():
     t_list = (si.get_trade_open_dates('20250801', '20250829'))['trade_date'].tolist()
 
     # ===== 模型参数 =====
-    model_type = 'residual_tcn'  # 可选: 'residual_lstm', 'residual_tcn', 'transformer', 'mini'
+    model_type = ModelType.RESIDUAL_TCN  # 可选: 'residual_lstm', 'residual_tcn', 'transformer', 'mini'
     p = 2
     dropout_rate = 0.3
     # 残差LSTM模型参数
@@ -65,7 +66,7 @@ def auto_search():
     ff_dim = 512
     num_layers = 4#nl#4
     # TCN模型参数
-    nb_stacks = 2#ns  #增大nb_stacks会整体重复残差结构，直接增加模型深度
+    nb_stacks = 3#ns  #增大nb_stacks会整体重复残差结构，直接增加模型深度
     dilations = [1, 2, 4, 8, 16]#, 32]    #[1, 2, 4, 8] #每个stack内的dilation设置，增大dilation可以让模型看到更长时间的历史
     nb_filters = 64 #有多少组专家分别提取不同类型的特征
     kernel_size = 8 #每个专家一次能看到多长时间的历史窗口
@@ -105,17 +106,17 @@ def auto_search():
                     else:
                         cls_weights = None
 
-                    if model_type == 'residual_lstm':
+                    if model_type == ModelType.RESIDUAL_LSTM:
                         model_params = dict(
                             p=p, dropout_rate=dropout_rate, depth=depth, base_units=base_units,
                             use_se=True, se_ratio=8, class_weights=cls_weights, loss_type=loss_type, predict_type=pt
                         )
-                    elif model_type == 'residual_tcn':
+                    elif model_type == ModelType.RESIDUAL_TCN:
                         model_params = dict(
                             p=p, nb_filters=nb_filters, kernel_size=kernel_size, nb_stacks=nb_stacks, dilations=dilations,
                             dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, predict_type=pt
                         )
-                    elif model_type == 'transformer':
+                    elif model_type == ModelType.TRANSFORMER:
                         model_params = dict(
                             d_model=d_model, num_heads=num_heads, ff_dim=ff_dim, dropout_rate=dropout_rate, num_layers=num_layers,
                             use_gating=True, use_pos_encoding=True, class_weights=cls_weights, loss_type=loss_type, predict_type=pt
@@ -128,7 +129,7 @@ def auto_search():
                     print(f"{'='*5} 训练参数: batch={batch_size}, lr={lr}, drop={dropout_rate}, l2={l2_reg}, dep={depth},  bu={base_units}, patience={patience} {'='*5}")
                     print(f"{'='*5} 模型参数: feature={ft}, model_params={model_params} {'='*5}\n")
                     print_ratio(ty, "ty")
-                    save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_{model_type}_{pt}_{ft}.h5")
+                    save_path = get_model_file_name(primary_stock_code, model_type, pt, ft)
 
                     val_losses, model = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
                     history_dict[paras] = {'val_loss': val_losses}

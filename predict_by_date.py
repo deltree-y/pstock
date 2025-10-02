@@ -5,9 +5,10 @@ import argparse
 import numpy as np
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
+from model.utils import get_model_file_name
 from utils.tk import TOKEN
 from utils.const_def import BASE_DIR, MODEL_DIR, NUM_CLASSES
-from utils.utils import FeatureType, PredictType, setup_logging
+from utils.utils import FeatureType, ModelType, PredictType, setup_logging
 from model.residual_lstm import ResidualLSTMModel
 from model.residual_tcn import ResidualTCNModel
 from model.transformer import TransformerModel
@@ -26,28 +27,28 @@ def get_model_path(filename):
         raise FileNotFoundError(f"模型文件未找到: {model_path}")
     return model_path
 
-def load_model_by_type(model_type, model_path, predict_type):
-    if model_type == "residual_lstm":
-        model = ResidualLSTMModel(fn=model_path, predict_type=predict_type)
-    elif model_type == "residual_tcn":
-        model = ResidualTCNModel(fn=model_path, predict_type=predict_type)
-    elif model_type == "transformer":
+def load_model_by_params(stock_code, model_type, predict_type, feature_type):
+    model_fn = get_model_file_name(stock_code, model_type, predict_type, feature_type)
+    if model_type == ModelType.RESIDUAL_LSTM:
+        model = ResidualLSTMModel(fn=model_fn, predict_type=predict_type)
+    elif model_type == ModelType.RESIDUAL_TCN:
+        model = ResidualTCNModel(fn=model_fn, predict_type=predict_type)
+    elif model_type == ModelType.TRANSFORMER:
         model = TransformerModel()
-        model.load(model_path)
-    elif model_type == "mini":
-        model = LSTMModel(fn=model_path, predict_type=predict_type)
+        model.load(model_fn)
+    elif model_type == ModelType.MINI:
+        model = LSTMModel(fn=model_fn, predict_type=predict_type)
     else:
         raise ValueError(f"Unknown model_type: {model_type}")
     return model
 
 def main():
     parser = argparse.ArgumentParser(description="Use trained model for prediction by date")
-    parser.add_argument("--model_file", required=True, help="Model file name (just the file name, not path)")
-    parser.add_argument("--feature_type", default="extra_55", help="Feature type to use, e.g., all, extra_16, extra_32, extra_55")
-    parser.add_argument("--model_type", default="residual_lstm", choices=["residual_lstm", "residual_tcn", "transformer", "mini"], help="Type of model")
+    parser.add_argument("--stock_code", default="600036.SH", help="Primary stock code")
+    parser.add_argument("--feature_type", default="ALL", help="Feature type to use, e.g., ALL, T1L_25, T2H_25")
+    parser.add_argument("--model_type", default="RESIDUAL_LSTM", choices=["RESIDUAL_LSTM", "RESIDUAL_TCN", "TRANSFORMER", "MINI"], help="Type of model")
     parser.add_argument("--predict_type", default="BINARY_T1_L10", help="PredictType, e.g., BINARY_T1_L10 or CLASSIFY")
     parser.add_argument("--dates", nargs="+", required=True, help="List of dates to predict, format: YYYYMMDD")
-    parser.add_argument("--stock_code", default="600036.SH", help="Primary stock code")
     parser.add_argument("--start_date", default="20190104", help="Start date for data")
     parser.add_argument("--end_date", default=None, help="End date for data")
     args = parser.parse_args()
@@ -56,9 +57,10 @@ def main():
     model_path = get_model_path(args.model_file)
     print(f"Loading model from {model_path} (type: {args.model_type}) ...")
 
+    model_type = getattr(ModelType, args.model_type.upper(), None)
     predict_type = getattr(PredictType, args.predict_type) if hasattr(PredictType, args.predict_type) else PredictType.BINARY_T1_L10
     feature_type = getattr(FeatureType, args.feature_type.upper())
-    model = load_model_by_type(args.model_type, model_path, predict_type)
+    model = load_model_by_params(args.stock_code, model_type, predict_type, feature_type)
 
     si = StockInfo(TOKEN)
     ds = StockDataset(
