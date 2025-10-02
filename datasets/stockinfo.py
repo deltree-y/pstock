@@ -12,7 +12,7 @@ sys.path.append(o_path)
 sys.path.append(str(Path(__file__).resolve().parents[0]))
 from utils.utils import setup_logging
 from utils.tk import TOKEN
-from utils.const_def import NAN_FILL, IS_PRINT_TUSHARE_CALL_INFO, INDUSTRY_LIST
+from utils.const_def import NAN_FILL, IS_PRINT_TUSHARE_CALL_INFO, INDUSTRY_LIST, STANDARD_DATE, LATEST_DATE
 from utils.const_def import BASE_DIR, GLOBAL_DIR
 
 #StockInfo用于存储所有股票、指数的基本信息数据，其中
@@ -313,7 +313,7 @@ class StockInfo():
             #data_basic = self.get_daily(ts_code=ts_code, start_date=start_date, end_date=end_date)
             data_basic = self.get_tushare_data(api_name='daily', ts_code=ts_code, start_date=start_date, end_date=end_date)
             data_basic['industry_idx'] = self.get_industry_idx(ts_code) if asset == 'E' else -1
-            data_basic['stock_idx'] = self.get_stock_idx(ts_code) if asset == 'E' else -1
+            #data_basic['stock_idx'] = self.get_stock_idx(ts_code) if asset == 'E' else -1
             data_part0 = pd.DataFrame(columns=['trade_date'])
         elif spec_date is not None: #若spec_date不为空，则默认为取指定日期的所有stock数据
             spec_colunm = 'ts_code'

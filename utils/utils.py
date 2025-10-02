@@ -117,19 +117,11 @@ class StockType(Enum):
 
 class FeatureType(Enum):
     ALL = 'all_features'
-    EXTRA_16 = 'extra_features_16'
-    EXTRA_19 = 'extra_features_19'
-    EXTRA_24 = 'extra_features_24'
-    EXTRA_32 = 'extra_features_32'
-    EXTRA_37 = 'extra_features_37'
 
-    EXTRA_15 = 'extra_features_15'
-    EXTRA_20 = 'extra_features_20'
-    EXTRA_25 = 'extra_features_25'
-    EXTRA_30 = 'extra_features_30'
-    EXTRA_35 = 'extra_features_35'
-    EXTRA_45 = 'extra_features_45'
-    EXTRA_55 = 'extra_features_55'
+    T1L_25 = 't1l_extra_features_25'
+    T1L_35 = 't1l_extra_features_35'
+    T1L_45 = 't1l_extra_features_45'
+    T1L_55 = 't1l_extra_features_55'
 
     T2H_25 = 't2h_extra_features_25'
     T2H_35 = 't2h_extra_features_35'
@@ -159,9 +151,8 @@ class PredictType(Enum):
     BINARY_T2_H10 = ("BINARY_T2_H10", 1.0, "T2H")
     BINARY_T2_H15 = ("BINARY_T2_H15", 1.5, "T2H")
 
-
-    CLASSIFY = ("classify", 100.0)
-    REGRESS = ("regress", 1000.0)
+    CLASSIFY = ("classify", 100.0, "CLASSIFY")
+    REGRESS = ("regress", 1000.0, "REGRESS")
 
     def __str__(self):
         return self.value[2]
@@ -225,11 +216,8 @@ class PredictType(Enum):
 
     @property
     def val(self):
-        """返回阈值(float), 无则None"""
-        v = self.value[1]
-        return v if isinstance(v, float) else None
+        return self.value[1]
     
     @property
     def label(self):
-        """返回标签(str), 无则None"""
-        return self.value[2] if self.value else None
+        return self.value[2]
