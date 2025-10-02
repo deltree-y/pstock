@@ -136,6 +136,12 @@ class FeatureType(Enum):
     T2H_45 = 't2h_extra_features_45'
     T2H_55 = 't2h_extra_features_55'
 
+    def __str__(self):
+        return self.name
+    
+    def __repr__(self):
+        return self.name
+
 class PredictType(Enum):
     BINARY_T1_L05 = ("BINARY_T1_L05", -0.5, "T1L")
     BINARY_T1_L10 = ("BINARY_T1_L10", -1.0, "T1L")
@@ -156,6 +162,12 @@ class PredictType(Enum):
 
     CLASSIFY = ("classify", 100.0)
     REGRESS = ("regress", 1000.0)
+
+    def __str__(self):
+        return self.value[2]
+    
+    def __repr__(self):
+        return self.value[2]
 
     def is_binary(self):
         return self in [

@@ -18,6 +18,7 @@ class LossHistory(Callback):
         self.val_t1_accu.append(logs.get('val_accuracy'))
 
         loss_diff = self.val_losses[-1] - self.val_losses[-2] if epoch > 0 else self.val_losses[-1]
+        loss_diff_ratio = 100*(self.val_losses[-2] - self.val_losses[-1]) / self.val_losses[-2] if epoch > 0 else 0
         spend_time = datetime.now() - self.start_time
         speed = spend_time.seconds / (epoch + 1)
         min_remaining = speed * (self.epoch - epoch - 1) / 60
@@ -26,19 +27,22 @@ class LossHistory(Callback):
         if logs:
             print(f"\n{epoch + 1}/{self.epoch}: "
                   f"t:[{logs.get('loss'):.4f}/{logs.get('accuracy')*100:.2f}], "
-                  f"v:[{logs.get('val_loss'):.4f}/{logs.get('val_accuracy')*100:.2f}]({loss_diff:+.4f}),",
+                  #f"v:[{logs.get('val_loss'):.4f}/{logs.get('val_accuracy')*100:.2f}]({loss_diff:+.4f}),",
+                  f"v:[{logs.get('val_loss'):.4f}/{logs.get('val_accuracy')*100:.2f}]({loss_diff_ratio:+.2f}%),",
                   f"lr({self.model.learning_rate_status}):{tf.keras.backend.get_value(self.model.optimizer.lr):.6f}",
                   f"{speed:.1f}s/ep, ed:{finished_time}({min_remaining/60:.1f}h)", end="", flush=True)
                     
             loss_improve_str, val_improve_str = None, None
             if epoch > 0 and logs.get('val_loss') < min(self.val_losses[:-1]):
                 loss_improve_str = f"[{min(self.val_losses[:-1])-logs.get('val_loss'):.5f}]"
+                loss_improve_ratio_str = f"[{100*(min(self.val_losses[:-1])-logs.get('val_loss'))/min(self.val_losses[:-1]):.2f}%]"
             if epoch > 0 and logs.get('val_accuracy') > max(self.val_t1_accu[:-1]):
                 val_improve_str = f"[{(logs.get('val_accuracy')-max(self.val_t1_accu[:-1]))*100:.2f}]"
             if loss_improve_str is not None or val_improve_str is not None:
                 print("  <-- ", end="")
                 if loss_improve_str is not None:
-                    print(f"l{loss_improve_str}", end=" ")
+                    #print(f"l{loss_improve_str}", end=" ")
+                    print(f"l{loss_improve_ratio_str}", end=" ")
                 if val_improve_str is not None:
                     print(f"v{val_improve_str}", end=" ")
                 print("", end="", flush=True)

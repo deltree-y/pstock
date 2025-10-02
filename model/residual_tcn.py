@@ -1,7 +1,7 @@
 # coding: utf-8
 import os, sys, logging
-import numpy as np
 import tensorflow as tf
+from keras import backend as K
 from keras.models import Model
 from keras.layers import Input, Dense, Dropout, Add, LayerNormalization, Activation, Conv1D, Lambda
 from keras.callbacks import EarlyStopping
@@ -18,26 +18,30 @@ class ResidualBlock(tf.keras.layers.Layer):
     单层TCN残差块：两次扩张卷积->归一化->激活->Dropout->Add残差
     支持因果卷积与通道数自动投影
     """
-    def __init__(self, nb_filters, kernel_size, dilation_rate, dropout_rate=0.1, l2_reg=1e-5, causal=True):
-        super(ResidualBlock, self).__init__()
+    def __init__(self, nb_filters, kernel_size, dilation_rate, block_id, dropout_rate=0.1, l2_reg=1e-5, causal=True):
+        K.clear_session()
+        super(ResidualBlock, self).__init__(name=f"residual_block_{block_id}")
         self.causal = causal
         self.conv1 = Conv1D(filters=nb_filters, kernel_size=kernel_size,
                             dilation_rate=dilation_rate, padding='causal' if causal else 'same',
-                            kernel_regularizer=tf.keras.regularizers.l2(l2_reg))
-        self.norm1 = LayerNormalization()
-        self.activation1 = Activation('relu')
-        self.dropout1 = Dropout(dropout_rate)
+                            kernel_regularizer=tf.keras.regularizers.l2(l2_reg),
+                            name=f"c{block_id}")
+        self.norm1 = LayerNormalization(name=f"ln1_{block_id}")
+        self.activation1 = Activation('relu', name=f"act1_{block_id}")
+        self.dropout1 = Dropout(dropout_rate, name=f"drop1_{block_id}")
 
         self.conv2 = Conv1D(filters=nb_filters, kernel_size=kernel_size,
                             dilation_rate=dilation_rate, padding='causal' if causal else 'same',
-                            kernel_regularizer=tf.keras.regularizers.l2(l2_reg))
-        self.norm2 = LayerNormalization()
-        self.activation2 = Activation('relu')
-        self.dropout2 = Dropout(dropout_rate)
+                            kernel_regularizer=tf.keras.regularizers.l2(l2_reg),
+                            name=f"conv2_{block_id}")
+        self.norm2 = LayerNormalization(name=f"ln2_{block_id}")
+        self.activation2 = Activation('relu', name=f"act2_{block_id}")
+        self.dropout2 = Dropout(dropout_rate, name=f"drop2_{block_id}")
 
         self.use_projection = False
         self.projection = None
-    
+        self.block_id = block_id
+
     def get_config(self):
         config = super().get_config()
         config.update({
@@ -54,7 +58,7 @@ class ResidualBlock(tf.keras.layers.Layer):
         # 若输入通道和输出通道不同，用1x1卷积投影
         if input_shape[-1] != self.conv1.filters:
             self.use_projection = True
-            self.projection = Conv1D(filters=self.conv1.filters, kernel_size=1, padding='same')
+            self.projection = Conv1D(filters=self.conv1.filters, kernel_size=1, padding='same', name=f"proj_{self.block_id}")
         super(ResidualBlock, self).build(input_shape)
 
     def call(self, inputs, training=None):
@@ -71,7 +75,7 @@ class ResidualBlock(tf.keras.layers.Layer):
             x = self.dropout2(x)
         if self.use_projection:
             residual = self.projection(residual)
-        out = Add()([x, residual])
+        out = Add(name=f"add_{self.block_id}")([x, residual])
         return out, x  # 返回主路径和skip分支
 
 class ResidualTCNModel:
@@ -118,7 +122,8 @@ class ResidualTCNModel:
         # 多stack堆叠，每stack多层dilation
         for stack in range(self.nb_stacks):
             for dilation in self.dilations:
-                block = ResidualBlock(self.nb_filters, self.kernel_size, dilation,
+                block_id = f"{stack}_{dilation}"
+                block = ResidualBlock(self.nb_filters, self.kernel_size, dilation, block_id,
                                       self.dropout_rate, self.l2_reg, causal=self.causal)
                 x, skip = block(x)
                 skip_connections.append(skip)
@@ -157,7 +162,7 @@ class ResidualTCNModel:
             loss={'output': loss_fn},
             metrics={'output': 'accuracy'}
         )
-        warmup_steps, hold_steps = int(0.4 * epochs), int(0.2 * epochs)
+        warmup_steps, hold_steps = int(0.2 * epochs), int(0.2 * epochs)
         lr_scheduler = WarmUpCosineDecayScheduler(
             learning_rate_base=learning_rate,
             total_steps=epochs,
@@ -189,10 +194,10 @@ class ResidualTCNModel:
 
     def save(self, filename):
         try:
-            self.model.save(filename)
+            self.model.save(filename, save_format='tf')
             logging.info(f"model file saved: {filename}")
         except Exception as e:
-            logging.error(f"model file save failed! {e}")
+            logging.error(f"model file({filename}) save failed : {e}")
             exit()
 
     def load(self, filename):
