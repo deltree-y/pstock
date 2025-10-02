@@ -131,6 +131,11 @@ class FeatureType(Enum):
     EXTRA_45 = 'extra_features_45'
     EXTRA_55 = 'extra_features_55'
 
+    T2H_25 = 't2h_extra_features_25'
+    T2H_35 = 't2h_extra_features_35'
+    T2H_45 = 't2h_extra_features_45'
+    T2H_55 = 't2h_extra_features_55'
+
 class PredictType(Enum):
     BINARY_T1_L05 = ("BINARY_T1_L05", -0.5, "T1L")
     BINARY_T1_L10 = ("BINARY_T1_L10", -1.0, "T1L")

@@ -50,16 +50,7 @@ def auto_search():
     primary_stock_code = '600036.SH'
     index_code_list = ['000001.SH']
     related_stock_list = ALL_CODE_LIST
-    predict_type = PredictType.BINARY_T1_L10
     t_list = (si.get_trade_open_dates('20250801', '20250829'))['trade_date'].tolist()
-
-    ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
-                      start_date='20190104', end_date='20250903',
-                      train_size=0.9,
-                      feature_type=FeatureType.EXTRA_55,
-                      predict_type=predict_type)
-    tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
-    ty, vy = ty[:, 0], vy[:, 0]
 
     # ===== 模型参数 =====
     model_type = 'residual_lstm'  # 可选: 'residual_lstm', 'residual_tcn', 'transformer', 'mini'
@@ -86,69 +77,71 @@ def auto_search():
     learning_rate = 0.001
     loss_type = 'binary_crossentropy'
 
-    # ===== 根据上面的选择和参数自动配置模型参数 =====
-    if predict_type.is_classify():
-        class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
-        cls_weights = dict(enumerate(class_weights))
-    else:
-        cls_weights = None
-
-    if model_type == 'residual_lstm':
-        model_params = dict(
-            p=p, dropout_rate=dropout_rate, depth=depth, base_units=base_units,
-            use_se=True, se_ratio=8, class_weights=cls_weights, loss_type=loss_type, predict_type=predict_type
-        )
-    elif model_type == 'residual_tcn':
-        model_params = dict(
-            p=p, nb_filters=nb_filters, kernel_size=kernel_size, nb_stacks=nb_stacks, dilations=dilations,
-            dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, predict_type=predict_type
-        )
-    elif model_type == 'transformer':
-        model_params = dict(
-            d_model=d_model, num_heads=num_heads, ff_dim=ff_dim, dropout_rate=dropout_rate, num_layers=num_layers,
-            use_gating=True, use_pos_encoding=True, class_weights=cls_weights, loss_type=loss_type, predict_type=predict_type
-        )
-    else:
-        raise ValueError("unknown model_type")
-    train_params = dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
 
     # ===== 搜索 =====
-    l2_reg_list = [0.00007]
-    feature_type_list = [FeatureType.ALL, FeatureType.EXTRA_16, FeatureType.EXTRA_19, FeatureType.EXTRA_24, FeatureType.EXTRA_32, FeatureType.EXTRA_37,\
-                         FeatureType.EXTRA_15, FeatureType.EXTRA_20, FeatureType.EXTRA_25, FeatureType.EXTRA_30, FeatureType.EXTRA_35, FeatureType.EXTRA_45, FeatureType.EXTRA_55]
+    l2_reg_list = [0.00002, 0.00003, 0.00004, 0.00005]#0.00007]
+    feature_type_list = [FeatureType.T2H_55]
+    predict_type_list = [PredictType.BINARY_T2_H10] 
     history_dict = {}
-    best_feature, best_val, best_model = None, float('inf'), None
+    best_paras, best_val = None, float('inf')
 
-    for ft in feature_type_list:
-        for l2_reg in l2_reg_list:
-            ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
-                            start_date='20190104', end_date='20250903',
-                            train_size=0.9,
-                            feature_type=ft,
-                            predict_type=predict_type)
-            tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
-            ty, vy = ty[:, 0], vy[:, 0]
+    for pt in predict_type_list:
+        for ft in feature_type_list:
+            for l2_reg in l2_reg_list:
+                paras = f"{pt}_{ft}_{l2_reg}"
+                ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
+                                start_date='20190104', end_date='20250903',
+                                train_size=0.9,
+                                feature_type=ft,
+                                predict_type=pt)
+                tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
+                ty, vy = ty[:, 0], vy[:, 0]
+                # ===== 根据上面的选择和参数自动配置模型参数 =====
+                if pt.is_classify():
+                    class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
+                    cls_weights = dict(enumerate(class_weights))
+                else:
+                    cls_weights = None
 
-            print(f"\n{'='*5} 开始训练: model={model_type} {'='*5}")
-            print(f"{'='*5} 训练参数: batch={batch_size}, lr={learning_rate}, drop={dropout_rate}, l2={l2_reg}, dep={depth},  bu={base_units}, patience={patience} {'='*5}")
-            print(f"{'='*5} 模型参数: feature={ft} {model_params} {'='*5}\n")
-            save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_{model_type}_{predict_type}_ft{ft}.h5")
+                if model_type == 'residual_lstm':
+                    model_params = dict(
+                        p=p, dropout_rate=dropout_rate, depth=depth, base_units=base_units,
+                        use_se=True, se_ratio=8, class_weights=cls_weights, loss_type=loss_type, predict_type=pt
+                    )
+                elif model_type == 'residual_tcn':
+                    model_params = dict(
+                        p=p, nb_filters=nb_filters, kernel_size=kernel_size, nb_stacks=nb_stacks, dilations=dilations,
+                        dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, predict_type=pt
+                    )
+                elif model_type == 'transformer':
+                    model_params = dict(
+                        d_model=d_model, num_heads=num_heads, ff_dim=ff_dim, dropout_rate=dropout_rate, num_layers=num_layers,
+                        use_gating=True, use_pos_encoding=True, class_weights=cls_weights, loss_type=loss_type, predict_type=pt
+                    )
+                else:
+                    raise ValueError("unknown model_type")
+                train_params = dict(epochs=epochs, batch_size=batch_size, learning_rate=learning_rate, patience=patience)
 
-            val_losses, model = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
-            history_dict[l2_reg] = {'val_loss': val_losses}
-            min_val = np.min(val_losses)
-            print(f"[INFO] feature={ft}, min val_loss={min_val:.4f}")
-            if min_val < best_val:
-                best_feature, best_val, best_model = ft, min_val, model
-            print_predict_result(t_list, ds, model, predict_type)
-            vx_pred_raw = model.model.predict(vx)
-            print_recall_score(vx_pred_raw, vy, predict_type)
+                print(f"\n{'='*5} 开始训练: model={model_type} {'='*5}")
+                print(f"{'='*5} 训练参数: batch={batch_size}, lr={learning_rate}, drop={dropout_rate}, l2={l2_reg}, dep={depth},  bu={base_units}, patience={patience} {'='*5}")
+                print(f"{'='*5} 模型参数: feature={ft} {model_params} {'='*5}\n")
+                print_ratio(ty, "ty")
+                save_path = os.path.join(BASE_DIR, MODEL_DIR, f"{primary_stock_code}_{model_type}_{pt}_{ft}.h5")
+
+                val_losses, model = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
+                history_dict[paras] = {'val_loss': val_losses}
+                min_val = np.min(val_losses)
+                print(f"[INFO] paras={paras}, min val_loss={min_val:.4f}")
+                if min_val < best_val:
+                    best_paras, best_val = paras, min_val
+                print_predict_result(t_list, ds, model, pt)
+                vx_pred_raw = model.model.predict(vx)
+                print_recall_score(vx_pred_raw, vy, pt)
+                model.save(save_path)
 
 
-    print(f"\n[RESULT] Best : {best_feature}, min val_loss: {best_val:.4f}")
+    print(f"\n[RESULT] Best : {best_paras}, min val_loss: {best_val:.4f}")
     plot_l2_loss_curves(history_dict, epochs)
-    # 可选: 保存最佳模型
-    best_model.save(save_path)
 
 if __name__ == "__main__":
     auto_search()

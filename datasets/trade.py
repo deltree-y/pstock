@@ -68,6 +68,7 @@ class Trade():
         #补充日期\星期特征
         self.trade_df['date_full'] = self.trade_df['trade_date'].astype(str).astype(int)
         self.trade_df['weekday'] = pd.to_datetime(self.trade_df['trade_date'], format='%Y%m%d').dt.weekday+1
+
         #5个基本的技术指标
         self.trade_df['rsi_14'], max_cut_days = ta.rsi(self.trade_df['close'], length=14), max(max_cut_days, 13)
         self.trade_df['macd'], self.trade_df['macd_signal'], self.trade_df['macd_hist'] = ta.macd(self.trade_df['close'])['MACD_12_26_9'], ta.macd(self.trade_df['close'])['MACDs_12_26_9'], ta.macd(self.trade_df['close'])['MACDh_12_26_9']
@@ -76,24 +77,36 @@ class Trade():
         self.trade_df['cci_20'], max_cut_days = ta.cci(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=20), max(max_cut_days, 19)
         self.trade_df, max_cut_days = self.trade_df.join(ta.bbands(self.trade_df['close'], length=20, std=2)), max(max_cut_days, 20)
 
-        if True:   #以下特征效果不好,暂时不启用
-            self.trade_df['sma_10'], max_cut_days = ta.sma(self.trade_df['close'], length=10), max(max_cut_days, 9)
-            self.trade_df['ema_10'], max_cut_days = ta.ema(self.trade_df['close'], length=10), max(max_cut_days, 9)
-            self.trade_df['wma_10'], max_cut_days = ta.wma(self.trade_df['close'], length=10), max(max_cut_days, 9)
-            self.trade_df['stddev_10'], max_cut_days = ta.stdev(self.trade_df['close'], length=10), max(max_cut_days, 9)
-            self.trade_df['roc_10'], max_cut_days = ta.roc(self.trade_df['close'], length=10), max(max_cut_days, 9)
-            self.trade_df['momentum_10'], max_cut_days = ta.mom(self.trade_df['close'], length=10), max(max_cut_days, 9)
-            self.trade_df, max_cut_days = self.trade_df.join(ta.adx(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14)), max(max_cut_days, 13)
-            self.trade_df['willr_14'], max_cut_days = ta.willr(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14), max(max_cut_days, 13)
-            self.trade_df['obv'], max_cut_days = ta.obv(self.trade_df['close'], self.trade_df['vol']), max(max_cut_days, 1)
-            self.trade_df['cmf_20'], max_cut_days = ta.cmf(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], self.trade_df['vol'], length=20), max(max_cut_days, 19)
-            self.trade_df['mfi_14'], max_cut_days = ta.mfi(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], self.trade_df['vol'], length=14), max(max_cut_days, 13)
-            self.trade_df, max_cut_days = self.trade_df.join(ta.stoch(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], k=3, d=3, length=14)), max(max_cut_days, 13)
-            self.trade_df['willr_14'], max_cut_days = ta.willr(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14), max(max_cut_days, 13)
-            self.trade_df['volatility_20'], max_cut_days = ta.volatility(self.trade_df['close'], length=20, std=2), max(max_cut_days, 19)
-            self.trade_df['natr_14'], max_cut_days = ta.natr(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14), max(max_cut_days, 13)
-            
-            max_cut_days =max(max_cut_days, 27)
+        # 其他常用技术指标
+        self.trade_df['sma_10'], max_cut_days = ta.sma(self.trade_df['close'], length=10), max(max_cut_days, 9)
+        self.trade_df['ema_10'], max_cut_days = ta.ema(self.trade_df['close'], length=10), max(max_cut_days, 9)
+        self.trade_df['wma_10'], max_cut_days = ta.wma(self.trade_df['close'], length=10), max(max_cut_days, 9)
+        self.trade_df['stddev_10'], max_cut_days = ta.stdev(self.trade_df['close'], length=10), max(max_cut_days, 9)
+        self.trade_df['roc_10'], max_cut_days = ta.roc(self.trade_df['close'], length=10), max(max_cut_days, 9)
+        self.trade_df['momentum_10'], max_cut_days = ta.mom(self.trade_df['close'], length=10), max(max_cut_days, 9)
+        self.trade_df, max_cut_days = self.trade_df.join(ta.adx(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14)), max(max_cut_days, 13)
+        self.trade_df['willr_14'], max_cut_days = ta.willr(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14), max(max_cut_days, 13)
+        self.trade_df['obv'], max_cut_days = ta.obv(self.trade_df['close'], self.trade_df['vol']), max(max_cut_days, 1)
+        self.trade_df['cmf_20'], max_cut_days = ta.cmf(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], self.trade_df['vol'], length=20), max(max_cut_days, 19)
+        self.trade_df['mfi_14'], max_cut_days = ta.mfi(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], self.trade_df['vol'], length=14), max(max_cut_days, 13)
+        self.trade_df, max_cut_days = self.trade_df.join(ta.stoch(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], k=3, d=3, length=14)), max(max_cut_days, 13)
+        self.trade_df['willr_14'], max_cut_days = ta.willr(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14), max(max_cut_days, 13)
+        self.trade_df['volatility_20'], max_cut_days = ta.volatility(self.trade_df['close'], length=20, std=2), max(max_cut_days, 19)
+        self.trade_df['natr_14'], max_cut_days = ta.natr(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14), max(max_cut_days, 13)
+        max_cut_days =max(max_cut_days, 27)
+
+        # 近N日成交量均值/中位数/最大值
+        for win in [5, 10, 20]:
+            self.trade_df[f'vol_mean_{win}d'] = self.trade_df['vol'].rolling(win).mean()
+            self.trade_df[f'vol_ratio_{win}d'] = self.trade_df['vol'] / self.trade_df[f'vol_mean_{win}d']
+            self.trade_df[f'vol_max_{win}d'] = self.trade_df['vol'].rolling(win).max()
+            self.trade_df[f'is_vol_break_{win}d'] = (self.trade_df['vol'] > self.trade_df[f'vol_max_{win}d'].shift(1)).astype(int)
+        max_cut_days =max(max_cut_days, 20)
+
+        # 尾盘拉升：收盘价与最低价的距离/全幅度
+        self.trade_df['close_vs_low'] = (self.trade_df['close'] - self.trade_df['low']) / (self.trade_df['high'] - self.trade_df['low'] + 1e-6)
+        # 或者：收盘价与开盘价比
+        self.trade_df['close_vs_open'] = (self.trade_df['close'] - self.trade_df['open']) / self.trade_df['open']
 
         self.trade_df.fillna(0,inplace=True)
 
@@ -170,6 +183,11 @@ class Trade():
             extra_features_35 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'atr_14', 'stddev_10']
             extra_features_45 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'atr_14', 'stddev_10', 'ps', 'ADX_14', 'log_volume', 'DMP_14', 'amount', 'return_10d', 'roc_10', 'BBU_20_2.0', 'return_5d']
             extra_features_55 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'atr_14', 'stddev_10', 'ps', 'ADX_14', 'log_volume', 'DMP_14', 'amount', 'return_10d', 'roc_10', 'BBU_20_2.0', 'return_5d', 'e_factor', 'sma_10', 'ema_10', 'wma_10', 'BBM_20_2.0', 'pre_close', 'obv']
+
+            t2h_extra_features_25 = ['e_factor', 'natr_14', 'date_full', 'macd_cross', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', '1y', 'on', '6m', 'volatility_5d', '1w', 'total_mv', 'close_to_high_20d', 'pe', 'turnover_rate_f', 'pb', 'w52_bd', 'w52_ce', 'y1', 'y5', 'y10', 'ltc', 'cmt']
+            t2h_extra_features_35 = ['e_factor', 'natr_14', 'date_full', 'macd_cross', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', '1y', 'on', '6m', 'volatility_5d', '1w', 'total_mv', 'close_to_high_20d', 'pe', 'turnover_rate_f', 'pb', 'w52_bd', 'w52_ce', 'y1', 'y5', 'y10', 'ltc', 'cmt', 'w26_ce', 'y20', 'w26_bd', 'y5_us_trycr', 'y30', 'w4_ce', 'w4_bd', 'm1', 'log_volume', 'y10_us_trycr']
+            t2h_extra_features_45 = ['e_factor', 'natr_14', 'date_full', 'macd_cross', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', '1y', 'on', '6m', 'volatility_5d', '1w', 'total_mv', 'close_to_high_20d', 'pe', 'turnover_rate_f', 'pb', 'w52_bd', 'w52_ce', 'y1', 'y5', 'y10', 'ltc', 'cmt', 'w26_ce', 'y20', 'w26_bd', 'y5_us_trycr', 'y30', 'w4_ce', 'w4_bd', 'm1', 'log_volume', 'y10_us_trycr', 'y30_us_trycr', 'ltr_avg', 'stock_idx', 'atr_14', 'rsi_14', 'weekday', 'stddev_10', 'DMP_14', 'ps', 'willr_14']
+            t2h_extra_features_55 = ['e_factor', 'natr_14', 'date_full', 'macd_cross', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', '1y', 'on', '6m', 'volatility_5d', '1w', 'total_mv', 'close_to_high_20d', 'pe', 'turnover_rate_f', 'pb', 'w52_bd', 'w52_ce', 'y1', 'y5', 'y10', 'ltc', 'cmt', 'w26_ce', 'y20', 'w26_bd', 'y5_us_trycr', 'y30', 'w4_ce', 'w4_bd', 'm1', 'log_volume', 'y10_us_trycr', 'y30_us_trycr', 'ltr_avg', 'stock_idx', 'atr_14', 'rsi_14', 'weekday', 'stddev_10', 'DMP_14', 'ps', 'willr_14', 'ADX_14', 'STOCHk_3_3_3', 'return_10d', 'return_5d', 'roc_10', 'sell_elg_vol', 'BBP_20_2.0', 'high_20d_max', 'DMN_14', 'cci_20']
             advanced_features = ['return_1d', 'volatility_5d', 'is_new_high_20d']
             remain_list = list(dict.fromkeys(chain(basic_features, locals()[self.feature_type.value], advanced_features))) if self.feature_type != FeatureType.ALL else self.trade_df.columns.to_list()
             #remain_list = self.trade_df.columns.to_list() if self.feature_type == FeatureType.ALL else remain_list

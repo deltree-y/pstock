@@ -7,7 +7,7 @@ from datasets.stockinfo import StockInfo
 from dataset import StockDataset
 from utils.tk import TOKEN
 from utils.const_def import BASE_DIR, MODEL_DIR, NUM_CLASSES
-from utils.utils import PredictType, setup_logging
+from utils.utils import FeatureType, PredictType, setup_logging
 from model.residual_lstm import ResidualLSTMModel
 from model.residual_tcn import ResidualTCNModel
 from model.transformer import TransformerModel
@@ -43,6 +43,7 @@ def load_model_by_type(model_type, model_path, predict_type):
 def main():
     parser = argparse.ArgumentParser(description="Use trained model for prediction by date")
     parser.add_argument("--model_file", required=True, help="Model file name (just the file name, not path)")
+    parser.add_argument("--feature_type", default="extra_55", help="Feature type to use, e.g., all, extra_16, extra_32, extra_55")
     parser.add_argument("--model_type", default="residual_lstm", choices=["residual_lstm", "residual_tcn", "transformer", "mini"], help="Type of model")
     parser.add_argument("--predict_type", default="BINARY_T1_L10", help="PredictType, e.g., BINARY_T1_L10 or CLASSIFY")
     parser.add_argument("--dates", nargs="+", required=True, help="List of dates to predict, format: YYYYMMDD")
@@ -56,6 +57,7 @@ def main():
     print(f"Loading model from {model_path} (type: {args.model_type}) ...")
 
     predict_type = getattr(PredictType, args.predict_type) if hasattr(PredictType, args.predict_type) else PredictType.BINARY_T1_L10
+    feature_type = getattr(FeatureType, args.feature_type.upper())
     model = load_model_by_type(args.model_type, model_path, predict_type)
 
     si = StockInfo(TOKEN)
@@ -67,7 +69,7 @@ def main():
         start_date=args.start_date,
         end_date=args.end_date,
         train_size=0.99,
-        if_use_all_features=False,
+        feature_type=feature_type,
         if_update_scaler=False,
         predict_type=predict_type
     )
