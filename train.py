@@ -54,19 +54,19 @@ def auto_search():
     t_list = (si.get_trade_open_dates('20250801', '20250829'))['trade_date'].tolist()
 
     # ===== 模型参数 =====
-    model_type = ModelType.RESIDUAL_TCN  # 可选: 'residual_lstm', 'residual_tcn', 'transformer', 'mini'
+    model_type = ModelType.RESIDUAL_LSTM  # 可选: 'residual_lstm', 'residual_tcn', 'transformer', 'mini'
     p = 2
     dropout_rate = 0.3
     # 残差LSTM模型参数
-    depth = 6#dp#6
-    base_units = 32#bu#32
+    depth = 8#dp#6
+    base_units = 64#bu#32
     # Transformer模型参数
     d_model = 256
     num_heads = 4
     ff_dim = 512
     num_layers = 4#nl#4
     # TCN模型参数
-    nb_stacks = 3#ns  #增大nb_stacks会整体重复残差结构，直接增加模型深度
+    nb_stacks = 2#ns  #增大nb_stacks会整体重复残差结构，直接增加模型深度
     dilations = [1, 2, 4, 8, 16]#, 32]    #[1, 2, 4, 8] #每个stack内的dilation设置，增大dilation可以让模型看到更长时间的历史
     nb_filters = 64 #有多少组专家分别提取不同类型的特征
     kernel_size = 8 #每个专家一次能看到多长时间的历史窗口
@@ -75,15 +75,15 @@ def auto_search():
     epochs = 120
     batch_size = 2048
     patience = 30
-    learning_rate = 0.001
-    loss_type = 'binary_crossentropy'
+    learning_rate = 0.0003
+    loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
 
 
     # ===== 搜索 =====
     l2_reg_list = [0.00007]
-    lr_list = [0.0003]#, 0.0001, 0.0005, 0.001, 0.005]
-    feature_type_list = [FeatureType.T2H_25, FeatureType.T2H_35, FeatureType.T2H_45, FeatureType.T2H_55]
-    predict_type_list = [PredictType.BINARY_T2_H10] 
+    lr_list = [0.0005]#, 0.0001, 0.0005, 0.001, 0.005]
+    feature_type_list = [FeatureType.T1L15_F35, FeatureType.T1L15_F55]
+    predict_type_list = [PredictType.BINARY_T1_L15]
     history_dict = {}
     best_paras, best_val = None, float('inf')
 
@@ -105,6 +105,8 @@ def auto_search():
                         cls_weights = dict(enumerate(class_weights))
                     else:
                         cls_weights = None
+                        #cls_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
+                        #cls_weights[0] *= 2  # 加大类别0权重
 
                     if model_type == ModelType.RESIDUAL_LSTM:
                         model_params = dict(

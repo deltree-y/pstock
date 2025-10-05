@@ -131,15 +131,21 @@ class ModelType(Enum):
 class FeatureType(Enum):
     ALL = 'all_features'
 
-    T1L_25 = 't1l_extra_features_25'
-    T1L_35 = 't1l_extra_features_35'
-    T1L_45 = 't1l_extra_features_45'
-    T1L_55 = 't1l_extra_features_55'
+    T1L05_F35 = 't1l05_features_35'
+    T1L05_F55 = 't1l05_features_55'
 
-    T2H_25 = 't2h_extra_features_25'
-    T2H_35 = 't2h_extra_features_35'
-    T2H_45 = 't2h_extra_features_45'
-    T2H_55 = 't2h_extra_features_55'
+    T1L10_F25 = 't1l10_features_25'
+    T1L10_F35 = 't1l10_features_35'
+    T1L10_F45 = 't1l10_features_45'
+    T1L10_F55 = 't1l10_features_55'
+
+    T1L15_F35 = 't1l15_features_35'
+    T1L15_F55 = 't1l15_features_55'
+
+    T2H10_F25 = 't2h10_features_25'
+    T2H10_F35 = 't2h10_features_35'
+    T2H10_F45 = 't2h10_features_45'
+    T2H10_F55 = 't2h10_features_55'
 
     def __str__(self):
         return self.name

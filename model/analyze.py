@@ -56,7 +56,8 @@ def print_recall_score(pred_raw, y_true, predict_type):
         print(f"宏召回率: {macro_recall}")
     elif predict_type.is_binary():
         y_pred = (pred_raw[:,0]>0.5).astype(int)
-        print_ratio(y_pred, "y_pred_label")
+        print_ratio(y_true, "y_true")
+        print_ratio(y_pred, "y_pred")
         recall = round(recall_score(y_true, y_pred), 3)  #保留三位小数
         acc = round(accuracy_score(y_true, y_pred), 3)
         f1 = round(f1_score(y_true, y_pred), 3)

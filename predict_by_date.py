@@ -15,17 +15,6 @@ from model.transformer import TransformerModel
 from model.lstmmodel import LSTMModel
 from predicproc.predict import Predict, RegPredict
 
-def get_model_path(filename):
-    if os.path.isabs(filename):
-        return filename
-    if os.path.exists(filename):
-        return filename
-    model_path = os.path.join(BASE_DIR, MODEL_DIR, filename)
-    if not model_path.endswith(".h5"):
-        model_path += ".h5"
-    if not os.path.exists(model_path):
-        raise FileNotFoundError(f"模型文件未找到: {model_path}")
-    return model_path
 
 def load_model_by_params(stock_code, model_type, predict_type, feature_type):
     model_fn = get_model_file_name(stock_code, model_type, predict_type, feature_type)
@@ -54,12 +43,10 @@ def main():
     args = parser.parse_args()
 
     setup_logging()
-    model_path = get_model_path(args.model_file)
-    print(f"Loading model from {model_path} (type: {args.model_type}) ...")
 
-    model_type = getattr(ModelType, args.model_type.upper(), None)
-    predict_type = getattr(PredictType, args.predict_type) if hasattr(PredictType, args.predict_type) else PredictType.BINARY_T1_L10
-    feature_type = getattr(FeatureType, args.feature_type.upper())
+    model_type = getattr(ModelType, args.model_type.upper(), ModelType.RESIDUAL_TCN)
+    predict_type = getattr(PredictType, args.predict_type, PredictType.BINARY_T1_L10)
+    feature_type = getattr(FeatureType, args.feature_type.upper(), FeatureType.T1L_35)
     model = load_model_by_params(args.stock_code, model_type, predict_type, feature_type)
 
     si = StockInfo(TOKEN)
