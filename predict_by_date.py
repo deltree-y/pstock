@@ -34,7 +34,7 @@ def load_model_by_params(stock_code, model_type, predict_type, feature_type):
 def main():
     parser = argparse.ArgumentParser(description="Use trained model for prediction by date")
     parser.add_argument("--stock_code", default="600036.SH", help="Primary stock code")
-    parser.add_argument("--feature_type", default="ALL", help="Feature type to use, e.g., ALL, T1L_25, T2H_25")
+    parser.add_argument("--feature_type", default="T1L10_F55", help="Feature type to use, e.g., ALL, T1L_25, T2H_25")
     parser.add_argument("--model_type", default="RESIDUAL_LSTM", choices=["RESIDUAL_LSTM", "RESIDUAL_TCN", "TRANSFORMER", "MINI"], help="Type of model")
     parser.add_argument("--predict_type", default="BINARY_T1_L10", help="PredictType, e.g., BINARY_T1_L10 or CLASSIFY")
     parser.add_argument("--dates", nargs="+", required=True, help="List of dates to predict, format: YYYYMMDD")
@@ -44,9 +44,10 @@ def main():
 
     setup_logging()
 
-    model_type = getattr(ModelType, args.model_type.upper(), ModelType.RESIDUAL_TCN)
+    model_type = getattr(ModelType, args.model_type.upper(), ModelType.RESIDUAL_LSTM)
     predict_type = getattr(PredictType, args.predict_type, PredictType.BINARY_T1_L10)
-    feature_type = getattr(FeatureType, args.feature_type.upper(), FeatureType.T1L_35)
+    feature_type = getattr(FeatureType, args.feature_type.upper(), FeatureType.T1L10_F55)
+    print(f"model_type: {model_type}, predict_type: {predict_type}, feature_type: {feature_type}")
     model = load_model_by_params(args.stock_code, model_type, predict_type, feature_type)
 
     si = StockInfo(TOKEN)

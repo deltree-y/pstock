@@ -170,7 +170,7 @@ class ResidualLSTMModel:
         )        
         
         # 添加学习率调度和早停
-        warmup_steps, hold_steps = int(0.2 * epochs), int(0.2 * epochs)
+        warmup_steps, hold_steps = int(0.3 * epochs), int(0.4 * epochs)
         lr_scheduler = WarmUpCosineDecayScheduler(
             learning_rate_base=learning_rate,
             total_steps=epochs,

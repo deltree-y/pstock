@@ -58,10 +58,12 @@ def print_recall_score(pred_raw, y_true, predict_type):
         y_pred = (pred_raw[:,0]>0.5).astype(int)
         print_ratio(y_true, "y_true")
         print_ratio(y_pred, "y_pred")
-        recall = round(recall_score(y_true, y_pred), 3)  #保留三位小数
+        recalls = recall_score(y_true, y_pred, average=None)
+        f1s = f1_score(y_true, y_pred, average=None)
         acc = round(accuracy_score(y_true, y_pred), 3)
-        f1 = round(f1_score(y_true, y_pred), 3)
-        print(f"二分类 准确率: {acc:.3f}, 召回率: {recall:.3f}, F1: {f1:.3f}")
+        print(f"二分类 准确率: {acc:.3f}")
+        print(f"类别0 召回率: {recalls[0]:.3f}, 类别1 召回率: {recalls[1]:.3f}, 平均召回率: {(recalls[0]+recalls[1])/2:.3f}")
+        print(f"类别0 F1分数: {f1s[0]:.3f}, 类别1 F1分数: {f1s[1]:.3f}, 平均F1分数: {(f1s[0]+f1s[1])/2:.3f}")
     else:
         raise ValueError(f"print_recall_score() - Unknown predict_type: {predict_type}")
 

@@ -141,6 +141,7 @@ class FeatureType(Enum):
 
     T1L15_F35 = 't1l15_features_35'
     T1L15_F55 = 't1l15_features_55'
+    T1L15_F75 = 't1l15_features_75'
 
     T2H10_F25 = 't2h10_features_25'
     T2H10_F35 = 't2h10_features_35'
@@ -152,7 +153,15 @@ class FeatureType(Enum):
     
     def __repr__(self):
         return self.name
-
+    
+    @property
+    def short_name(self):
+        if self == FeatureType.ALL:
+            return "ALL"
+        else:   #返回"Lxx_Fxx"字样
+            s = self.name
+            return s[s.rfind('_')-2:s.rfind('_')] + s[s.rfind('_')+1:]
+    
 class PredictType(Enum):
     BINARY_T1_L05 = ("BINARY_T1_L05", -0.5, "T1L")
     BINARY_T1_L10 = ("BINARY_T1_L10", -1.0, "T1L")

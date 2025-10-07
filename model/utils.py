@@ -106,6 +106,6 @@ def get_hard_samples(x, y, y_pred_raw, predict_type, threshold=0.5):
     return hard_x, hard_y
 
 def get_model_file_name(stock_code, model_type, predict_type, feature_type):
-    model_fn = os.path.join(BASE_DIR, MODEL_DIR, f"{stock_code}_{model_type}_{predict_type}_{feature_type}.h5")
+    model_fn = os.path.join(BASE_DIR, MODEL_DIR, f"{stock_code}_{model_type}_{predict_type}_{feature_type.short_name}.h5")
     return model_fn
 
