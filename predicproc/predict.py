@@ -45,14 +45,35 @@ class Predict():
             print(f"{desc}t0p[{self.bp}] t1l label[{self.y1r.get_label()}] 区间: [{self.y1r.get_rate_from_label('min')*100:.2f}%, {self.y1r.get_rate_from_label('max')*100:.2f}%], 均值: {self.y1r.get_rate_from_label('avg')*100:.2f}%, 对应价格: {self.bp * (1 + self.y1r.get_rate_from_label('avg')):.2f}")
         elif self.is_binary:
             if self.predict_type.is_binary_t1_low() or self.predict_type.is_binary_t2_low():
-                symbol = ['<=', '>']
+                symbol = ['<=', '> ']
             else:
-                symbol = ['>=', '<']
+                symbol = ['>=', '< ']
             label = f"{symbol[0]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})" if self.pred_label==1 else f"{symbol[1]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})"
             prob_rate = self.prob*100 if self.pred_label==1 else (1-self.prob)*100
             print(f"{desc}RAW<{self.prob:<.3f}>, T0价格[{self.bp:.2f}], {self.predict_type.label} {label}, 置信率:[{prob_rate:.2f}%]")
         else:
             print(f"{desc}回归预测涨跌幅: {self.pred_value:.4f}, 预测价格: {self.bp * (1 + self.pred_value):.2f}")
+
+    #打印预测结果VS真实值
+    def print_predict_result_with_real(self, real_y):
+        if self.is_classify:
+            predict_list = [round(x, 3) for x in self.predicted_data[0]]
+            print(f"预测类别概率分布: {predict_list}")
+            #TODO:此处需要修改为与真实值比较
+            print(f"预测t0p[{self.bp}] t1l label[{self.y1r.get_label()}] 区间: [{self.y1r.get_rate_from_label('min')*100:.2f}%, {self.y1r.get_rate_from_label('max')*100:.2f}%], 均值: {self.y1r.get_rate_from_label('avg')*100:.2f}%, 对应价格: {self.bp * (1 + self.y1r.get_rate_from_label('avg')):.2f}")
+        elif self.is_binary:
+            if self.predict_type.is_binary_t1_low() or self.predict_type.is_binary_t2_low():
+                symbol = ['<=', '> ']
+            else:
+                symbol = ['>=', '< ']
+            label = f"{symbol[0]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})" if self.pred_label==1 else f"{symbol[1]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})"
+            prob_rate = self.prob*100 if self.pred_label==1 else (1-self.prob)*100
+            pred_result_str = f"" if self.pred_label==real_y[0,0] else f" <--- [{self.pred_label}/{real_y[0,0]}]预测错误!!!"
+            print(f"预测RAW<{self.prob:<.3f}>, T0bp[{self.bp:.2f}], {self.predict_type.label} {label}, 置信率[{prob_rate:.2f}%] {pred_result_str}")
+        else:
+            #TODO:此处需要修改为与真实值比较
+            print(f"预测回归预测涨跌幅: {self.pred_value:.4f}, 预测价格: {self.bp * (1 + self.pred_value):.2f}")
+
 
     @staticmethod
     #打印真实标签

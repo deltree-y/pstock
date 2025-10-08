@@ -360,6 +360,40 @@ class StockDataset():
         
         return X_aug, y_aug
     
+    def get_raw_y_by_date(self, date):
+        date = type(self.raw_data[0, 0])(date)
+        try:
+            idx = np.where(self.date_list == date)[0][0]
+        except Exception as e:
+            logging.error(f"StockDataset.get_raw_y_by_date() - Invalid date: {e}")
+            exit()
+        return self.raw_y[idx]
+    
+    def get_real_y_by_raw_y(self, raw_y):
+        if self.predict_type.is_classify():#多分类
+            return self.get_binned_y_use_qcut(raw_y)
+        elif self.predict_type.is_binary():#二分类
+            #按不同的二分类预测类型,生成对应的二分类y(0或1)
+            if self.predict_type.is_binary_t1_low():
+                return (raw_y[:,0]*100 <= self.predict_type.val).astype(int).reshape(-1, 1)
+            elif self.predict_type.is_binary_t1_high():
+                return (raw_y[:,1]*100 >= self.predict_type.val).astype(int).reshape(-1, 1)
+            elif self.predict_type.is_binary_t2_low():
+                return (raw_y[:,2]*100 <= self.predict_type.val).astype(int).reshape(-1, 1)
+            elif self.predict_type.is_binary_t2_high():
+                return (raw_y[:,3]*100 >= self.predict_type.val).astype(int).reshape(-1, 1)
+            else:
+                raise ValueError(f"StockDataset.get_real_y_by_raw_y() - Unknown predict_type: {self.predict_type}")
+        else:
+            raise ValueError(f"StockDataset.get_real_y_by_raw_y() - Unknown predict_type: {self.predict_type}")
+
+    def get_real_y_by_date(self, date):
+        date = type(self.raw_data[0, 0])(date)
+        raw_y = self.get_raw_y_by_date(date).reshape(1,-1)
+        real_y = self.get_real_y_by_raw_y(raw_y)
+        return real_y
+        
+    
 
 if __name__ == "__main__":
     setup_logging()
@@ -367,7 +401,7 @@ if __name__ == "__main__":
     #download_list = si.get_filtered_stock_list(mmv=3000000)
     primary_stock_code = '600036.SH'
     idx_code_list = ['000001.SH']#,'399001.SZ']#'000001.SH','399001.SZ']#,'000300.SH','000905.SH']
-    rel_code_list = BANK_CODE_LIST#ALL_CODE_LIST
+    rel_code_list = ALL_CODE_LIST#ALL_CODE_LIST#BANK_CODE_LIST
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20190104', end_date='20250903', 
     #                  train_size=0.9, if_use_all_features=False, predict_type=PredictType.BINARY_T2_L10)
@@ -376,8 +410,8 @@ if __name__ == "__main__":
         idx_code_list=['000001.SH'],
         rel_code_list=[],
         si=si,
-        start_date='20190104',
-        end_date='20250929',
+        start_date='20100104',
+        end_date='20250930',
         train_size=0.99,
         feature_type=FeatureType.EXTRA_55,
         if_update_scaler=False,

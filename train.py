@@ -36,7 +36,7 @@ def train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_
         model = TransformerModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
     else:
         raise ValueError(f"Unknown model_type: {model_type}")
-    print(f"[INFO] Start training: l2_reg={l2_reg}")
+    print(f"[INFO] Start training:")# l2_reg={l2_reg}")
     model.train(tx=tx, ty=ty, **train_params)
     val_losses = model.history.val_losses
     return val_losses, model
@@ -51,7 +51,7 @@ def auto_search():
     primary_stock_code = '600036.SH'
     index_code_list = ['000001.SH']
     related_stock_list = ALL_CODE_LIST
-    t_list = (si.get_trade_open_dates('20250801', '20250829'))['trade_date'].tolist()
+    t_list = (si.get_trade_open_dates('20250601', '20250920'))['trade_date'].tolist()
 
     # ===== 模型参数 =====
     model_type = ModelType.RESIDUAL_LSTM  # 可选: 'residual_lstm', 'residual_tcn', 'transformer', 'mini'
@@ -87,14 +87,14 @@ def auto_search():
     history_dict = {}
     best_paras, best_val = None, float('inf')
     
-    for depth,base_units in zip([8,10,12,14], [16,32,32,32]):  # depth, base_units
+    for depth,base_units in zip([6, 6, 6, 6, 6], [48, 64, 80, 96, 128]):  # depth, base_units
         for lr in lr_list:
             for pt in predict_type_list:
                 for ft in feature_type_list:
                     for l2_reg in l2_reg_list:
                         paras = f"{pt}_{ft}_{l2_reg}_{lr}_{depth}_{base_units}"
                         ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
-                                        start_date='20190104', end_date='20250903',
+                                        start_date='20190104', end_date='20250923',
                                         train_size=0.9,
                                         feature_type=ft,
                                         predict_type=pt)
