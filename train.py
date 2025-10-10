@@ -51,7 +51,7 @@ def auto_search():
     primary_stock_code = '600036.SH'
     index_code_list = ['000001.SH']
     related_stock_list = ALL_CODE_LIST
-    t_list = (si.get_trade_open_dates('20250601', '20250920'))['trade_date'].tolist()
+    t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].tolist()
 
     # ===== 模型参数 =====
     model_type = ModelType.RESIDUAL_LSTM  # 可选: 'residual_lstm', 'residual_tcn', 'transformer', 'mini'
@@ -73,9 +73,9 @@ def auto_search():
     
     # ===== 训练参数 =====
     epochs = 120
-    batch_size = 2048
+    batch_size = 1024
     patience = 30
-    learning_rate = 0.0003
+    learning_rate = 0.0002
     loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
 
 
@@ -85,16 +85,16 @@ def auto_search():
     feature_type_list = [FeatureType.T1L10_F55]
     predict_type_list = [PredictType.BINARY_T1_L10]
     history_dict = {}
-    best_paras, best_val = None, float('inf')
+    best_paras, best_val, best_model = None, float('inf'), None
     
-    for depth,base_units in zip([6, 6, 6, 6, 6], [48, 64, 80, 96, 128]):  # depth, base_units
+    for depth,base_units in zip([6, 6], [64, 128]):  # depth, base_units
         for lr in lr_list:
             for pt in predict_type_list:
                 for ft in feature_type_list:
                     for l2_reg in l2_reg_list:
                         paras = f"{pt}_{ft}_{l2_reg}_{lr}_{depth}_{base_units}"
                         ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
-                                        start_date='20190104', end_date='20250923',
+                                        start_date='20180104', end_date='20250104',
                                         train_size=0.9,
                                         feature_type=ft,
                                         predict_type=pt)
@@ -139,14 +139,13 @@ def auto_search():
                         min_val = np.min(val_losses)
                         print(f"[INFO] paras={paras}, min val_loss={min_val:.4f}")
                         if min_val < best_val:
-                            best_paras, best_val = paras, min_val
+                            best_paras, best_val, best_model = paras, min_val, model
                         print_predict_result(t_list, ds, model, pt)
                         vx_pred_raw = model.model.predict(vx)
                         print_recall_score(vx_pred_raw, vy, pt)
-                        model.save(save_path)
-
 
     print(f"\n[RESULT] Best : {best_paras}, min val_loss: {best_val:.4f}")
+    best_model.save(save_path)
     plot_l2_loss_curves(history_dict, epochs)
 
 if __name__ == "__main__":

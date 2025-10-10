@@ -9,6 +9,7 @@ from stock import Stock
 from stockinfo import StockInfo
 from utils.utils import FeatureType, StockType, setup_logging, rolling_skew, rolling_kurtosis
 from utils.tk import TOKEN
+from utils.const_def import MIN_TRADE_DATA_ROWS
 
 #数据说明：
 #       self.raw_data_np           原始数据,包含T1,T2的数据,第一列为数据所属日期
@@ -31,6 +32,9 @@ class Trade():
         logging.debug(f"Trade::__init__() - ts_code:{ts_code}, start_date:{self.start_date}, end_date:{self.end_date}")
         self.stock = Stock(ts_code, si, self.start_date, self.end_date)
         self.trade_count = len(self.stock.df_filtered['trade_date'].values)
+        if self.trade_count < MIN_TRADE_DATA_ROWS:
+            logging.error(f"[{self.stock.name}({self.ts_code})]交易数据行数:<{self.trade_count}>, 无法进行后续处理!")
+            return None
         logging.debug(f"[{self.stock.name}({self.ts_code})]交易数据行数:<{self.trade_count}>")
         self.y_cnt = 0  #y的列数
 
@@ -38,7 +42,7 @@ class Trade():
         self.raw_data_df = self.stock.df_filtered.copy().reset_index(drop=True)  #原始数据的DataFrame格式
         
         #1. 增删特征数据(增删对象为self.trade_df), 并返回新增特征需要丢弃的天数
-        max_cut_days = self.update_new_feature()  #新增特征数据,并返回新增特征需要丢弃的天数
+        self.max_cut_days = self.update_new_feature()  #新增特征数据,并返回新增特征需要丢弃的天数
 
         #1.5 根据ts_code所属类型(pri,idx,rel),删除不需要的特征
         self.drop_features_by_type(self.stock_type)
@@ -53,7 +57,7 @@ class Trade():
         self.update_t2_change_rate()
 
         #4. 统一对齐所有后续需要使用的数据(剪切头尾数据)
-        self.combine_data_np, self.raw_data_np = self.get_aligned_trade_dates(max_cut_days)
+        self.combine_data_np, self.raw_data_np = self.get_aligned_trade_dates(self.max_cut_days)
 
     #新增特征列
     def update_new_feature(self):

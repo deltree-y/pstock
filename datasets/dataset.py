@@ -14,7 +14,7 @@ from bins import BinManager
 from utils.tk import TOKEN
 from utils.utils import FeatureType, setup_logging
 from utils.utils import StockType, PredictType
-from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, T1L_SCALE, T2H_SCALE, BANK_CODE_LIST, ALL_CODE_LIST
+from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, MIN_TRADE_DATA_ROWS, T1L_SCALE, T2H_SCALE, BANK_CODE_LIST, ALL_CODE_LIST
 from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 
 # | 数据来源/阶段                 | 变量名                             | 说明                                                       | 数据格式            | 特点/备注                       |
@@ -35,7 +35,10 @@ class StockDataset():
         #logging.debug(f"StockDataset.init - start_date:{start_date}, end_date:{end_date}")
         self.p_trade = Trade(ts_code, si, start_date=start_date, end_date=end_date, feature_type=feature_type)
         self.idx_trade_list = [Trade(idx_code, si, stock_type=StockType.INDEX, start_date=start_date, end_date=end_date, feature_type=feature_type) for idx_code in idx_code_list]
-        self.rel_trade_list = [Trade(rel_code, si, stock_type=StockType.RELATED, start_date=start_date, end_date=end_date, feature_type=feature_type) for rel_code in rel_code_list]
+        self.rel_trade_list = []
+        for rel_code in rel_code_list:
+            t = Trade(rel_code, si, stock_type=StockType.RELATED, start_date=start_date, end_date=end_date, feature_type=feature_type)
+            self.rel_trade_list.append(t) if t.trade_count >= MIN_TRADE_DATA_ROWS else None #剔除数据过少的关联股票
         self.if_has_index, self.if_has_related = len(self.idx_trade_list) > 0, len(self.rel_trade_list) > 0
         self.si = si
         self.stock = self.p_trade.stock
@@ -405,15 +408,16 @@ if __name__ == "__main__":
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20190104', end_date='20250903', 
     #                  train_size=0.9, if_use_all_features=False, predict_type=PredictType.BINARY_T2_L10)
+    
     ds = StockDataset(
         ts_code=primary_stock_code,
         idx_code_list=['000001.SH'],
-        rel_code_list=[],
+        rel_code_list=rel_code_list,
         si=si,
-        start_date='20100104',
-        end_date='20250930',
-        train_size=0.99,
-        feature_type=FeatureType.EXTRA_55,
+        start_date='20190104',
+        end_date='20250104',
+        train_size=0.9,
+        feature_type=FeatureType.T1L10_F55,
         if_update_scaler=False,
         predict_type=PredictType.BINARY_T1_L10
     )
