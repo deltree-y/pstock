@@ -20,4 +20,4 @@ def print_predict_result(t_list, ds, m, predict_type):
         print(f"{pred_dot}", end="", flush=True)
     print(f"\n\n预测错误列表:\n{predict_wrong_list_str}")
     print(f"正确率: {correct_cnt/len(t_list):.2%}, 正确个数: {correct_cnt}/{len(t_list)}")
-    print("-"*80)
+    print("-"*100)

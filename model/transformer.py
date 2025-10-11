@@ -66,11 +66,15 @@ def transformer_encoder_block(x, d_model, num_heads, ff_dim, dropout_rate, l2_re
 
 
 class TransformerModel():
-    def __init__(self, x=None, y=None, test_x=None, test_y=None, 
+    def __init__(self, x=None, y=None, test_x=None, test_y=None, fn=None,
                  d_model=256, num_heads=4, ff_dim=512, dropout_rate=0.2, num_layers=4, p=2,
                  l2_reg=1e-5, use_gating=False, use_pos_encoding=True, class_weights=None, loss_type='focal_loss',
                  predict_type=PredictType.CLASSIFY
                  ):
+        if fn is not None:
+            self.load(fn)
+            self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
+            return
         self.x = x.astype('float32')
         self.y = y.astype(int)  # 多分类标签（分箱后的类别编号）
         self.test_x = test_x.astype('float32') if test_x is not None else None

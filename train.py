@@ -14,7 +14,7 @@ from model.transformer import TransformerModel
 from model.utils import get_model_file_name
 from predicproc.show import print_predict_result
 from utils.tk import TOKEN
-from utils.const_def import ALL_CODE_LIST, NUM_CLASSES
+from utils.const_def import ALL_CODE_LIST, NUM_CLASSES, IDX_CODE_LIST
 from utils.utils import FeatureType, PredictType, ModelType, setup_logging, print_ratio
 
 def set_seed(seed=42):
@@ -49,9 +49,10 @@ def auto_search():
     # ===== 数据准备 =====
     si = StockInfo(TOKEN)
     primary_stock_code = '600036.SH'
-    index_code_list = ['000001.SH']
+    index_code_list = IDX_CODE_LIST
     related_stock_list = ALL_CODE_LIST
     t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].tolist()
+    t_start_date, t_end_date = '20180104', '20250530'
 
     # ===== 模型参数 =====
     model_type = ModelType.RESIDUAL_LSTM  # 可选: 'residual_lstm', 'residual_tcn', 'transformer', 'mini'
@@ -72,10 +73,11 @@ def auto_search():
     kernel_size = 8 #每个专家一次能看到多长时间的历史窗口
     
     # ===== 训练参数 =====
-    epochs = 120
+    epochs = 100
     batch_size = 1024
-    patience = 30
+    patience = 20
     learning_rate = 0.0002
+    train_size = 0.9
     loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
 
 
@@ -87,24 +89,20 @@ def auto_search():
     history_dict = {}
     best_paras, best_val, best_model = None, float('inf'), None
     
-    for depth,base_units in zip([2, 6], [32, 128]):  # depth, base_units
+    for depth,base_units in zip([2, 4], [128, 128]):  # depth, base_units
         for lr in lr_list:
             for pt in predict_type_list:
                 for ft in feature_type_list:
                     for l2_reg in l2_reg_list:
                         paras = f"{pt}_{ft}_{l2_reg}_{lr}_{depth}_{base_units}"
-                        ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
-                                        start_date='20180104', end_date='20250530',
-                                        train_size=0.9,
-                                        feature_type=ft,
-                                        predict_type=pt)
-                        ds_pred = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=[], si=si, if_update_scaler=False, 
-                                        start_date='19930101', end_date='20251010',
-                                        train_size=1, feature_type=ft, predict_type=pt)
-                        t_list = [d for d in t_list if np.where(ds_pred.raw_data[:, 0] == d)[0][0] + ds_pred.window_size <= ds_pred.raw_data.shape[0]]
-                        
+                        print(f"\n{'='*5} 开始训练处理: model={model_type} {'='*5}")
+
+                        ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,start_date=t_start_date, end_date=t_end_date,train_size=train_size,feature_type=ft,predict_type=pt)
+                        ds_pred = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=[], si=si, if_update_scaler=False, start_date='19930101', end_date='20251010', train_size=1, feature_type=ft, predict_type=pt)
+                        t_list = [d for d in t_list if np.where(ds_pred.raw_data[:, 0] == d)[0][0] + ds_pred.window_size <= ds_pred.raw_data.shape[0]]                        
                         tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
                         ty, vy = ty[:, 0], vy[:, 0]
+
                         # ===== 根据上面的选择和参数自动配置模型参数 =====
                         if pt.is_classify():
                             class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
@@ -132,13 +130,12 @@ def auto_search():
                         else:
                             raise ValueError("unknown model_type")
                         train_params = dict(epochs=epochs, batch_size=batch_size, learning_rate=lr, patience=patience)
-
-                        print(f"\n{'='*5} 开始训练: model={model_type} {'='*5}")
+                        save_path = get_model_file_name(primary_stock_code, model_type, pt, ft)
                         print(f"{'='*5} 训练参数: batch={batch_size}, lr={lr}, drop={dropout_rate}, l2={l2_reg}, dep={depth},  bu={base_units}, patience={patience} {'='*5}")
                         print(f"{'='*5} 模型参数: feature={ft}, model_params={model_params} {'='*5}\n")
-                        print_ratio(ty, "ty")
-                        save_path = get_model_file_name(primary_stock_code, model_type, pt, ft)
-
+                        print_ratio(ty, "验证集(ty)")
+                        
+                        #开始训练
                         val_losses, model = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
                         history_dict[paras] = {'val_loss': val_losses}
                         min_val = np.min(val_losses)

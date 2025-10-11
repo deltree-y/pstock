@@ -3,6 +3,7 @@ import os
 import tensorflow as tf
 import numpy as np
 from sklearn.metrics import confusion_matrix
+from utils.utils import ModelType
 from utils.const_def import BASE_DIR, MODEL_DIR
 
 # 学习率调度器
@@ -108,4 +109,25 @@ def get_hard_samples(x, y, y_pred_raw, predict_type, threshold=0.5):
 def get_model_file_name(stock_code, model_type, predict_type, feature_type):
     model_fn = os.path.join(BASE_DIR, MODEL_DIR, f"{stock_code}_{model_type}_{predict_type}_{feature_type.short_name}.h5")
     return model_fn
+
+
+def load_model_by_params(stock_code, model_type, predict_type, feature_type):
+    model_fn = get_model_file_name(stock_code, model_type, predict_type, feature_type)
+
+    from model.lstmmodel import LSTMModel
+    from model.residual_lstm import ResidualLSTMModel
+    from model.residual_tcn import ResidualTCNModel
+    from model.transformer import TransformerModel
+    
+    if model_type == ModelType.RESIDUAL_LSTM:
+        model = ResidualLSTMModel(fn=model_fn, predict_type=predict_type)
+    elif model_type == ModelType.RESIDUAL_TCN:
+        model = ResidualTCNModel(fn=model_fn, predict_type=predict_type)
+    elif model_type == ModelType.TRANSFORMER:
+        model = TransformerModel(fn=model_fn, predict_type=predict_type)
+    elif model_type == ModelType.MINI:
+        model = LSTMModel(fn=model_fn, predict_type=predict_type)
+    else:
+        raise ValueError(f"Unknown model_type: {model_type}")
+    return model
 
