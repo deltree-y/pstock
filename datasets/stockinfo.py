@@ -105,6 +105,7 @@ class StockInfo():
                 return -1
         elif asset == 'I':
             try:
+                #print(f"INFO: get_start_date() returns {self.index_list.loc[self.index_list['ts_code']==ts_code].list_date.values[0].astype(np.int64)}")
                 return (self.index_list.loc[self.index_list['ts_code']==ts_code].list_date.values[0].astype(np.int64))
             except:
                 logging.error(f"in StockInfo::get_start_date().")

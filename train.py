@@ -87,17 +87,22 @@ def auto_search():
     history_dict = {}
     best_paras, best_val, best_model = None, float('inf'), None
     
-    for depth,base_units in zip([6, 6], [64, 128]):  # depth, base_units
+    for depth,base_units in zip([2, 6], [32, 128]):  # depth, base_units
         for lr in lr_list:
             for pt in predict_type_list:
                 for ft in feature_type_list:
                     for l2_reg in l2_reg_list:
                         paras = f"{pt}_{ft}_{l2_reg}_{lr}_{depth}_{base_units}"
                         ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,
-                                        start_date='20180104', end_date='20250104',
+                                        start_date='20180104', end_date='20250530',
                                         train_size=0.9,
                                         feature_type=ft,
                                         predict_type=pt)
+                        ds_pred = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=[], si=si, if_update_scaler=False, 
+                                        start_date='19930101', end_date='20251010',
+                                        train_size=1, feature_type=ft, predict_type=pt)
+                        t_list = [d for d in t_list if np.where(ds_pred.raw_data[:, 0] == d)[0][0] + ds_pred.window_size <= ds_pred.raw_data.shape[0]]
+                        
                         tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
                         ty, vy = ty[:, 0], vy[:, 0]
                         # ===== 根据上面的选择和参数自动配置模型参数 =====
@@ -140,7 +145,7 @@ def auto_search():
                         print(f"[INFO] paras={paras}, min val_loss={min_val:.4f}")
                         if min_val < best_val:
                             best_paras, best_val, best_model = paras, min_val, model
-                        print_predict_result(t_list, ds, model, pt)
+                        print_predict_result(t_list, ds_pred, model, pt)
                         vx_pred_raw = model.model.predict(vx)
                         print_recall_score(vx_pred_raw, vy, pt)
 

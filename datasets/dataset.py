@@ -32,7 +32,6 @@ from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 # |                             | self.normalized_windowed_test_x   | 归一化, 窗口化后的测试集x, 三维数组                             | numpy.array        |                                  |
 class StockDataset():
     def __init__(self, ts_code, idx_code_list, rel_code_list, si, start_date=None, end_date=None, train_size=0.8, if_update_scaler=True, feature_type=FeatureType.ALL, predict_type=PredictType.CLASSIFY):
-        #logging.debug(f"StockDataset.init - start_date:{start_date}, end_date:{end_date}")
         self.p_trade = Trade(ts_code, si, start_date=start_date, end_date=end_date, feature_type=feature_type)
         self.idx_trade_list = [Trade(idx_code, si, stock_type=StockType.INDEX, start_date=start_date, end_date=end_date, feature_type=feature_type) for idx_code in idx_code_list]
         self.rel_trade_list = []
@@ -213,6 +212,12 @@ class StockDataset():
                 #self.scaler = RobustScaler()#
                 #self.scaler = MinMaxScaler(feature_range=(-1, 1))  # 替换RobustScaler
                 df = pd.DataFrame(new_data)
+                if df.isnull().values.any():
+                    print("WARNING: 发现NaN, 归一化前已自动填充0")
+                    df = df.fillna(0)
+                if np.isinf(df.values).any():
+                    print("WARNING: 发现inf, 归一化前已自动填充0")
+                    df = df.replace([np.inf, -np.inf], 0)
                 self.scaler.fit(df)
                 is_modified = True
                 if if_save and is_modified: #如果有更新且需要保存,则保存
@@ -408,25 +413,30 @@ if __name__ == "__main__":
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20190104', end_date='20250903', 
     #                  train_size=0.9, if_use_all_features=False, predict_type=PredictType.BINARY_T2_L10)
-    
-    ds = StockDataset(
-        ts_code=primary_stock_code,
-        idx_code_list=['000001.SH'],
-        rel_code_list=rel_code_list,
-        si=si,
-        start_date='20190104',
-        end_date='20250104',
-        train_size=0.9,
-        feature_type=FeatureType.T1L10_F55,
-        if_update_scaler=False,
-        predict_type=PredictType.BINARY_T1_L10
-    )
+
+    ds = StockDataset(ts_code=primary_stock_code, idx_code_list=idx_code_list, rel_code_list=[], si=si, if_update_scaler=False,
+                start_date='19921203', end_date='20250930',
+                train_size=1, feature_type=FeatureType.T1L10_F55, predict_type=PredictType.BINARY_T1_L10)
+
+    if False:
+        ds = StockDataset(
+            ts_code=primary_stock_code,
+            idx_code_list=['000001.SH'],
+            rel_code_list=rel_code_list,
+            si=si,
+            start_date='20190104',
+            end_date='20250104',
+            train_size=0.9,
+            feature_type=FeatureType.T1L10_F55,
+            if_update_scaler=False,
+            predict_type=PredictType.BINARY_T1_L10
+        )
 
     logging.info(f"ds.train_y shape: {ds.train_y.shape}, ds.test_y shape: {ds.test_y.shape}")
     pd.set_option('display.max_columns', None)
     start_idx = 0
-    print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_data).iloc[start_idx:start_idx+10]}")
-    print(f"\nraw y sample: \n{pd.DataFrame(ds.raw_y).iloc[start_idx:start_idx+10]}")
+    print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_data).iloc[start_idx:start_idx+3]}")
+    print(f"\nraw y sample: \n{pd.DataFrame(ds.raw_y).iloc[start_idx:start_idx+3]}")
     #data, bp = ds.get_predictable_dataset_by_date("20250829")
     #print(f"data shape: {data.shape}, bp: {bp}")
     #print(f"{ds.p_trade.remain_list}")

@@ -24,9 +24,9 @@ from utils.const_def import MIN_TRADE_DATA_ROWS
 class Trade():
     def __init__(self, ts_code, si, stock_type=StockType.PRIMARY, start_date=None, end_date=None, feature_type=FeatureType.ALL):
         self.ts_code, self.si = ts_code, si
-        self.start_date = start_date if start_date is not None else str(self.si.get_start_date(self.ts_code))
-        self.end_date = end_date if end_date is not None else datetime.today().strftime('%Y%m%d')
         self.asset = self.si.get_asset(self.ts_code)
+        self.start_date = start_date if start_date is not None else str(self.si.get_start_date(self.ts_code, self.asset))
+        self.end_date = end_date if end_date is not None else datetime.today().strftime('%Y%m%d')
         self.stock_type = stock_type if self.asset == 'E' else StockType.INDEX
         self.feature_type = feature_type
         logging.debug(f"Trade::__init__() - ts_code:{ts_code}, start_date:{self.start_date}, end_date:{self.end_date}")
