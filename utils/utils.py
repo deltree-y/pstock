@@ -56,7 +56,7 @@ def print_ratio(lst, label=""):
     counter, total = Counter(lst), len(lst)
     for num, count in sorted(counter.items()):
         percent = count / total
-        print(f" [{num}]: {percent:.1%}, ", end=' ')
+        print(f"[{num}]: {percent:.1%},", end='')
     print()
 
 class SuperList(list):
@@ -93,6 +93,10 @@ class FeatureType(Enum):
     T1L10_F35 = 't1l10_features_35'
     T1L10_F45 = 't1l10_features_45'
     T1L10_F55 = 't1l10_features_55'
+
+    T1H10_F35 = 't1h10_features_35'
+    T1H10_F55 = 't1h10_features_55'
+    T1H10_F75 = 't1h10_features_75'
 
     T1L15_F35 = 't1l15_features_35'
     T1L15_F55 = 't1l15_features_55'

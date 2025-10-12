@@ -14,7 +14,7 @@ from bins import BinManager
 from utils.tk import TOKEN
 from utils.utils import FeatureType, setup_logging
 from utils.utils import StockType, PredictType
-from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, MIN_TRADE_DATA_ROWS, T1L_SCALE, T2H_SCALE, BANK_CODE_LIST, ALL_CODE_LIST
+from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, MIN_TRADE_DATA_ROWS, T1L_SCALE, T2H_SCALE, BANK_CODE_LIST, ALL_CODE_LIST, IDX_CODE_LIST
 from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 
 # | 数据来源/阶段                 | 变量名                             | 说明                                                       | 数据格式            | 特点/备注                       |
@@ -408,7 +408,7 @@ if __name__ == "__main__":
     si = StockInfo(TOKEN)
     #download_list = si.get_filtered_stock_list(mmv=3000000)
     primary_stock_code = '600036.SH'
-    idx_code_list = ['000001.SH']#,'399001.SZ']#'000001.SH','399001.SZ']#,'000300.SH','000905.SH']
+    idx_code_list = IDX_CODE_LIST
     rel_code_list = ALL_CODE_LIST#ALL_CODE_LIST#BANK_CODE_LIST
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20190104', end_date='20250903', 
@@ -418,19 +418,18 @@ if __name__ == "__main__":
                 start_date='19921203', end_date='20250930',
                 train_size=1, feature_type=FeatureType.T1L10_F55, predict_type=PredictType.BINARY_T1_L10)
 
-    if False:
-        ds = StockDataset(
-            ts_code=primary_stock_code,
-            idx_code_list=['000001.SH'],
-            rel_code_list=rel_code_list,
-            si=si,
-            start_date='20190104',
-            end_date='20250104',
-            train_size=0.9,
-            feature_type=FeatureType.T1L10_F55,
-            if_update_scaler=False,
-            predict_type=PredictType.BINARY_T1_L10
-        )
+    ds = StockDataset(
+        ts_code=primary_stock_code,
+        idx_code_list=idx_code_list,
+        rel_code_list=rel_code_list,
+        si=si,
+        start_date='20100104',
+        end_date='20251010',
+        train_size=1,
+        feature_type=FeatureType.T1L10_F55,
+        if_update_scaler=False,
+        predict_type=PredictType.BINARY_T1_L10
+    )
 
     logging.info(f"ds.train_y shape: {ds.train_y.shape}, ds.test_y shape: {ds.test_y.shape}")
     pd.set_option('display.max_columns', None)

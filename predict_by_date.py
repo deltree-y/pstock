@@ -1,23 +1,18 @@
 # coding=utf-8
-import datetime
 import os, sys
-import argparse
+import argparse, warnings
 import numpy as np
+from datetime import datetime
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
 from model.utils import load_model_by_params
 from utils.tk import TOKEN
 from utils.const_def import BASE_DIR, MODEL_DIR, NUM_CLASSES, IDX_CODE_LIST
 from utils.utils import FeatureType, ModelType, PredictType, setup_logging
-from model.residual_lstm import ResidualLSTMModel
-from model.residual_tcn import ResidualTCNModel
-from model.transformer import TransformerModel
-from model.lstmmodel import LSTMModel
 from predicproc.predict import Predict, RegPredict
 
-
-
 def main():
+    warnings.filterwarnings("ignore", category=UserWarning)
     parser = argparse.ArgumentParser(description="Use trained model for prediction by date")
     parser.add_argument("--stock_code", default="600036.SH", help="Primary stock code")
     parser.add_argument("--feature_type", default="T1L10_F55", help="Feature type to use, e.g., ALL, T1L_25, T2H_25")
@@ -37,15 +32,6 @@ def main():
     print(f"model_type: {model_type}, predict_type: {predict_type}, feature_type: {feature_type}")
     model = load_model_by_params(args.stock_code, model_type, predict_type, feature_type)
 
-    si = StockInfo(TOKEN)
-    ds = StockDataset(idx_code_list=IDX_CODE_LIST, rel_code_list=[], si=si, train_size=1, if_update_scaler=False,
-        ts_code=args.stock_code,        
-        start_date=args.start_date,
-        end_date=args.end_date,
-        feature_type=feature_type,
-        predict_type=predict_type
-    )
-
     if args.from_date is not None:
         today = int(datetime.now().strftime('%Y%m%d'))
         si = StockInfo(TOKEN)
@@ -57,6 +43,16 @@ def main():
         sys.exit(1)
     else:
         print(f"预测指定的日期: {args.dates}")
+
+    si = StockInfo(TOKEN)
+    ds = StockDataset(idx_code_list=IDX_CODE_LIST, rel_code_list=[], si=si, train_size=1, if_update_scaler=False,
+        ts_code=args.stock_code,        
+        start_date=args.start_date,
+        end_date=args.end_date,
+        feature_type=feature_type,
+        predict_type=predict_type
+    )
+
 
     for date_str in args.dates:
         print(f"\n==== T0:[{si.get_next_or_current_trade_date(date_str)}] / T1:[{si.get_next_trade_date(si.get_next_or_current_trade_date(date_str))}] / T2:[{si.get_next_trade_date(si.get_next_trade_date(si.get_next_or_current_trade_date(date_str)))}] ====")

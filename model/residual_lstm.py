@@ -1,5 +1,8 @@
-import os, sys, logging
+import os, sys, logging, warnings
 import tensorflow as tf
+import warnings
+warnings.filterwarnings("ignore")
+import tensorflow_addons as tfa
 import numpy as np
 from pathlib import Path
 from datetime import datetime
@@ -7,7 +10,7 @@ from keras import activations
 from keras.models import Model, load_model
 from keras.callbacks import EarlyStopping
 from keras.regularizers import l2
-from keras.optimizers import Adam
+from keras.optimizers import Adam, SGD
 from utils.const_def import NUM_CLASSES, IS_PRINT_MODEL_SUMMARY
 from utils.utils import PredictType
 from model.history import LossHistory
@@ -139,7 +142,7 @@ class ResidualLSTMModel:
                        name="fc1")(x_last)
         x_last = Dropout(self.dropout_rate, name="fc1_drop")(x_last)
         #x_last = Dense(self.base_units * self.p, activation=activations.swish,
-        x_last = Dense(64, activation=activations.swish,
+        x_last = Dense(128, activation=activations.swish,
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc2")(x_last)
         #x_last = Dropout(self.dropout_rate, name="fc2_drop")(x_last)
@@ -165,7 +168,9 @@ class ResidualLSTMModel:
 
         loss_fn = get_loss(self.loss_type, self.predict_type)
         self.model.compile(
-            optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
+            #optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
+            #optimizer=SGD(learning_rate=learning_rate, momentum=0.9, nesterov=True),
+            optimizer=tfa.optimizers.AdamW(learning_rate=learning_rate, weight_decay=1e-4, clipnorm=0.5),
             loss={'output': loss_fn},
             metrics={'output': 'accuracy'}
         )        
