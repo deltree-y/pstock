@@ -3,9 +3,7 @@ import tushare as ts
 import pandas as pd
 import numpy as np
 import sys,os,time,logging
-from pandas import DataFrame
 from pathlib import Path
-from datetime import datetime
 
 o_path = os.getcwd()
 sys.path.append(o_path)

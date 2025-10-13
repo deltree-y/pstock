@@ -56,14 +56,14 @@ def auto_search():
     t_start_date, t_end_date = '20180104', '20250530'
 
     # ---模型通用参数---
-    model_type = ModelType.TRANSFORMER
+    model_type = ModelType.RESIDUAL_LSTM
     p = 2
     dropout_rate = 0.3
     feature_type_list = [FeatureType.T1H10_F55]
-    predict_type_list = [PredictType.BINARY_T1_H10]
+    predict_type_list = [PredictType.BINARY_T1_L10]
     loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
     lr_list = [0.0002]#, 0.0001, 0.0005, 0.001, 0.005]
-    l2_reg_list = [0.00007]
+    l2_reg_list = [0.001,0.0001,0.00001,0.000001]#[0.00007]
 
     # ----- 模型相关参数 ----
     # 残差LSTM模型参数
