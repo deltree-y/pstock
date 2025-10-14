@@ -57,14 +57,14 @@ def auto_search():
     index_code_list = IDX_CODE_LIST
     related_stock_list = ALL_CODE_LIST
     t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].tolist()
-    t_start_date, t_end_date = '20160104', '20250530'
+    t_start_date, t_end_date = '20000104', '20250530'
 
     # ---模型通用参数---
     model_type = ModelType.RESIDUAL_LSTM
     p = 2
     dropout_rate = 0.3
-    feature_type_list = [FeatureType.T1L10_F55]
-    predict_type_list = [PredictType.BINARY_T1_L10]
+    feature_type_list = [FeatureType.T1H10_F55]
+    predict_type_list = [PredictType.BINARY_T1_H10]
     loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
     lr_list = [0.0002]#, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.0001]#[0.00007]
@@ -101,9 +101,18 @@ def auto_search():
                     # ===== 数据集准备 =====
                     ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,start_date=t_start_date, end_date=t_end_date,train_size=train_size,feature_type=ft,predict_type=pt)
                     ds_pred = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=[], si=si, if_update_scaler=False, start_date='19930101', end_date='20251010', train_size=1, feature_type=ft, predict_type=pt)
-                    t_list = [d for d in t_list if np.where(ds_pred.raw_data[:, 0] == d)[0][0] + ds_pred.window_size <= ds_pred.raw_data.shape[0]]                        
+                    t_list = [d for d in t_list if ((idx_arr := np.where(ds_pred.raw_data[:, 0] == d)[0]).size > 0 and idx_arr[0] + ds_pred.window_size <= ds_pred.raw_data.shape[0])]
                     tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
                     ty, vy = ty[:, 0], vy[:, 0]
+                    
+                    # 检查数据
+                    if (np.isnan(tx).sum()+np.isinf(tx).sum()+np.isnan(ty).sum(), np.isinf(ty).sum())>0:
+                        raise ValueError("训练集数据包含 NaN 或 Inf, 请检查数据和特征工程")
+                    if (np.isnan(vx).sum()+np.isinf(vx).sum()+np.isnan(vy).sum(), np.isinf(vy).sum())>0:
+                        raise ValueError("验证集数据包含 NaN 或 Inf, 请检查数据和特征工程")
+
+                    # 检查标签范围
+                    print("标签最小:", ty.min(), "标签最大:", ty.max())
 
                     # ===== 根据上面的选择和参数自动配置模型参数 =====
                     if pt.is_classify():
