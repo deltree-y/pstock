@@ -14,7 +14,7 @@ from bins import BinManager
 from utils.tk import TOKEN
 from utils.utils import FeatureType, setup_logging
 from utils.utils import StockType, PredictType
-from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, MIN_TRADE_DATA_ROWS, T1L_SCALE, T2H_SCALE, BANK_CODE_LIST, ALL_CODE_LIST, IDX_CODE_LIST
+from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, MIN_TRADE_DATA_ROWS, T1L_SCALE, T2H_SCALE, ALL_CODE_LIST, IDX_CODE_LIST
 from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 
 # | 数据来源/阶段                 | 变量名                             | 说明                                                       | 数据格式            | 特点/备注                       |

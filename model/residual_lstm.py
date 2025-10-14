@@ -142,7 +142,7 @@ class ResidualLSTMModel:
                        name="fc1")(x_last)
         x_last = Dropout(self.dropout_rate, name="fc1_drop")(x_last)
         #x_last = Dense(self.base_units * self.p, activation=activations.swish,
-        x_last = Dense(128, activation=activations.swish,
+        x_last = Dense(self.base_units  * 2, activation=activations.swish,
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc2")(x_last)
         #x_last = Dropout(self.dropout_rate, name="fc2_drop")(x_last)

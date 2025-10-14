@@ -74,6 +74,7 @@ class ModelType(Enum):
     RESIDUAL_LSTM = 'ResLSTM'
     RESIDUAL_TCN = 'ResTCN'
     TRANSFORMER = 'Transformer'
+    CONV1D = 'Conv1D'
     MINI = 'Mini'
 
     def __str__(self):

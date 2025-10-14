@@ -68,7 +68,7 @@ def transformer_encoder_block(x, d_model, num_heads, ff_dim, dropout_rate, l2_re
 class TransformerModel():
     def __init__(self, x=None, y=None, test_x=None, test_y=None, fn=None,
                  d_model=256, num_heads=4, ff_dim=512, dropout_rate=0.2, num_layers=4, p=2,
-                 l2_reg=1e-5, use_gating=False, use_pos_encoding=True, class_weights=None, loss_type='focal_loss',
+                 l2_reg=1e-5, use_gating=True, use_pos_encoding=True, class_weights=None, loss_type='focal_loss',
                  predict_type=PredictType.CLASSIFY
                  ):
         if fn is not None:
