@@ -18,10 +18,12 @@ class ResidualBlock(tf.keras.layers.Layer):
     单层TCN残差块：两次扩张卷积->归一化->激活->Dropout->Add残差
     支持因果卷积与通道数自动投影
     """
-    def __init__(self, nb_filters, kernel_size, dilation_rate, block_id, dropout_rate=0.1, l2_reg=1e-5, causal=True):
-        K.clear_session()
-        super(ResidualBlock, self).__init__(name=f"residual_block_{block_id}")
+    def __init__(self, nb_filters, kernel_size, dilation_rate, block_id, dropout_rate=0.1, l2_reg=1e-5, causal=True, **kwargs):
+        #K.clear_session()
+        #super(ResidualBlock, self).__init__(name=f"residual_block_{block_id}", **kwargs)
+        super().__init__(**kwargs)
         self.causal = causal
+        self.block_id = block_id
         self.conv1 = Conv1D(filters=nb_filters, kernel_size=kernel_size,
                             dilation_rate=dilation_rate, padding='causal' if causal else 'same',
                             kernel_regularizer=tf.keras.regularizers.l2(l2_reg),
@@ -40,7 +42,6 @@ class ResidualBlock(tf.keras.layers.Layer):
 
         self.use_projection = False
         self.projection = None
-        self.block_id = block_id
 
     def get_config(self):
         config = super().get_config()
@@ -48,6 +49,7 @@ class ResidualBlock(tf.keras.layers.Layer):
             "nb_filters": self.conv1.filters,
             "kernel_size": self.conv1.kernel_size[0],
             "dilation_rate": self.conv1.dilation_rate[0],
+            "block_id": self.block_id,     # 新增
             "dropout_rate": self.dropout1.rate,
             "l2_reg": self.conv1.kernel_regularizer.l2 if self.conv1.kernel_regularizer else 0.0,
             "causal": self.causal,
@@ -203,8 +205,9 @@ class ResidualTCNModel:
     def load(self, filename):
         from keras.models import load_model
         try:
+            from model.residual_tcn import ResidualBlock  # 关键：导入自定义层
             print(f"loading model file: {filename} ...", end="", flush=True)
-            self.model = load_model(filename)
+            self.model = load_model(filename, custom_objects={"ResidualBlock": ResidualBlock})
             print("complete!")
         except Exception as e:
             logging.error(f"model file load failed! {e}")

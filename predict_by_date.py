@@ -29,18 +29,18 @@ def main():
     model_type = getattr(ModelType, args.model_type.upper(), ModelType.RESIDUAL_LSTM)
     predict_type = getattr(PredictType, args.predict_type, PredictType.BINARY_T1_L10)
     feature_type = getattr(FeatureType, args.feature_type.upper(), FeatureType.T1L10_F55)
-    print(f"model_type: {model_type}, predict_type: {predict_type}, feature_type: {feature_type}")
     model = load_model_by_params(args.stock_code, model_type, predict_type, feature_type)
+    print(f"model_type: {model_type}, predict_type: {predict_type}, feature_type: {feature_type}")
 
-    if args.from_date is not None:
+    if args.from_date is None and args.dates is None:
+        print("错误: 必须指定 --dates 或 --from_date")
+        sys.exit(1)
+    elif args.from_date is not None:
         today = int(datetime.now().strftime('%Y%m%d'))
         si = StockInfo(TOKEN)
         trade_dates_df = si.get_trade_open_dates(int(args.from_date), today)
         args.dates = trade_dates_df['trade_date'].astype(int).tolist()
         print(f"预测从 {args.from_date} 到今天的所有交易日，共 {len(args.dates)} 天: {args.dates}")
-    elif args.dates is None:
-        print("错误: 必须指定 --dates 或 --from_date")
-        sys.exit(1)
     else:
         print(f"预测指定的日期: {args.dates}")
 
