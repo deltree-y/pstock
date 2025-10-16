@@ -73,6 +73,12 @@ class Trade():
         self.trade_df['date_full'] = self.trade_df['trade_date'].astype(str).astype(int)
         self.trade_df['weekday'] = pd.to_datetime(self.trade_df['trade_date'], format='%Y%m%d').dt.weekday+1
 
+        #2.1 在增删特征前，确保索引为DatetimeIndex(新增[20251016])
+        if not isinstance(self.trade_df.index, pd.DatetimeIndex):
+            self.trade_df['trade_date'] = pd.to_datetime(self.trade_df['trade_date'], format='%Y%m%d')
+            self.trade_df.set_index('trade_date', inplace=True)
+
+
         #5个基本的技术指标
         self.trade_df['rsi_14'], max_cut_days = ta.rsi(self.trade_df['close'], length=14), max(max_cut_days, 13)
         self.trade_df['macd'], self.trade_df['macd_signal'], self.trade_df['macd_hist'] = ta.macd(self.trade_df['close'])['MACD_12_26_9'], ta.macd(self.trade_df['close'])['MACDs_12_26_9'], ta.macd(self.trade_df['close'])['MACDh_12_26_9']
@@ -97,6 +103,17 @@ class Trade():
         self.trade_df['willr_14'], max_cut_days = ta.willr(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14), max(max_cut_days, 13)
         self.trade_df['volatility_20'], max_cut_days = ta.volatility(self.trade_df['close'], length=20, std=2), max(max_cut_days, 19)
         self.trade_df['natr_14'], max_cut_days = ta.natr(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], length=14), max(max_cut_days, 13)
+        # VWAP
+        self.trade_df['vwap'] = ta.vwap(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'], self.trade_df['vol'])
+        # SuperTrend（需pandas_ta 0.3.14+）
+        st = ta.supertrend(self.trade_df['high'], self.trade_df['low'], self.trade_df['close'])
+        self.trade_df['supertrend'] = st['SUPERT_7_3.0']
+        # Donchian Channel
+        dc = ta.donchian(self.trade_df['high'], self.trade_df['low'], lower_length=20, upper_length=20)
+        self.trade_df['donchian_upper'] = dc['DCU_20_20']
+        self.trade_df['donchian_lower'] = dc['DCL_20_20']
+        self.trade_df['donchian_mid']   = dc['DCM_20_20']
+
         max_cut_days =max(max_cut_days, 27)
 
         # 近N日成交量均值/中位数/最大值
@@ -113,6 +130,12 @@ class Trade():
         self.trade_df['close_vs_open'] = (self.trade_df['close'] - self.trade_df['open']) / self.trade_df['open']
 
         self.trade_df.fillna(0,inplace=True)
+
+        #2.99 所有特征添加完后，重置索引恢复trade_date为列(新增[20251016])
+        #self.trade_df['trade_date'] = self.trade_df.index
+        self.trade_df.insert(1, 'trade_date', self.trade_df.index.strftime('%Y%m%d').astype(str))
+        self.trade_df.reset_index(drop=True, inplace=True)
+
 
         #3. 将trade_df按日期降序排列(最新日期在前),方便后续使用
         self.trade_df = self.trade_df.copy().sort_index(ascending=False).reset_index(drop=True) 
@@ -174,29 +197,27 @@ class Trade():
         if stock_type == StockType.PRIMARY or stock_type == StockType.RELATED:
             #皮尔逊+互信息+树模型交集特征
             basic_features = ['ts_code', 'trade_date', 'open', 'high', 'low', 'close']#, 'stock_idx']
-            #t1l10_features_25 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce']
-            #t1l10_features_35 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'atr_14', 'stddev_10']
-            #t1l10_features_45 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'atr_14', 'stddev_10', 'ps', 'ADX_14', 'log_volume', 'DMP_14', 'amount', 'return_10d', 'roc_10', 'BBU_20_2.0', 'return_5d']
-            #t1l10_features_55 = ['natr_14', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'dv_ratio', '1y', 'turnover_rate_f', '6m', 'cmt', 'y20', 'ltc', 'y1', 'pb', 'y30', 'w52_ce', 'w26_bd', 'y30_us_trycr', 'y10', 'y10_us_trycr', 'w26_ce', 'ltr_avg', 'w52_bd', 'y5_us_trycr', 'y5', '1w', 'on', 'm1', 'w4_bd', 'w4_ce', 'pe', 'total_mv', 'atr_14', 'stddev_10', 'ps', 'ADX_14', 'log_volume', 'DMP_14', 'amount', 'return_10d', 'roc_10', 'BBU_20_2.0', 'return_5d', 'e_factor', 'sma_10', 'ema_10', 'wma_10', 'BBM_20_2.0', 'pre_close', 'obv']
-            t1l10_features_35 = ["volatility_5d","natr_14","macd_signal","y5","dv_ratio","willr_14","1w","cmt","vol","w26_bd","y30_us_trycr","pb","m1","y1","y10","on","w52_bd","close_to_high_20d","DMP_14","w4_ce","6m","w52_ce","close_vs_low","amplitude","w26_ce","y5_us_trycr","pe","ps","volatility_10d","y20","close_vs_open","turnover_rate_f","roc_10","total_mv"]
-            t1l10_features_55 = ["volatility_5d","natr_14","macd_signal","y5","dv_ratio","willr_14","1w","cmt","vol","w26_bd","y30_us_trycr","pb","m1","y1","y10","on","w52_bd","close_to_high_20d","DMP_14","w4_ce","6m","w52_ce","close_vs_low","amplitude","w26_ce","y5_us_trycr","pe","ps","volatility_10d","y20","close_vs_open","turnover_rate_f","roc_10","total_mv","y10_us_trycr","atr_14","macd_hist","ADX_14","return_5d","open","obv","close","ltc","w4_bd","BBB_20_2.0","ltr_avg","1y","y30","return_10d","stddev_10"]
 
-            t1l05_features_35 = ['natr_14', 'amplitude', 'dv_ratio', 'e_factor', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'date_full', 'total_mv', 'turnover_rate_f', 'on', 'pb', 'pe', 'close_to_high_20d', 'macd_cross', '1y', '6m', '1w', 'log_volume', 'vol_max_20d', 'vol_max_10d', 'atr_14', 'y5_us_trycr', 'ps', 'ADX_14', 'stddev_10', 'weekday', 'w26_bd', 'vol_max_5d', 'y10_us_trycr', 'w52_ce', 'w52_bd', 'w26_ce', 'y1']
+            t1l10_features_55 = ['y5', 'close_vs_low', 'cmt', 'w52_bd', 'w26_bd', 'return_5d', 'date_full', 'ltc', 'ltr_avg', 'vol', 'willr_14', 'amplitude', 'ps', 'atr_14', 'm1', 'w4_ce', 'turnover_rate_f', 'w52_ce', 'y20', 'close', 'macd_hist', 'DMP_14', 'y5_us_trycr', '1y', 'w26_ce', 'open', 'stddev_10', 'w4_bd', 'volatility_10d', 'pe', 'pb', 'close_to_high_20d', 'dv_ratio', 'volatility_5d', 'y10', 'y10_us_trycr', 'obv', '1w', 'BBB_20_2.0', 'on', 'natr_14', 'macd_signal', 'y1', 'ADX_14', '6m', 'total_mv', 'y30_us_trycr', 'y30']
+            t1l10_features_35 = t1l10_features_55[:35]
+
             t1l05_features_55 = ['natr_14', 'amplitude', 'dv_ratio', 'e_factor', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'date_full', 'total_mv', 'turnover_rate_f', 'on', 'pb', 'pe', 'close_to_high_20d', 'macd_cross', '1y', '6m', '1w', 'log_volume', 'vol_max_20d', 'vol_max_10d', 'atr_14', 'y5_us_trycr', 'ps', 'ADX_14', 'stddev_10', 'weekday', 'w26_bd', 'vol_max_5d', 'y10_us_trycr', 'w52_ce', 'w52_bd', 'w26_ce', 'y1', 'DMP_14', 'industry_idx', 'm1', 'w4_bd', 'w4_ce', 'ltr_avg', 'y5', 'y30_us_trycr', 'y10', 'vol_mean_20d', 'y20', 'ltc', 'roc_10', 'rsi_14', 'return_10d', 'cmt', 'buy_elg_vol', 'vol_ratio_20d', 'sell_elg_vol', 'y30']
+            t1l05_features_35 = t1l05_features_55[:35]
 
-            t1l15_features_35 = ['natr_14', 'amplitude', 'volatility_10d', 'BBB_20_2.0', 'e_factor', 'dv_ratio', 'volatility_5d', 'turnover_rate_f', 'date_full', 'close_to_high_20d', 'pb', 'macd_cross', 'pe', 'y5_us_trycr', 'total_mv', 'y10_us_trycr', 'ltr_avg', 'y1', 'w52_bd', 'y30_us_trycr', 'w52_ce', 'w26_bd', 'w26_ce', 'w4_bd', 'm1', 'w4_ce', '1y', 'y5', 'y10', 'cmt', 'y20', 'ltc', 'y30', '6m', ]
-            t1l15_features_55 = ['natr_14', 'amplitude', 'volatility_10d', 'BBB_20_2.0', 'e_factor', 'dv_ratio', 'volatility_5d', 'turnover_rate_f', 'date_full', 'close_to_high_20d', 'pb', 'macd_cross', 'pe', 'y5_us_trycr', 'total_mv', 'y10_us_trycr', 'ltr_avg', 'y1', 'w52_bd', 'y30_us_trycr', 'w52_ce', 'w26_bd', 'w26_ce', 'w4_bd', 'm1', 'w4_ce', '1y', 'y5', 'y10', 'cmt', 'y20', 'ltc', 'y30', '6m', 'vol_max_20d', '1w', 'atr_14', 'vol_max_10d', 'on', 'ADX_14', 'stddev_10', 'vol_max_5d', 'DMP_14', 'ps', 'return_10d', 'roc_10', 'industry_idx', 'rsi_14', 'amount', 'return_5d', 'log_volume', 'high_20d_max', 'weekday', 'cmf_20']
             t1l15_features_75 = ['natr_14', 'amplitude', 'volatility_10d', 'BBB_20_2.0', 'e_factor', 'dv_ratio', 'volatility_5d', 'turnover_rate_f', 'date_full', 'close_to_high_20d', 'pb', 'macd_cross', 'pe', 'y5_us_trycr', 'total_mv', 'y10_us_trycr', 'ltr_avg', 'y1', 'w52_bd', 'y30_us_trycr', 'w52_ce', 'w26_bd', 'w26_ce', 'w4_bd', 'm1', 'w4_ce', '1y', 'y5', 'y10', 'cmt', 'y20', 'ltc', 'y30', '6m', 'vol_max_20d', '1w', 'atr_14', 'vol_max_10d', 'on', 'ADX_14', 'stddev_10', 'vol_max_5d', 'DMP_14', 'ps', 'return_10d', 'roc_10', 'industry_idx', 'rsi_14', 'amount', 'return_5d', 'log_volume', 'high_20d_max', 'weekday', 'cmf_20', 'obv', 'vol_ratio_20d', 'willr_14', 'BBU_20_2.0', 'macd_signal', 'mfi_14', 'macd', 'close_vs_open', 'sma_10', 'ema_10', 'BBM_20_2.0', 'close', 'pre_close', 'high', 'open', 'wma_10', 'cci_20', 'low', 'BBP_20_2.0', 'close_vs_low']
+            t1l15_features_55 = t1l15_features_75[:55]
+            t1l15_features_35 = t1l15_features_75[:35]
 
-            t1h10_features_35 = ['natr_14', 'e_factor', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', 'volatility_5d', 'macd_cross', 'date_full', 'total_mv', 'turnover_rate_f', 'pb', 'pe', 'close_to_high_20d', 'vol_max_20d', 'vol_max_10d', 'w52_bd', 'w52_ce', 'y1', 'vol_max_5d', 'cmt', 'y10', 'y5', 'ltc', 'w26_ce', 'y20', 'y30', 'w26_bd', 'm1', 'w4_bd', '1w', 'y5_us_trycr', 'w4_ce', 'y10_us_trycr', 'on']
-            t1h10_features_55 = ['natr_14', 'e_factor', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', 'volatility_5d', 'macd_cross', 'date_full', 'total_mv', 'turnover_rate_f', 'pb', 'pe', 'close_to_high_20d', 'vol_max_20d', 'vol_max_10d', 'w52_bd', 'w52_ce', 'y1', 'vol_max_5d', 'cmt', 'y10', 'y5', 'ltc', 'w26_ce', 'y20', 'y30', 'w26_bd', 'm1', 'w4_bd', '1w', 'y5_us_trycr', 'w4_ce', 'y10_us_trycr', 'on', '1y', 'y30_us_trycr', 'ltr_avg', 'log_volume', 'atr_14', '6m', 'stddev_10', 'DMP_14', 'rsi_14', 'ps', 'ADX_14', 'willr_14', 'roc_10', 'return_10d', 'weekday', 'obv', 'return_5d', 'sell_elg_vol', 'vol_mean_20d', 'BBP_20_2.0']
             t1h10_features_75 = ['natr_14', 'e_factor', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', 'volatility_5d', 'macd_cross', 'date_full', 'total_mv', 'turnover_rate_f', 'pb', 'pe', 'close_to_high_20d', 'vol_max_20d', 'vol_max_10d', 'w52_bd', 'w52_ce', 'y1', 'vol_max_5d', 'cmt', 'y10', 'y5', 'ltc', 'w26_ce', 'y20', 'y30', 'w26_bd', 'm1', 'w4_bd', '1w', 'y5_us_trycr', 'w4_ce', 'y10_us_trycr', 'on', '1y', 'y30_us_trycr', 'ltr_avg', 'log_volume', 'atr_14', '6m', 'stddev_10', 'DMP_14', 'rsi_14', 'ps', 'ADX_14', 'willr_14', 'roc_10', 'return_10d', 'weekday', 'obv', 'return_5d', 'sell_elg_vol', 'vol_mean_20d', 'BBP_20_2.0', 'vol_mean_10d', 'cci_20', 'buy_elg_vol', 'industry_idx', 'vol_mean_5d', 'DMN_14', 'close_vs_open', 'mfi_14', 'pct_chg', 'return_1d', 'high_20d_max', 'vol', 'sell_sm_vol', 'log_return', 'buy_sm_vol', 'BBU_20_2.0', 'STOCHk_3_3_3', 'buy_md_vol', 'sell_lg_vol', 'buy_lg_vol']
+            t1h10_features_55 = t1h10_features_75[:55]
+            t1h10_features_35 = t1h10_features_75[:35]
 
-            t2h10_features_25 = ['e_factor', 'natr_14', 'date_full', 'macd_cross', 'vol_max_5d', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', '1y', 'on', 'vol_max_10d', '6m', 'volatility_5d', '1w', 'vol_max_20d', 'total_mv', 'close_to_high_20d', 'pe', 'w52_bd', 'turnover_rate_f', 'y1', 'pb', 'w52_ce', 'y10']
-            t2h10_features_35 = ['e_factor', 'natr_14', 'date_full', 'macd_cross', 'vol_max_5d', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', '1y', 'on', 'vol_max_10d', '6m', 'volatility_5d', '1w', 'vol_max_20d', 'total_mv', 'close_to_high_20d', 'pe', 'w52_bd', 'turnover_rate_f', 'y1', 'pb', 'w52_ce', 'y10', 'y5', 'w26_bd', 'w26_ce', 'y5_us_trycr', 'ltc', 'y20', 'cmt', 'y30', 'w4_bd', 'w4_ce']
-            t2h10_features_45 = ['e_factor', 'natr_14', 'date_full', 'macd_cross', 'vol_max_5d', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', '1y', 'on', 'vol_max_10d', '6m', 'volatility_5d', '1w', 'vol_max_20d', 'total_mv', 'close_to_high_20d', 'pe', 'w52_bd', 'turnover_rate_f', 'y1', 'pb', 'w52_ce', 'y10', 'y5', 'w26_bd', 'w26_ce', 'y5_us_trycr', 'ltc', 'y20', 'cmt', 'y30', 'w4_bd', 'w4_ce', 'm1', 'y10_us_trycr', 'log_volume', 'y30_us_trycr', 'ltr_avg', 'atr_14', 'rsi_14', 'weekday', 'stddev_10']
             t2h10_features_55 = ['e_factor', 'natr_14', 'date_full', 'macd_cross', 'vol_max_5d', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', '1y', 'on', 'vol_max_10d', '6m', 'volatility_5d', '1w', 'vol_max_20d', 'total_mv', 'close_to_high_20d', 'pe', 'w52_bd', 'turnover_rate_f', 'y1', 'pb', 'w52_ce', 'y10', 'y5', 'w26_bd', 'w26_ce', 'y5_us_trycr', 'ltc', 'y20', 'cmt', 'y30', 'w4_bd', 'w4_ce', 'm1', 'y10_us_trycr', 'log_volume', 'y30_us_trycr', 'ltr_avg', 'atr_14', 'rsi_14', 'weekday', 'stddev_10', 'DMP_14', 'ps', 'willr_14', 'ADX_14', 'STOCHk_3_3_3', 'roc_10', 'return_10d', 'return_5d', 'sell_elg_vol', 'buy_elg_vol']
-            advanced_features = ['industry_idx', 'date_full', 'return_1d', 'volatility_5d', 'is_new_high_20d', 'is_vol_break_5d', 'close_vs_low', 'close_vs_open']
+            t2h10_features_45 = t2h10_features_55[:45]
+            t2h10_features_35 = t2h10_features_55[:35]
+            t2h10_features_25 = t2h10_features_55[:25]
+
+            advanced_features = ['industry_idx', 'date_full', 'vwap', 'supertrend', 'donchian_upper', 'donchian_lower', 'donchian_mid', 'his_low', 'his_high', 'cost_5pct', 'cost_15pct', 'cost_50pct', 'cost_85pct', 'cost_95pct', 'weight_avg', 'winner_rate']
             remain_list = list(dict.fromkeys(chain(basic_features, locals()[self.feature_type.value], advanced_features))) if self.feature_type != FeatureType.ALL else self.trade_df.columns.to_list()
             #logging.info(f"After feature selection, remain {len(remain_list)}")
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2 #在raw_data_np中的列索引位置,需要-2(减去ts_code和trade_date两列)
@@ -268,7 +289,7 @@ if __name__ == "__main__":
     si = StockInfo(TOKEN)
     #ts_code = '000001.SH'
     ts_code = '600036.SH'
-    t = Trade(ts_code, si, stock_type=StockType.RELATED, start_date='20250101', end_date='20250829')
+    t = Trade(ts_code, si, stock_type=StockType.RELATED, start_date='20180104', end_date='20250530')
     #t = Trade(ts_code, si, stock_type=StockType.INDEX, start_date='20250101', end_date='20250829')
     print(f"trade shape: {t.combine_data_np.shape}, raw shape: {t.raw_data_np.shape}")
     print(f"trade head:\n{pd.DataFrame(t.raw_data_np).head(5)}\ntrade tail:\n{pd.DataFrame(t.raw_data_np).tail(5)}")

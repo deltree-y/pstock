@@ -84,7 +84,10 @@ def feature_importance_analysis(ds, feature_names, pearson_threshold=0.03, mi_th
     """分析并选择最重要的特征"""
     feature_data = ds.raw_train_x[-len(ds.train_y):]  # 对齐数据
     target = ds.train_y[:, 0]  # 回归目标
-    
+    # 修复：填充所有nan/inf
+    feature_data = np.nan_to_num(feature_data, nan=0, posinf=0, neginf=0)
+    target = np.nan_to_num(target, nan=0, posinf=0, neginf=0)
+        
     # 结合多种特征选择方法
     results = auto_select_features(feature_data, target, feature_names,
                               pearson_threshold=pearson_threshold, mi_threshold=mi_threshold,

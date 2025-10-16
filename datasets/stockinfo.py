@@ -275,7 +275,7 @@ class StockInfo():
         ret = df[df['is_open']==1]['cal_date']
         ret = pd.DataFrame(ret)
         ret.columns = ['trade_date']
-        return ret
+        return ret.astype(str)  #确保trade_date列为字符串类型,20251016修改
 
     def save_stock_list_with_total_mv(self):
         self.__update_list()

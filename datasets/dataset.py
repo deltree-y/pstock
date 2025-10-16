@@ -60,7 +60,7 @@ class StockDataset():
         self.idx_raw_dataset_list, self.idx_raw_data_list = zip(*[self.get_trade_data(idx_trade) for idx_trade in self.idx_trade_list]) if self.if_has_index else ([], [])
         if self.if_has_index:
             for idx_raw_data in self.idx_raw_data_list: #逐个将指数数据并接到主股票及关联股票数据上, 如果批量处理的话, 会打乱已有的raw_data顺序
-                self.raw_data = self.left_join_pd_with_move_last(self.raw_data, idx_raw_data) if self.if_has_index else self.raw_data    #已包括主股票及关联股票及指数数据
+                self.raw_data = self.left_join_pd_with_move_last(self.raw_data, idx_raw_data, if_debug=False) if self.if_has_index else self.raw_data    #已包括主股票及关联股票及指数数据
 
         ###########      ********************      #################
         ### 每只股票单独切分训练/测试，再合并 ###
@@ -281,7 +281,7 @@ class StockDataset():
         #print(f"DEBUG: date={date}, idx={idx}, raw_x.shape={raw_x.shape}, x.shape={x.shape}, closed_price={closed_price}")
         return x, closed_price
     
-    def left_join_pd_with_move_last(self, A, B, move_last_n_cols=0):
+    def left_join_pd_with_move_last(self, A, B, move_last_n_cols=0, if_debug=False):
         """
         用 pandas 实现 left join，并将A的倒数N列移至结果的倒数N列（可控）
         A: shape (n, m1)
@@ -296,8 +296,20 @@ class StockDataset():
             raise ValueError(f"B must be 2D np.ndarray, got {type(B)}, shape={getattr(B,'shape',None)}")
         df_a = pd.DataFrame(A)
         df_b = pd.DataFrame(B)
+        if if_debug:
+            print(f"before datetime conversion:"+"*"*40)
+            print(f"df_a head:\n{df_a.head(3)}\ndf_b head:\n{df_b.head(3)}")
+        # 保证第0列类型一致
+        df_a[0] = pd.to_datetime(df_a[0]).dt.strftime('%Y%m%d')
+        df_b[0] = pd.to_datetime(df_b[0]).dt.strftime('%Y%m%d')
+        if if_debug:
+            print(f"after datetime conversion:"+"*"*40)
+            print(f"df_a head:\n{df_a.head(3)}\ndf_b head:\n{df_b.head(3)}")
         # 合并，左连接，按第0列key
         df_merged = pd.merge(df_a, df_b, left_on=0, right_on=0, how='left', suffixes=('', '_b'))
+        if if_debug:
+            print(f"after merge:"+"*"*40)
+            print(f"df_merged head:\n{df_merged.head(3)}")
         # 去掉B重复的key列
         df_merged = df_merged.loc[:, ~df_merged.columns.duplicated()]
 
@@ -414,20 +426,20 @@ if __name__ == "__main__":
     #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20190104', end_date='20250903', 
     #                  train_size=0.9, if_use_all_features=False, predict_type=PredictType.BINARY_T2_L10)
 
-    ds = StockDataset(ts_code=primary_stock_code, idx_code_list=idx_code_list, rel_code_list=[], si=si, if_update_scaler=False,
-                start_date='19921203', end_date='20250930',
-                train_size=1, feature_type=FeatureType.T1L10_F55, predict_type=PredictType.BINARY_T1_L10)
+    #ds = StockDataset(ts_code=primary_stock_code, idx_code_list=idx_code_list, rel_code_list=[], si=si, if_update_scaler=False,
+    #            start_date='19921203', end_date='20250930',
+    #            train_size=1, feature_type=FeatureType.T1L10_F55, predict_type=PredictType.BINARY_T1_L10)
 
     ds = StockDataset(
         ts_code=primary_stock_code,
         idx_code_list=idx_code_list,
         rel_code_list=rel_code_list,
         si=si,
-        start_date='20100104',
-        end_date='20251010',
+        start_date='20180104',
+        end_date='20250530',
         train_size=1,
         feature_type=FeatureType.T1L10_F55,
-        if_update_scaler=False,
+        if_update_scaler=True,
         predict_type=PredictType.BINARY_T1_L10
     )
 
@@ -436,6 +448,7 @@ if __name__ == "__main__":
     start_idx = 0
     print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_data).iloc[start_idx:start_idx+3]}")
     print(f"\nraw y sample: \n{pd.DataFrame(ds.raw_y).iloc[start_idx:start_idx+3]}")
+    #print(f"feature names: {ds.get_feature_names()}")
     #data, bp = ds.get_predictable_dataset_by_date("20250829")
     #print(f"data shape: {data.shape}, bp: {bp}")
     #print(f"{ds.p_trade.remain_list}")

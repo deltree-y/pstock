@@ -29,8 +29,6 @@ def main():
     model_type = getattr(ModelType, args.model_type.upper(), ModelType.RESIDUAL_LSTM)
     predict_type = getattr(PredictType, args.predict_type, PredictType.BINARY_T1_L10)
     feature_type = getattr(FeatureType, args.feature_type.upper(), FeatureType.T1L10_F55)
-    model = load_model_by_params(args.stock_code, model_type, predict_type, feature_type)
-    print(f"model_type: {model_type}, predict_type: {predict_type}, feature_type: {feature_type}")
 
     if args.from_date is None and args.dates is None:
         print("错误: 必须指定 --dates 或 --from_date")
@@ -53,6 +51,8 @@ def main():
         predict_type=predict_type
     )
 
+    model = load_model_by_params(args.stock_code, model_type, predict_type, feature_type)
+    print(f"model_type: {model_type}, predict_type: {predict_type}, feature_type: {feature_type}")
 
     for date_str in args.dates:
         print(f"\n==== T0:[{si.get_next_or_current_trade_date(date_str)}] / T1:[{si.get_next_trade_date(si.get_next_or_current_trade_date(date_str))}] / T2:[{si.get_next_trade_date(si.get_next_trade_date(si.get_next_or_current_trade_date(date_str)))}] ====")

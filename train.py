@@ -55,25 +55,26 @@ def auto_search():
     primary_stock_code = '600036.SH'
     index_code_list = IDX_CODE_LIST
     related_stock_list = ALL_CODE_LIST
-    t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].tolist()
-    t_start_date, t_end_date = '20150104', '20250530'
+    t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].astype(str).tolist()
+    print(f"预测日期列表: {type(t_list[0])}")
+    t_start_date, t_end_date = '20180104', '20250530'
 
     # ---模型通用参数---
     model_type = ModelType.RESIDUAL_TCN
     p = 2
     dropout_rate = 0.3
-    feature_type_list = [FeatureType.T1H10_F55]
-    predict_type_list = [PredictType.BINARY_T1_H10]
+    feature_type_list = [FeatureType.T1L10_F55]
+    predict_type_list = [PredictType.BINARY_T1_L10]
     loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
     lr_list = [0.0002]#, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.0001]#[0.00007]
 
     # ----- 模型相关参数 ----
     if model_type == ModelType.RESIDUAL_LSTM:# LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
-        lstm_depth_list, base_units_list = [4,4], [16,24]
+        lstm_depth_list, base_units_list = [4,6], [16,64]
         model_params = zip(lstm_depth_list, base_units_list, [None]*len(lstm_depth_list), [None]*len(lstm_depth_list))
     elif model_type == ModelType.RESIDUAL_TCN:# TCN模型参数 - nb_stacks-增大会整体重复残差结构，直接增加模型深度, nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口
-        nb_filters, kernel_size, nb_stacks = [64], [8], [4]
+        nb_filters, kernel_size, nb_stacks = [64], [8], [3]
         model_params = zip(nb_filters, kernel_size, nb_stacks, [None]*len(nb_filters))
     elif model_type == ModelType.TRANSFORMER:# Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
         d_model_list, num_heads_list, ff_dim_list, num_layers_list = [128, 256], [4, 8], [256, 512], [2, 4]
@@ -85,7 +86,7 @@ def auto_search():
         raise ValueError("unknown model_type")
 
     # ===== 训练参数 =====
-    epochs = 200
+    epochs = 120
     batch_size = 2048
     patience = 20
     train_size = 0.9
