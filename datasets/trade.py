@@ -200,6 +200,7 @@ class Trade():
 
             t1l10_features_55 = ['y5', 'close_vs_low', 'cmt', 'w52_bd', 'w26_bd', 'return_5d', 'date_full', 'ltc', 'ltr_avg', 'vol', 'willr_14', 'amplitude', 'ps', 'atr_14', 'm1', 'w4_ce', 'turnover_rate_f', 'w52_ce', 'y20', 'close', 'macd_hist', 'DMP_14', 'y5_us_trycr', '1y', 'w26_ce', 'open', 'stddev_10', 'w4_bd', 'volatility_10d', 'pe', 'pb', 'close_to_high_20d', 'dv_ratio', 'volatility_5d', 'y10', 'y10_us_trycr', 'obv', '1w', 'BBB_20_2.0', 'on', 'natr_14', 'macd_signal', 'y1', 'ADX_14', '6m', 'total_mv', 'y30_us_trycr', 'y30']
             t1l10_features_35 = t1l10_features_55[:35]
+            t1l10_features_15 = t1l10_features_55[:15]
 
             t1l05_features_55 = ['natr_14', 'amplitude', 'dv_ratio', 'e_factor', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'date_full', 'total_mv', 'turnover_rate_f', 'on', 'pb', 'pe', 'close_to_high_20d', 'macd_cross', '1y', '6m', '1w', 'log_volume', 'vol_max_20d', 'vol_max_10d', 'atr_14', 'y5_us_trycr', 'ps', 'ADX_14', 'stddev_10', 'weekday', 'w26_bd', 'vol_max_5d', 'y10_us_trycr', 'w52_ce', 'w52_bd', 'w26_ce', 'y1', 'DMP_14', 'industry_idx', 'm1', 'w4_bd', 'w4_ce', 'ltr_avg', 'y5', 'y30_us_trycr', 'y10', 'vol_mean_20d', 'y20', 'ltc', 'roc_10', 'rsi_14', 'return_10d', 'cmt', 'buy_elg_vol', 'vol_ratio_20d', 'sell_elg_vol', 'y30']
             t1l05_features_35 = t1l05_features_55[:35]
@@ -217,7 +218,7 @@ class Trade():
             t2h10_features_35 = t2h10_features_55[:35]
             t2h10_features_25 = t2h10_features_55[:25]
 
-            advanced_features = ['industry_idx', 'date_full', 'vwap', 'supertrend', 'donchian_upper', 'donchian_lower', 'donchian_mid', 'his_low', 'his_high', 'cost_5pct', 'cost_15pct', 'cost_50pct', 'cost_85pct', 'cost_95pct', 'weight_avg', 'winner_rate']
+            advanced_features = ['industry_idx', 'date_full', 'vwap', 'supertrend', 'donchian_upper', 'donchian_lower', 'donchian_mid']#, 'his_low', 'his_high', 'cost_5pct', 'cost_15pct', 'cost_50pct', 'cost_85pct', 'cost_95pct', 'weight_avg', 'winner_rate']
             remain_list = list(dict.fromkeys(chain(basic_features, locals()[self.feature_type.value], advanced_features))) if self.feature_type != FeatureType.ALL else self.trade_df.columns.to_list()
             #logging.info(f"After feature selection, remain {len(remain_list)}")
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2 #在raw_data_np中的列索引位置,需要-2(减去ts_code和trade_date两列)

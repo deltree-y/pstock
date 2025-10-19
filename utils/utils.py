@@ -90,9 +90,8 @@ class FeatureType(Enum):
     T1L05_F35 = 't1l05_features_35'
     T1L05_F55 = 't1l05_features_55'
 
-    T1L10_F25 = 't1l10_features_25'
+    T1L10_F15 = 't1l10_features_15'
     T1L10_F35 = 't1l10_features_35'
-    T1L10_F45 = 't1l10_features_45'
     T1L10_F55 = 't1l10_features_55'
 
     T1H10_F35 = 't1h10_features_35'
