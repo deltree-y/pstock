@@ -1,10 +1,9 @@
 # coding=utf-8
 from collections import Counter
-from datetime import datetime, timedelta
-from math import ceil
 from enum import Enum, auto
 import numpy as np
-import logging, logging.config
+import pandas as pd
+import logging
 import matplotlib.pyplot as plt
 from numba import njit
 
@@ -59,6 +58,25 @@ def print_ratio(lst, label=""):
         print(f"[{num}]: {percent:.1%},", end='')
     print()
 
+def print_nan_inf_info(arr, name):
+    #np.set_printoptions(threshold=np.inf)
+    pd.set_option('display.max_rows', None)
+    pd.set_option('display.max_columns', None)
+    pd.set_option('display.width', 1000)
+    pd.set_option('display.max_colwidth', 100)
+    print(f"检查 {name}:")
+    nan_rows = np.where(np.isnan(arr).any(axis=1))[0]
+    inf_rows = np.where(np.isinf(arr).any(axis=1))[0]
+    if len(nan_rows) > 0:
+        print(f"{name} 存在 NaN 的行索引: {nan_rows}")
+    if len(inf_rows) > 0:
+        print(f"{name} 存在 Inf 的行索引: {inf_rows}")    
+    #if len(nan_rows) > 0:
+    #    tx_nan_last_step = tx[nan_rows, -1, :]   # [nan样本数, 特征数]
+    #    print(pd.DataFrame(tx_nan_last_step))        
+        #df = pd.DataFrame(arr[nan_rows])
+        #print(f"{name} NaN行详细内容:\n{df.describe(include='all')}\n{df.head()}")
+
 class SuperList(list):
     def append(self, item):
         super().append(item)
@@ -97,6 +115,10 @@ class FeatureType(Enum):
     T1H10_F35 = 't1h10_features_35'
     T1H10_F55 = 't1h10_features_55'
     T1H10_F75 = 't1h10_features_75'
+
+    T1H15_F35 = 't1h10_features_35' #TODO: 是否应为t1h15_features_35？
+    T1H15_F55 = 't1h10_features_55' #TODO: 是否应为t1h15_features_55？
+    T1H15_F75 = 't1h10_features_75' #TODO: 是否应为t1h15_features_75？
 
     T1L15_F35 = 't1l15_features_35'
     T1L15_F55 = 't1l15_features_55'
