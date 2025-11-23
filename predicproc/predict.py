@@ -41,8 +41,9 @@ class Predict():
     def print_predict_result(self, desc="预测"):
         if self.is_classify:
             predict_list = [round(x, 3) for x in self.predicted_data[0]]
+            confi = max(self.predicted_data[0]) * 100  # 多分类的置信率
             print(f"{desc}类别概率分布: {predict_list}")
-            print(f"{desc}t0p[{self.bp}] t1l label[{self.y1r.get_label()}] 区间: [{self.y1r.get_rate_from_label('min')*100:.2f}%, {self.y1r.get_rate_from_label('max')*100:.2f}%], 均值: {self.y1r.get_rate_from_label('avg')*100:.2f}%, 对应价格: {self.bp * (1 + self.y1r.get_rate_from_label('avg')):.2f}")
+            print(f"{desc}t0p[{self.bp}] t1l label[{self.y1r.get_label()}]({confi:.2f}%) 区间: [{self.y1r.get_rate_from_label('min')*100:.2f}%, {self.y1r.get_rate_from_label('max')*100:.2f}%], 均值: {self.y1r.get_rate_from_label('avg')*100:.2f}%, 预测价格: {self.bp * (1 + self.y1r.get_rate_from_label('avg')):.2f}")
         elif self.is_binary:
             if self.predict_type.is_binary_t1_low() or self.predict_type.is_binary_t2_low():
                 symbol = ['<=', '> ']
@@ -59,9 +60,9 @@ class Predict():
         predict_wrong_str = ""
         if self.is_classify:
             predict_list = [round(x, 3) for x in self.predicted_data[0]]
-            print(f"预测类别概率分布: {predict_list}")
-            #TODO:此处需要修改为与真实值比较
-            print(f"预测t0p[{self.bp}] t1l label[{self.y1r.get_label()}] 区间: [{self.y1r.get_rate_from_label('min')*100:.2f}%, {self.y1r.get_rate_from_label('max')*100:.2f}%], 均值: {self.y1r.get_rate_from_label('avg')*100:.2f}%, 对应价格: {self.bp * (1 + self.y1r.get_rate_from_label('avg')):.2f}")
+            #print(f"预测类别概率分布: {predict_list}")
+            confi = max(self.predicted_data[0]) * 100  # 多分类的置信率
+            print(f"预测t0p[{self.bp}] t1l 标签[{self.y1r.get_label()}]({confi:.2f}%) 区间: [{self.y1r.get_rate_from_label('min')*100:.2f}%, {self.y1r.get_rate_from_label('max')*100:.2f}%]({self.y1r.get_rate_from_label('avg')*100:.2f}%), 预测价格: {self.bp * (1 + self.y1r.get_rate_from_label('avg')):.2f}")
         elif self.is_binary:
             if self.predict_type.is_binary_t1_low() or self.predict_type.is_binary_t2_low():
                 symbol = ['<=', '> ']
@@ -81,9 +82,17 @@ class Predict():
         predict_wrong_str = ""
         if self.is_classify:
             predict_list = [round(x, 3) for x in self.predicted_data[0]]
-            print(f"预测类别概率分布: {predict_list}")
-            #TODO:此处需要修改为与真实值比较
-            print(f"预测t0p[{self.bp}] t1l label[{self.y1r.get_label()}] 区间: [{self.y1r.get_rate_from_label('min')*100:.2f}%, {self.y1r.get_rate_from_label('max')*100:.2f}%], 均值: {self.y1r.get_rate_from_label('avg')*100:.2f}%, 对应价格: {self.bp * (1 + self.y1r.get_rate_from_label('avg')):.2f}")
+            confi = max(self.predicted_data[0]) * 100  # 多分类的置信率
+            #print(f"预测类别概率分布: {predict_list}")
+            try:
+                real_label = int(real_y[0,0]) if getattr(real_y, 'ndim', 0) and real_y.ndim > 1 else int(real_y[0])
+            except Exception:
+                real_label = None
+            if real_label is not None:
+                pred_label = int(self.y1r.get_label())
+                pred_dot_str = f"{pred_label}" if pred_label == real_label else "x"
+                if pred_label != real_label:
+                    predict_wrong_str = f"预测t0p[{self.bp:.2f}] t1l label[{pred_label}]({confi:.2f}%), 区间: [{self.y1r.get_rate_from_label('min')*100:.2f}%, {self.y1r.get_rate_from_label('max')*100:.2f}%]({self.y1r.get_rate_from_label('avg')*100:.2f}%), 预测价格: {self.bp * (1 + self.y1r.get_rate_from_label('avg')):.2f}"
         elif self.is_binary:
             if self.predict_type.is_binary_t1_low() or self.predict_type.is_binary_t2_low():
                 symbol = ['<=', '> ']

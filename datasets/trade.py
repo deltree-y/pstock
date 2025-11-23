@@ -218,6 +218,9 @@ class Trade():
             t2h10_features_35 = t2h10_features_55[:35]
             t2h10_features_25 = t2h10_features_55[:25]
 
+            classify_features_50 = ['low', 'm1', 'y10', 'y20', 'close', 'amplitude', 'cmt', 'ADX_14', 'atr_14', 'dv_ratio', 'open', 'pb', 'w52_bd', 'w52_ce', 'natr_14', 'date_full', 'ltc', 'volatility_5d', 'return_5d', 'BBB_20_2.0', 'on', 'ltr_avg', 'y1', '1y', 'y30_us_trycr', 'vol', 'macd_signal', 'y30', 'y10_us_trycr', 'w4_ce', '1w', 'obv', 'volatility_10d', 'w4_bd', '6m', 'y5', 'pe', 'DMP_14', 'high', 'turnover_rate_f', 'stddev_10', 'w26_bd', 'macd_hist', 'total_mv', 'w26_ce', 'ps', 'close_vs_low', 'y5_us_trycr', 'close_to_high_20d', 'net_mf_vol']
+            classify_features_30 = classify_features_50[:30]
+
             advanced_features = ['industry_idx', 'date_full', 'vwap', 'supertrend', 'donchian_upper', 'donchian_lower', 'donchian_mid']#, 'his_low', 'his_high', 'cost_5pct', 'cost_15pct', 'cost_50pct', 'cost_85pct', 'cost_95pct', 'weight_avg', 'winner_rate']
             remain_list = list(dict.fromkeys(chain(basic_features, locals()[self.feature_type.value], advanced_features))) if self.feature_type != FeatureType.ALL else self.trade_df.columns.to_list()
             #logging.info(f"After feature selection, remain {len(remain_list)}")

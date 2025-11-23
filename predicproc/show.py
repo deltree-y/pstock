@@ -21,9 +21,15 @@ def print_predict_result(t_list, ds, m, predict_type):
         pred_dot, predict_wrong_str = pred.get_predict_result_with_real_str(real_y)
         predict_wrong_list_str += f"T0[{t0}], raw_y:[{raw_y[0]*bp+bp:<.2f}], {predict_wrong_str}\n" if predict_wrong_str!="" else ""
 
-        is_correct = pred.pred_label == real_y[0,0]
+        if pred.is_binary:
+            is_correct = pred.pred_label == real_y[0,0]
+        elif pred.is_classify:
+            is_correct = pred.y1r.get_label() == real_y[0,0]
+        else:
+            is_correct = False   # 或者合适的逻辑
+
         if is_correct:
-            correct_cnt += 1
+                correct_cnt += 1
 
         # 统计置信率
         prob_rate = None
@@ -51,3 +57,5 @@ def print_predict_result(t_list, ds, m, predict_type):
     else:
         print("无错误数据统计平均置信率")
     print("-"*100)
+
+    return correct_cnt / len(t_list), np.mean(correct_probs)*100, np.mean(wrong_probs)*100

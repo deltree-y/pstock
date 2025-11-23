@@ -105,6 +105,9 @@ class ModelType(Enum):
 class FeatureType(Enum):
     ALL = 'all_features'
 
+    CLASSIFY_F50 = 'classify_features_50'
+    CLASSIFY_F30 = 'classify_features_30'
+
     T1L05_F35 = 't1l05_features_35'
     T1L05_F55 = 't1l05_features_55'
 

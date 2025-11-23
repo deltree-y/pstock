@@ -57,29 +57,30 @@ def auto_search():
     index_code_list = IDX_CODE_LIST#BIG_IDX_CODE_LIST#IDX_CODE_LIST
     related_stock_list = ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
     t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].astype(str).tolist()
-    t_start_date, t_end_date = '20150104', '20250530'
+    t_start_date, t_end_date = '20150104', '20250101'
 
     # ---模型通用参数---
-    model_type = ModelType.RESIDUAL_LSTM
+    model_type = ModelType.TRANSFORMER
     p = 2
     dropout_rate = 0.3
-    feature_type_list = [FeatureType.T1L10_F55]
-    predict_type_list = [PredictType.BINARY_T1_L10]
+    feature_type_list = [FeatureType.CLASSIFY_F50]
+    predict_type_list = [PredictType.CLASSIFY]
     loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
     lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.0001]#[0.00007]
 
     # ===== 训练参数 =====
-    epochs = 100
+    epochs = 150
     batch_size = 1024
     patience = 30
     train_size = 0.9
-    cyc = 3    # 搜索轮数
+    cyc = 8    # 搜索轮数
+    multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
     lstm_depth_list, base_units_list = [6], [64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
-    nb_filters, kernel_size, nb_stacks = [128], [4], [2] # TCN模型参数 - nb_stacks-增大会整体重复残差结构，直接增加模型深度, nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口
-    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [128], [4], [256], [2] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
+    nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_stacks-增大会整体重复残差结构，直接增加模型深度, nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口
+    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [64], [8], [256], [4] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     filters_list, kernel_size_list, conv1d_depth_list = [128], [8], [4]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
 
     if model_type == ModelType.RESIDUAL_LSTM:# LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
@@ -94,10 +95,10 @@ def auto_search():
         raise ValueError("unknown model_type")
 
     # ===== 搜索 =====
-    history_dict = {}
+    history_dict, history_correction = {}, []
     best_paras, best_val, best_model = None, float('inf'), None
     for cyc_sn in range(cyc):
-        print(f"\n[INFO] ====== 搜索轮次: {cyc_sn+1} / {cyc} ======")
+        print(f"\n ====================================== 搜索轮次: {cyc_sn+1} / {cyc} ======================================")
         for p1,p2,p3,p4 in model_key_params:
             for lr in lr_list:
                 for ft, pt in zip(feature_type_list, predict_type_list):
@@ -109,7 +110,7 @@ def auto_search():
                         tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
                         ty, vy = ty[:, 0], vy[:, 0]
                         # 数据增强
-                        #tx, ty = ds.time_series_augmentation_4x(tx, ty, noise_level=0.01)
+                        tx, ty = ds.time_series_augmentation_multiple(tx, ty, multiple=multiple_cnt, noise_level=0.01)
                         tx = np.nan_to_num(tx, nan=-1, posinf=-1, neginf=-1)
 
                         # 检查数据
@@ -147,7 +148,7 @@ def auto_search():
 
                         #训练参数配置
                         train_params = dict(epochs=epochs, batch_size=batch_size, learning_rate=lr, patience=patience)
-                        save_path = get_model_file_name(primary_stock_code, model_type, pt, ft)
+                        save_path = get_model_file_name(primary_stock_code, model_type, pt, ft, suffix=cyc_sn)
 
                         # ===== 训练前数据打印 =====
                         print(f"\n{'='*5} 开始训练处理: model={model_type} {'='*5}")
@@ -159,15 +160,20 @@ def auto_search():
                         val_losses, model = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
                         history_dict[paras] = {'val_loss': val_losses}
                         min_val = np.min(val_losses)
-                        print(f"[INFO] paras={paras}, min val_loss={min_val:.4f}")
+                        print(f"\n[INFO] paras={paras}, min val_loss={min_val:.4f}")
                         if min_val < best_val:
                             best_paras, best_val, best_model = paras, min_val, model
-                        print_predict_result(t_list, ds_pred, model, pt)
+                        correct_rate, correct_mean_prob, wrong_mean_prob = print_predict_result(t_list, ds_pred, model, pt)
                         vx_pred_raw = model.model.predict(vx)
-                        print_recall_score(vx_pred_raw, vy, pt)
-                        best_model.save(save_path)
+                        macro_recall = print_recall_score(vx_pred_raw, vy, pt)
+                        history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall})
+                        best_model.save(f"{save_path}")
+                        for record in history_correction:
+                            print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
 
     print(f"\n[RESULT] Best : {best_paras}, min val_loss: {best_val:.4f}")
+    for record in history_correction:
+        print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
     best_model.save(save_path)
     plot_l2_loss_curves(history_dict, epochs)
 

@@ -348,7 +348,7 @@ class StockDataset():
         augmented_x = augmented_x + noise
         return augmented_x, y_data
 
-    def time_series_augmentation_4x(self, X, y, noise_level=0.005):
+    def time_series_augmentation_multiple(self, X, y, multiple=4, noise_level=0.005):
         """
         时间序列数据增强，包含多种增强方法
         """
@@ -356,27 +356,30 @@ class StockDataset():
         y_aug = y.copy()
         
         # 1. 添加高斯噪声
-        X_noise = X + np.random.normal(0, noise_level, X.shape)
-        X_aug = np.concatenate([X_aug, X_noise])
-        y_aug = np.concatenate([y_aug, y])
+        if multiple >= 2:
+            X_noise = X + np.random.normal(0, noise_level, X.shape)
+            X_aug = np.concatenate([X_aug, X_noise])
+            y_aug = np.concatenate([y_aug, y])
         
         # 2. 时间扭曲 (Time Warping)
-        X_warp = []
-        for i in range(X.shape[0]):
-            if i > 0 and i < X.shape[0] - 1:
-                warped = 0.5 * X[i-1] + 0.5 * X[i]
-                X_warp.append(warped)
-        if X_warp:
-            X_warp = np.array(X_warp)
-            y_warp = y[:len(X_warp)]
-            X_aug = np.concatenate([X_aug, X_warp])
-            y_aug = np.concatenate([y_aug, y_warp])
+        if multiple >= 3:
+            X_warp = []
+            for i in range(X.shape[0]):
+                if i > 0 and i < X.shape[0] - 1:
+                    warped = 0.5 * X[i-1] + 0.5 * X[i]
+                    X_warp.append(warped)
+            if X_warp:
+                X_warp = np.array(X_warp)
+                y_warp = y[:len(X_warp)]
+                X_aug = np.concatenate([X_aug, X_warp])
+                y_aug = np.concatenate([y_aug, y_warp])
         
         # 3. 缩放变换
-        scale_factor = np.random.uniform(0.95, 1.05)
-        X_scaled = X * scale_factor
-        X_aug = np.concatenate([X_aug, X_scaled])
-        y_aug = np.concatenate([y_aug, y])
+        if multiple >= 4:
+            scale_factor = np.random.uniform(0.95, 1.05)
+            X_scaled = X * scale_factor
+            X_aug = np.concatenate([X_aug, X_scaled])
+            y_aug = np.concatenate([y_aug, y])
         
         return X_aug, y_aug
     
