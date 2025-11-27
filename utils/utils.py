@@ -111,9 +111,15 @@ class FeatureType(Enum):
     T1L05_F35 = 't1l05_features_35'
     T1L05_F55 = 't1l05_features_55'
 
+    T1L08_F30 = 't1l08_features_30'
+
     T1L10_F15 = 't1l10_features_15'
     T1L10_F35 = 't1l10_features_35'
     T1L10_F55 = 't1l10_features_55'
+
+    T1H05_F55 = 't1h05_features_55'
+
+    T1H08_F18 = 't1h08_features_18' 
 
     T1H10_F35 = 't1h10_features_35'
     T1H10_F55 = 't1h10_features_55'
@@ -126,6 +132,8 @@ class FeatureType(Enum):
     T1L15_F35 = 't1l15_features_35'
     T1L15_F55 = 't1l15_features_55'
     T1L15_F75 = 't1l15_features_75'
+
+    T2H08_F50 = 't2h08_features_50' #TODO:待添加真实特征
 
     T2H10_F25 = 't2h10_features_25'
     T2H10_F35 = 't2h10_features_35'
@@ -148,18 +156,22 @@ class FeatureType(Enum):
     
 class PredictType(Enum):
     BINARY_T1_L05 = ("BINARY_T1_L05", -0.5, "T1L")
+    BINARY_T1_L08 = ("BINARY_T1_L08", -0.8, "T1L")
     BINARY_T1_L10 = ("BINARY_T1_L10", -1.0, "T1L")
     BINARY_T1_L15 = ("BINARY_T1_L15", -1.5, "T1L") 
 
     BINARY_T1_H05 = ("BINARY_T1_H05", 0.5, "T1H")
+    BINARY_T1_H08 = ("BINARY_T1_H08", 0.8, "T1H")
     BINARY_T1_H10 = ("BINARY_T1_H10", 1.0, "T1H")
     BINARY_T1_H15 = ("BINARY_T1_H15", 1.5, "T1H")
 
     BINARY_T2_L05 = ("BINARY_T2_L05", -0.5, "T2L")
+    BINARY_T2_L08 = ("BINARY_T2_L08", -0.8, "T2L")
     BINARY_T2_L10 = ("BINARY_T2_L10", -1.0, "T2L")
     BINARY_T2_L15 = ("BINARY_T2_L15", -1.5, "T2L")
 
     BINARY_T2_H05 = ("BINARY_T2_H05", 0.5, "T2H")
+    BINARY_T2_H08 = ("BINARY_T2_H08", 0.8, "T2H")
     BINARY_T2_H10 = ("BINARY_T2_H10", 1.0, "T2H")
     BINARY_T2_H15 = ("BINARY_T2_H15", 1.5, "T2H")
 

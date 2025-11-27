@@ -199,21 +199,36 @@ class Trade():
             basic_features = ['ts_code', 'trade_date', 'open', 'high', 'low', 'close']#, 'stock_idx']
 
             t1l10_features_55 = ['y5', 'close_vs_low', 'cmt', 'w52_bd', 'w26_bd', 'return_5d', 'date_full', 'ltc', 'ltr_avg', 'vol', 'willr_14', 'amplitude', 'ps', 'atr_14', 'm1', 'w4_ce', 'turnover_rate_f', 'w52_ce', 'y20', 'close', 'macd_hist', 'DMP_14', 'y5_us_trycr', '1y', 'w26_ce', 'open', 'stddev_10', 'w4_bd', 'volatility_10d', 'pe', 'pb', 'close_to_high_20d', 'dv_ratio', 'volatility_5d', 'y10', 'y10_us_trycr', 'obv', '1w', 'BBB_20_2.0', 'on', 'natr_14', 'macd_signal', 'y1', 'ADX_14', '6m', 'total_mv', 'y30_us_trycr', 'y30']
+            t1l10_features_50 = t1l10_features_55[:50]
             t1l10_features_35 = t1l10_features_55[:35]
             t1l10_features_15 = t1l10_features_55[:15]
 
             t1l05_features_55 = ['natr_14', 'amplitude', 'dv_ratio', 'e_factor', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'date_full', 'total_mv', 'turnover_rate_f', 'on', 'pb', 'pe', 'close_to_high_20d', 'macd_cross', '1y', '6m', '1w', 'log_volume', 'vol_max_20d', 'vol_max_10d', 'atr_14', 'y5_us_trycr', 'ps', 'ADX_14', 'stddev_10', 'weekday', 'w26_bd', 'vol_max_5d', 'y10_us_trycr', 'w52_ce', 'w52_bd', 'w26_ce', 'y1', 'DMP_14', 'industry_idx', 'm1', 'w4_bd', 'w4_ce', 'ltr_avg', 'y5', 'y30_us_trycr', 'y10', 'vol_mean_20d', 'y20', 'ltc', 'roc_10', 'rsi_14', 'return_10d', 'cmt', 'buy_elg_vol', 'vol_ratio_20d', 'sell_elg_vol', 'y30']
+            t1l05_features_50 = t1l05_features_55[:50]
             t1l05_features_35 = t1l05_features_55[:35]
 
+            t1l08_features_30 = ['atr_14', 'vol_max_20d', 'y5_us_trycr', 'close_to_high_20d', 'close', 'volatility_5d', 'volatility_10d', 'dv_ratio', 'ltr_avg', 'pe', 'obv', 'y30_us_trycr', 'vol', 'amplitude', 'natr_14', 'y10_us_trycr', 'low', 'stddev_10', '1w', 'close_vs_low', 'pb', 'open', 'high', 'BBB_20_2.0', 'total_mv', 'on', 'date_full', 'turnover_rate_f', '6m', 'y30']
+
             t1l15_features_75 = ['natr_14', 'amplitude', 'volatility_10d', 'BBB_20_2.0', 'e_factor', 'dv_ratio', 'volatility_5d', 'turnover_rate_f', 'date_full', 'close_to_high_20d', 'pb', 'macd_cross', 'pe', 'y5_us_trycr', 'total_mv', 'y10_us_trycr', 'ltr_avg', 'y1', 'w52_bd', 'y30_us_trycr', 'w52_ce', 'w26_bd', 'w26_ce', 'w4_bd', 'm1', 'w4_ce', '1y', 'y5', 'y10', 'cmt', 'y20', 'ltc', 'y30', '6m', 'vol_max_20d', '1w', 'atr_14', 'vol_max_10d', 'on', 'ADX_14', 'stddev_10', 'vol_max_5d', 'DMP_14', 'ps', 'return_10d', 'roc_10', 'industry_idx', 'rsi_14', 'amount', 'return_5d', 'log_volume', 'high_20d_max', 'weekday', 'cmf_20', 'obv', 'vol_ratio_20d', 'willr_14', 'BBU_20_2.0', 'macd_signal', 'mfi_14', 'macd', 'close_vs_open', 'sma_10', 'ema_10', 'BBM_20_2.0', 'close', 'pre_close', 'high', 'open', 'wma_10', 'cci_20', 'low', 'BBP_20_2.0', 'close_vs_low']
+            t1l15_features_50 = t1l15_features_75[:50]
             t1l15_features_55 = t1l15_features_75[:55]
             t1l15_features_35 = t1l15_features_75[:35]
 
+            t1h05_features_55 = ['natr_14', 'amplitude', 'dv_ratio', 'e_factor', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'date_full', 'total_mv', 'turnover_rate_f', 'on', 'pb', 'pe', 'close_to_high_20d', 'macd_cross', '1y', '6m', '1w', 'log_volume', 'vol_max_20d', 'vol_max_10d', 'atr_14', 'y5_us_trycr', 'ps', 'ADX_14', 'stddev_10', 'weekday', 'w26_bd', 'vol_max_5d', 'y10_us_trycr', 'w52_ce', 'w52_bd', 'w26_ce', 'y1', 'DMP_14', 'industry_idx', 'm1', 'w4_bd', 'w4_ce', 'ltr_avg', 'y5', 'y30_us_trycr', 'y10', 'vol_mean_20d', 'y20', 'ltc', 'roc_10', 'rsi_14', 'return_10d', 'cmt', 'buy_elg_vol', 'vol_ratio_20d', 'sell_elg_vol', 'y30']
+            t1h05_features_50 = t1h05_features_55[:50]
+            t1h05_features_35 = t1h05_features_55[:35]
+
+            t1h08_features_18 = ['pe', 'turnover_rate_f', 'on', 'volatility_10d', 'volatility_5d', '1w', 'pb', 'BBB_20_2.0', 'atr_14', 'vol_max_10d', 'dv_ratio', 'vol', 'total_mv', 'vol_max_20d', 'amplitude', 'DMP_14', 'close_to_high_20d', 'natr_14']
+
             t1h10_features_75 = ['natr_14', 'e_factor', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', 'volatility_5d', 'macd_cross', 'date_full', 'total_mv', 'turnover_rate_f', 'pb', 'pe', 'close_to_high_20d', 'vol_max_20d', 'vol_max_10d', 'w52_bd', 'w52_ce', 'y1', 'vol_max_5d', 'cmt', 'y10', 'y5', 'ltc', 'w26_ce', 'y20', 'y30', 'w26_bd', 'm1', 'w4_bd', '1w', 'y5_us_trycr', 'w4_ce', 'y10_us_trycr', 'on', '1y', 'y30_us_trycr', 'ltr_avg', 'log_volume', 'atr_14', '6m', 'stddev_10', 'DMP_14', 'rsi_14', 'ps', 'ADX_14', 'willr_14', 'roc_10', 'return_10d', 'weekday', 'obv', 'return_5d', 'sell_elg_vol', 'vol_mean_20d', 'BBP_20_2.0', 'vol_mean_10d', 'cci_20', 'buy_elg_vol', 'industry_idx', 'vol_mean_5d', 'DMN_14', 'close_vs_open', 'mfi_14', 'pct_chg', 'return_1d', 'high_20d_max', 'vol', 'sell_sm_vol', 'log_return', 'buy_sm_vol', 'BBU_20_2.0', 'STOCHk_3_3_3', 'buy_md_vol', 'sell_lg_vol', 'buy_lg_vol']
             t1h10_features_55 = t1h10_features_75[:55]
+            t1h10_features_50 = t1h10_features_75[:50]
             t1h10_features_35 = t1h10_features_75[:35]
 
+            t2h08_features_50 = ['e_factor', 'natr_14', 'date_full', 'macd_cross', 'vol_max_5d', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', '1y', 'on', 'vol_max_10d', '6m', 'volatility_5d', '1w', 'vol_max_20d', 'total_mv', 'close_to_high_20d', 'pe', 'w52_bd', 'turnover_rate_f', 'y1', 'pb', 'w52_ce', 'y10', 'y5', 'w26_bd', 'w26_ce', 'y5_us_trycr', 'ltc', 'y20', 'cmt', 'y30', 'w4_bd', 'w4_ce', 'm1', 'y10_us_trycr', 'log_volume', 'y30_us_trycr', 'ltr_avg', 'atr_14', 'rsi_14', 'weekday', 'stddev_10', 'DMP_14', 'ps', 'willr_14', 'ADX_14', 'STOCHk_3_3_3', 'roc_10', 'return_10d', 'return_5d', 'sell_elg_vol', 'buy_elg_vol']
+
             t2h10_features_55 = ['e_factor', 'natr_14', 'date_full', 'macd_cross', 'vol_max_5d', 'volatility_10d', 'amplitude', 'dv_ratio', 'BBB_20_2.0', '1y', 'on', 'vol_max_10d', '6m', 'volatility_5d', '1w', 'vol_max_20d', 'total_mv', 'close_to_high_20d', 'pe', 'w52_bd', 'turnover_rate_f', 'y1', 'pb', 'w52_ce', 'y10', 'y5', 'w26_bd', 'w26_ce', 'y5_us_trycr', 'ltc', 'y20', 'cmt', 'y30', 'w4_bd', 'w4_ce', 'm1', 'y10_us_trycr', 'log_volume', 'y30_us_trycr', 'ltr_avg', 'atr_14', 'rsi_14', 'weekday', 'stddev_10', 'DMP_14', 'ps', 'willr_14', 'ADX_14', 'STOCHk_3_3_3', 'roc_10', 'return_10d', 'return_5d', 'sell_elg_vol', 'buy_elg_vol']
+            t2h10_features_50 = t2h10_features_55[:50]
             t2h10_features_45 = t2h10_features_55[:45]
             t2h10_features_35 = t2h10_features_55[:35]
             t2h10_features_25 = t2h10_features_55[:25]

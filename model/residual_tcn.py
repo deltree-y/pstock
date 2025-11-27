@@ -92,7 +92,7 @@ class ResidualTCNModel:
                  ):
         if fn is not None:
             self.load(fn)
-            self.model.summary()
+            self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
             return
         self.p = p
         self.nb_filters = nb_filters
@@ -114,7 +114,6 @@ class ResidualTCNModel:
         self.history = LossHistory()
         logging.info(f"ResidualTCN input shape: {self.x.shape}, output shape: {self.y.shape}")
         self.create_model(self.x.shape[1:])
-        self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
 
     def create_model(self, input_shape):
         inputs = Input(shape=input_shape)

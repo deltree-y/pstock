@@ -57,24 +57,24 @@ def auto_search():
     index_code_list = IDX_CODE_LIST#BIG_IDX_CODE_LIST#IDX_CODE_LIST
     related_stock_list = ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
     t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].astype(str).tolist()
-    t_start_date, t_end_date = '20150104', '20250101'
+    t_start_date, t_end_date = '20160104', '20250101'
 
     # ---模型通用参数---
-    model_type = ModelType.TRANSFORMER
+    model_type = ModelType.RESIDUAL_TCN
     p = 2
     dropout_rate = 0.3
-    feature_type_list = [FeatureType.CLASSIFY_F50]
-    predict_type_list = [PredictType.CLASSIFY]
+    feature_type_list = [FeatureType.T1L05_F55]
+    predict_type_list = [PredictType.BINARY_T1_L05]
     loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
     lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.0001]#[0.00007]
 
     # ===== 训练参数 =====
     epochs = 150
-    batch_size = 1024
+    batch_size = 512
     patience = 30
     train_size = 0.9
-    cyc = 8    # 搜索轮数
+    cyc = 3    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
@@ -148,7 +148,7 @@ def auto_search():
 
                         #训练参数配置
                         train_params = dict(epochs=epochs, batch_size=batch_size, learning_rate=lr, patience=patience)
-                        save_path = get_model_file_name(primary_stock_code, model_type, pt, ft, suffix=cyc_sn)
+                        save_path = get_model_file_name(primary_stock_code, model_type, pt, ft)#, suffix=cyc_sn)
 
                         # ===== 训练前数据打印 =====
                         print(f"\n{'='*5} 开始训练处理: model={model_type} {'='*5}")
@@ -167,7 +167,7 @@ def auto_search():
                         vx_pred_raw = model.model.predict(vx)
                         macro_recall = print_recall_score(vx_pred_raw, vy, pt)
                         history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall})
-                        best_model.save(f"{save_path}")
+                        #best_model.save(f"{save_path}")
                         for record in history_correction:
                             print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
 
