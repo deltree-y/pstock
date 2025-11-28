@@ -58,11 +58,11 @@ def build_ds_and_model(
     return si, ds, model
 
 
-def _predict_binary_label(model, x_input):
+def _predict_binary_label(model, x_input, threshold=0.5):
     """对二分类模型做预测, 返回 (prob, label)"""
     raw = model.model.predict(x_input, verbose=0)
     prob = float(raw[0, 0])
-    label = int(prob > 0.5)
+    label = int(prob > threshold)
     return prob, label
 
 
@@ -117,6 +117,7 @@ def simulate_trading(
     end_date: str,
     init_capital: float = 500000,
     use_buy_max: bool = True,
+    threshold: float = 0.5,
 ):
     """
     统一整合后的策略（按你最终描述）：
@@ -213,7 +214,7 @@ def simulate_trading(
         # ====================== 卖出逻辑 ======================
         if have_position and f.get_stock_quantity() > 0:
             # 1) 用 T1H 卖出模型判断是否有卖出意向
-            prob_t1h, label_t1h = _predict_binary_label(m_t1h_sell, x_t1h_sell)
+            prob_t1h, label_t1h = _predict_binary_label(m_t1h_sell, x_t1h_sell, threshold=threshold)
 
             if label_t1h == 1:
                 # 2) 卖出挂单价（由 BINARY_T1_Hzz 的阈值决定）
@@ -242,8 +243,8 @@ def simulate_trading(
 
         # ====================== 买入逻辑 ======================
         # 1) T1L/T2H 二分类给出买入意向（“T1低值跌，T2高值涨”）
-        prob_t1l_buy, label_t1l_buy = _predict_binary_label(m_t1l_buy, x_t1l_buy)
-        prob_t2h_sell, label_t2h_sell = _predict_binary_label(m_t2h_sell, x_t2h_sell)
+        prob_t1l_buy, label_t1l_buy = _predict_binary_label(m_t1l_buy, x_t1l_buy, threshold=threshold)
+        prob_t2h_sell, label_t2h_sell = _predict_binary_label(m_t2h_sell, x_t2h_sell, threshold=threshold)
 
         has_buy_intent = (label_t1l_buy == 1) and (label_t2h_sell == 1)
 
@@ -391,14 +392,14 @@ if __name__ == "__main__":
     model_type = ModelType.TRANSFORMER#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
 
     # PredictType/FeatureType（各自独立）
-    t1l_buy_type = PredictType.BINARY_T1_L08#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10)
-    t1l_buy_feature = FeatureType.ALL#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55)
+    t1l_buy_type = PredictType.BINARY_T1_L05#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10)
+    t1l_buy_feature = FeatureType.T1L05_F55#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55)
 
     t2h_sell_type = PredictType.BINARY_T2_H10#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
     t2h_sell_feature = FeatureType.T2H10_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
 
-    t1h_sell_type = PredictType.BINARY_T1_H08#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
-    t1h_sell_feature = FeatureType.T1H08_F18#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
+    t1h_sell_type = PredictType.BINARY_T1_H10#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
+    t1h_sell_feature = FeatureType.T1H10_F55#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
 
     end_date = args.end_date or datetime.now().strftime("%Y%m%d")
 

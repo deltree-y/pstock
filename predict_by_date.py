@@ -12,6 +12,7 @@ from utils.utils import FeatureType, ModelType, PredictType, setup_logging
 from predicproc.predict import Predict, RegPredict
 
 def main():
+    threshold = 0.5
     warnings.filterwarnings("ignore", category=UserWarning)
     parser = argparse.ArgumentParser(description="Use trained model for prediction by date")
     parser.add_argument("--stock_code", default="600036.SH", help="Primary stock code")
@@ -70,7 +71,7 @@ def main():
             if predict_type.is_classify():
                 Predict(pred, base_price, predict_type, ds.bins1, ds.bins2).print_predict_result("预测")
             elif predict_type.is_binary():
-                Predict(pred, base_price, predict_type).print_predict_result("预测")
+                Predict(pred, base_price, predict_type, threshold=threshold).print_predict_result("预测")
             elif predict_type.is_regress():
                 RegPredict(pred, base_price).print_predict_result("预测")
             else:

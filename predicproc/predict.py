@@ -4,12 +4,12 @@ from cat import RateCat
 from utils.utils import PredictType
 
 class Predict():
-    def __init__(self, predicted_data, base_price, predict_type, bins1=None, bins2=None):
+    def __init__(self, predicted_data, base_price, predict_type, bins1=None, bins2=None, threshold=0.5):
         self.predicted_data = predicted_data
         self.bp = base_price
         self.bins1, self.bins2 = bins1, bins2
         self.predict_type = predict_type
-
+        self.threshold = threshold
         self.is_classify = predict_type.is_classify()
         self.is_binary = predict_type.is_binary()
         self.is_regress = predict_type.is_regress()
@@ -33,7 +33,7 @@ class Predict():
                 self.y1r = RateCat(label=label, scale=self.bins1.bins, tag='T1L')
         elif self.is_binary:
             self.prob = float(predicted_data[0,0])
-            self.pred_label = int(self.prob > 0.5)
+            self.pred_label = int(self.prob > self.threshold)
         else:
             self.pred_value = float(predicted_data[0,0])
     

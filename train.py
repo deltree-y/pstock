@@ -6,6 +6,7 @@ import tensorflow as tf
 import pandas as pd
 import torch
 from sklearn.utils import compute_class_weight
+from sklearn.metrics import f1_score
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
 from model.analyze import plot_l2_loss_curves, print_recall_score
@@ -60,17 +61,18 @@ def auto_search():
     t_start_date, t_end_date = '20160104', '20250101'
 
     # ---模型通用参数---
-    model_type = ModelType.RESIDUAL_TCN
+    model_type = ModelType.TRANSFORMER
     p = 2
-    dropout_rate = 0.3
-    feature_type_list = [FeatureType.T1L05_F55]
-    predict_type_list = [PredictType.BINARY_T1_L05]
+    dropout_rate = 0.2
+    feature_type_list = [FeatureType.T1H10_F55]
+    predict_type_list = [PredictType.BINARY_T1_H10]
     loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
-    lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
+    lr_list = [0.0001]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.0001]#[0.00007]
+    threshold = 0.5 # 二分类阈值
 
     # ===== 训练参数 =====
-    epochs = 150
+    epochs = 100
     batch_size = 512
     patience = 30
     train_size = 0.9
@@ -80,7 +82,7 @@ def auto_search():
     # ----- 模型相关参数 ----
     lstm_depth_list, base_units_list = [6], [64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
     nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_stacks-增大会整体重复残差结构，直接增加模型深度, nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口
-    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [64], [8], [256], [4] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
+    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [64], [8], [512], [4] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     filters_list, kernel_size_list, conv1d_depth_list = [128], [8], [4]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
 
     if model_type == ModelType.RESIDUAL_LSTM:# LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
@@ -128,9 +130,9 @@ def auto_search():
                             cls_weights = dict(enumerate(class_weights))
                         else:
                             cls_weights = None
-                            #cls_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
-                            #cls_weights[0] *= 2  # 加大类别0权重
-
+                            classes = np.unique(ty)
+                            class_weights = compute_class_weight('balanced', classes=classes, y=ty)
+                            cls_weights = {int(c): w for c, w in zip(classes, class_weights)}
                         if model_type == ModelType.RESIDUAL_LSTM:
                             paras = f"{pt}_{ft}_{l2_reg}_{lr}_{p1}_{p2}_{cyc_sn}" 
                             model_params = dict(p=p, depth=p1, base_units=p2, dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, predict_type=pt)
@@ -154,7 +156,8 @@ def auto_search():
                         print(f"\n{'='*5} 开始训练处理: model={model_type} {'='*5}")
                         print(f"{'='*5} 训练参数: epochs={epochs}, batch_size={batch_size}, patience={patience}, train_size={train_size} {'='*5}")
                         print(f"{'='*5} 模型参数: feature={ft}, model_params={model_params} {'='*5}\n")
-                        print_ratio(ty, "验证集(ty)")
+                        print_ratio(ty, "训练集(ty)")
+                        print_ratio(vy, "验证集(vy)")
                         
                         #开始训练
                         val_losses, model = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
@@ -163,13 +166,24 @@ def auto_search():
                         print(f"\n[INFO] paras={paras}, min val_loss={min_val:.4f}")
                         if min_val < best_val:
                             best_paras, best_val, best_model = paras, min_val, model
-                        correct_rate, correct_mean_prob, wrong_mean_prob = print_predict_result(t_list, ds_pred, model, pt)
+                        correct_rate, correct_mean_prob, wrong_mean_prob = print_predict_result(t_list, ds_pred, model, pt, threshold=threshold)
                         vx_pred_raw = model.model.predict(vx)
-                        macro_recall = print_recall_score(vx_pred_raw, vy, pt)
+                        macro_recall = print_recall_score(vx_pred_raw, vy, pt, threshold=threshold)
                         history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall})
                         #best_model.save(f"{save_path}")
+
+                        scores = vx_pred_raw[:, 0]
+                        best_thr, best_f1 = 0.5, 0
+                        for thr in np.linspace(0.2, 0.8, 50):   # 举例：0.3~0.7 扫一遍
+                            pred = (scores > thr).astype(int)
+                            f1 = f1_score(vy, pred, average='macro')
+                            if f1 > best_f1:
+                                best_f1, best_thr = f1, thr
+                        print(f"二分类最优阈值: {best_thr:.2f}, 对应macro F1: {best_f1:.3f}")
+                        
                         for record in history_correction:
                             print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
+
 
     print(f"\n[RESULT] Best : {best_paras}, min val_loss: {best_val:.4f}")
     for record in history_correction:

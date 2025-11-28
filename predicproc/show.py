@@ -3,7 +3,7 @@ from predicproc.predict import Predict
 import numpy as np
 
 
-def print_predict_result(t_list, ds, m, predict_type):
+def print_predict_result(t_list, ds, m, predict_type, threshold=0.5):
     print("-"*80)
     correct_cnt = 0
     predict_wrong_list_str = ""
@@ -16,7 +16,7 @@ def print_predict_result(t_list, ds, m, predict_type):
         real_y = ds.get_real_y_by_date(t0)
         raw_y = ds.get_raw_y_by_date(t0)
         pred_scaled = m.model.predict(data, verbose=0)
-        pred = Predict(pred_scaled, bp, predict_type, ds.bins1, ds.bins2)
+        pred = Predict(pred_scaled, bp, predict_type, ds.bins1, ds.bins2, threshold=threshold)
         #print(f"T0[{t0}], raw_y:[{raw_y[0]*bp+bp:<.2f}], ", end="")
         pred_dot, predict_wrong_str = pred.get_predict_result_with_real_str(real_y)
         predict_wrong_list_str += f"T0[{t0}], raw_y:[{raw_y[0]*bp+bp:<.2f}], {predict_wrong_str}\n" if predict_wrong_str!="" else ""

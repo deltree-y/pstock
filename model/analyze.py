@@ -45,7 +45,7 @@ def plot_confusion_by_model(pred_raw, y_true, num_classes=6, title="Confusion Ma
     ret = plot_confusion(y_true, y_pred, num_classes=num_classes, title=title)
     return ret
 
-def print_recall_score(pred_raw, y_true, predict_type):
+def print_recall_score(pred_raw, y_true, predict_type, threshold=0.5):
     if predict_type.is_classify():
         y_pred = np.argmax(pred_raw, axis=1)
         print_ratio(y_pred, "预测数据")
@@ -56,7 +56,7 @@ def print_recall_score(pred_raw, y_true, predict_type):
         print(f"宏召回率: {macro_recall}")
         return macro_recall
     elif predict_type.is_binary():
-        y_pred = (pred_raw[:,0]>0.5).astype(int)
+        y_pred = (pred_raw[:,0]>threshold).astype(int)
         print(f"-"*60)
         print_ratio(y_true, "真实数据")
         print_ratio(y_pred, "预测数据")
