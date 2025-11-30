@@ -27,6 +27,7 @@ def main():
     t1l_model_type, t2h_model_type, t1h_model_type = ModelType.TRANSFORMER, ModelType.TRANSFORMER, ModelType.TRANSFORMER
     t1l_predict_type, t2h_predict_type, t1h_predict_type = PredictType.BINARY_T1_L05, PredictType.BINARY_T2_H10, PredictType.BINARY_T1_H10
     t1l_feature_type, t2h_feature_type, t1h_feature_type = FeatureType.T1L05_F55, FeatureType.T2H10_F55, FeatureType.T1H10_F55
+    t1l_th, t2h_th, t1h_th = 0.5, 0.5, 0.5
 
     if args.from_date is None and args.dates is None:
         print("错误: 必须指定 --dates 或 --from_date")
@@ -55,10 +56,10 @@ def main():
 
     for date_str in args.dates:
         print(f"\n==== T0:[{si.get_next_or_current_trade_date(date_str)}] / T1:[{si.get_next_trade_date(si.get_next_or_current_trade_date(date_str))}] / T2:[{si.get_next_trade_date(si.get_next_trade_date(si.get_next_or_current_trade_date(date_str)))}] ====")
-        for ds, model, predict_type in [
-            (ds_t1l, model_t1l, t1l_predict_type),
-            (ds_t2h, model_t2h, t2h_predict_type),
-            (ds_t1h, model_t1h, t1h_predict_type),
+        for ds, model, predict_type, thrld in [
+            (ds_t1l, model_t1l, t1l_predict_type, t1l_th),
+            (ds_t2h, model_t2h, t2h_predict_type, t2h_th),
+            (ds_t1h, model_t1h, t1h_predict_type, t1h_th),
         ]:
             try:
                 x_input, base_price = ds.get_predictable_dataset_by_date(date_str)
@@ -71,7 +72,7 @@ def main():
             if predict_type.is_classify():
                 Predict(pred, base_price, predict_type, ds.bins1, ds.bins2).print_predict_result("预测")
             elif predict_type.is_binary():
-                Predict(pred, base_price, predict_type, threshold=threshold).print_predict_result("预测")
+                Predict(pred, base_price, predict_type, threshold=thrld).print_predict_result("预测")
             elif predict_type.is_regress():
                 RegPredict(pred, base_price).print_predict_result("预测")
             else:

@@ -81,7 +81,17 @@ class SuperList(list):
     def append(self, item):
         super().append(item)
         return self
+    
+class StrategyType(Enum):
+    BUY =  "+"
+    SELL = "-"
+    HOLD = "o"
 
+    def __str__(self):
+        return self.value
+    
+    def __repr__(self):
+        return self.value
 
 class StockType(Enum):
     PRIMARY = auto()
@@ -133,7 +143,9 @@ class FeatureType(Enum):
     T1L15_F55 = 't1l15_features_55'
     T1L15_F75 = 't1l15_features_75'
 
-    T2H08_F50 = 't2h08_features_50' #TODO:待添加真实特征
+    T2H05_F55 = 't2h05_features_55' #TODO:待添加真实特征
+
+    T2H08_F55 = 't2h08_features_55' #TODO:待添加真实特征
 
     T2H10_F25 = 't2h10_features_25'
     T2H10_F35 = 't2h10_features_35'

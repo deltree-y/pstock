@@ -83,6 +83,16 @@ class Funds():
                                                                                     format(int(self.get_stock_quantity()),","),\
                                                                                     format(int(self.get_total_amount(unit_price)),",")))
         return ret
+    
+    #**************************************************************************************
+    #get_buy_max_quantity() - 计算在当前价格下最大可购买股票数量
+    def get_buy_max_quantity(self, unit_price):
+        if not self.is_enough_to_buy(unit_price, 100):  #如果连一手都不够买的话，直接返回0
+            return 0
+        if self.quantity != 0:
+            return 0
+        buy_hand = self.ca // ((1+self.buy_fee)*unit_price*100)
+        return int(buy_hand*100)
 
     #**************************************************************************************
     #buy_half() - 在当前价格下将现金的一半购买为股票
