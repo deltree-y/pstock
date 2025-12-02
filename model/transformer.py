@@ -4,7 +4,7 @@ import numpy as np
 import tensorflow as tf
 from datetime import datetime
 from keras.models import Model
-from keras.layers import Input, Dense, Dropout, BatchNormalization, LayerNormalization, MultiHeadAttention, Add, Flatten, Lambda
+from keras.layers import Input, Dense, Dropout, BatchNormalization, LayerNormalization, MultiHeadAttention, Add, Flatten, Lambda, GlobalAveragePooling1D, Concatenate
 from keras.callbacks import ReduceLROnPlateau, EarlyStopping
 from keras.optimizers import Adam
 from keras.regularizers import l2
@@ -13,6 +13,70 @@ from utils.utils import PredictType
 from utils.const_def import NUM_CLASSES, IS_PRINT_MODEL_SUMMARY
 from model.history import LossHistory
 from model.losses import binary_focal_loss, focal_loss, get_loss
+
+# --- 优化: Time2Vec 层 (学习型时间编码) ---
+class Time2Vec(tf.keras.layers.Layer):
+    def __init__(self, output_dim, kernel_regularizer=None):
+        super(Time2Vec, self).__init__()
+        self.output_dim = output_dim
+        self.kernel_regularizer = kernel_regularizer
+
+    def build(self, input_shape):
+        # input_shape: (batch, seq_len, 1)
+        self.w_linear = self.add_weight(name='w_linear',
+                                        shape=(1, 1),
+                                        initializer='uniform',
+                                        trainable=True)
+        self.b_linear = self.add_weight(name='b_linear',
+                                        shape=(1, 1),
+                                        initializer='uniform',
+                                        trainable=True)
+        
+        self.w_periodic = self.add_weight(name='w_periodic',
+                                          shape=(1, self.output_dim - 1),
+                                          initializer='uniform',
+                                          regularizer=self.kernel_regularizer,
+                                          trainable=True)
+        self.b_periodic = self.add_weight(name='b_periodic',
+                                          shape=(1, self.output_dim - 1),
+                                          initializer='uniform',
+                                          regularizer=self.kernel_regularizer,
+                                          trainable=True)
+        super(Time2Vec, self).build(input_shape)
+
+    def call(self, inputs):
+        # inputs: (batch, seq_len, 1)
+        # Linear term: w*t + b
+        v_linear = self.w_linear * inputs + self.b_linear 
+        # Periodic term: sin(w*t + b)
+        v_periodic = tf.math.sin(tf.matmul(inputs, self.w_periodic) + self.b_periodic)
+        
+        return tf.concat([v_linear, v_periodic], axis=-1)
+
+# --- 优化: Deep & Cross Network (DCN) 层 ---
+class CrossNet(tf.keras.layers.Layer):
+    def __init__(self, layer_num=2, reg=1e-5):
+        super(CrossNet, self).__init__()
+        self.layer_num = layer_num
+        self.reg = reg
+
+    def build(self, input_shape):
+        dim = input_shape[-1]
+        self.W = [self.add_weight(name=f'w_{i}', shape=(dim,), initializer='glorot_uniform',
+                                  regularizer=l2(self.reg), trainable=True) for i in range(self.layer_num)]
+        self.b = [self.add_weight(name=f'b_{i}', shape=(dim,), initializer='zeros',
+                                  regularizer=l2(self.reg), trainable=True) for i in range(self.layer_num)]
+        super(CrossNet, self).build(input_shape)
+
+    def call(self, inputs):
+        x0 = inputs
+        xl = inputs
+        for i in range(self.layer_num):
+            # x_{l+1} = x0 * (x_l . w_l) + b_l + x_l
+            # Dot product along last dim
+            xw = tf.reduce_sum(xl * self.W[i], axis=-1, keepdims=True)
+            xl = x0 * xw + self.b[i] + xl
+        return xl
 
 def positional_encoding(length, depth):
     """
@@ -102,21 +166,29 @@ class TransformerModel():
 
     def create_model(self, shape):
         inputs = Input(shape)
-        
+
+        # --- Path 1: Transformer (时序特征) ---
         # 初始归一化和投影
-        x = LayerNormalization(epsilon=1e-6)(inputs)
-        x = Dense(self.d_model, kernel_regularizer=l2(self.l2_reg))(x)
+        x_seq = LayerNormalization(epsilon=1e-6)(inputs)
+        x_seq = Dense(self.d_model, kernel_regularizer=l2(self.l2_reg))(x_seq)
         
-        # 优化建议1: 添加位置编码
+        # --- 优化: 使用 Time2Vec 替代/增强位置编码 ---
         if self.use_pos_encoding:
-            seq_length = inputs.shape[1]
-            pos_encoding = positional_encoding(seq_length, self.d_model)
-            x = x + pos_encoding
+            seq_length = shape[0]
+            # 创建位置索引 (1, seq_len, 1)
+            positions = tf.range(start=0, limit=seq_length, delta=1, dtype=tf.float32)
+            positions = tf.reshape(positions, (1, seq_length, 1))
+            
+            # Time2Vec 学习型时间编码
+            t2v_layer = Time2Vec(self.d_model, kernel_regularizer=l2(self.l2_reg))
+            time_embedding = t2v_layer(positions) # (1, seq_len, d_model)
+            
+            x_seq = x_seq + time_embedding
         
         # 构建多层Transformer编码器
         for i in range(self.num_layers):
-            x = transformer_encoder_block(
-                x,
+            x_seq = transformer_encoder_block(
+                x_seq,
                 d_model=self.d_model,
                 num_heads=self.num_heads,
                 ff_dim=self.ff_dim,
@@ -126,17 +198,32 @@ class TransformerModel():
                 use_gating=self.use_gating
             )
         
-        # 序列展平并进行最终分类
-        x = Flatten()(x)
+        # 序列特征聚合 (GAP)
+        x_seq = GlobalAveragePooling1D()(x_seq)
+
+        # --- Path 2: DCN (Cross特征融合) ---
+        # 优化: 提取截面特征 (使用最后一个时间步的特征)
+        x_cross = inputs[:, -1, :] 
+        x_cross = LayerNormalization()(x_cross)
+        
+        # 通过 DCN 学习特征交叉
+        dcn_layer = CrossNet(layer_num=3, reg=self.l2_reg)
+        x_cross = dcn_layer(x_cross)
+        
+        # DCN 输出投影 (可选)
+        x_cross = Dense(128, activation='gelu', kernel_regularizer=l2(self.l2_reg))(x_cross)
+        x_cross = Dropout(self.dropout_rate)(x_cross)
+
+        # --- Fusion: 融合时序与截面特征 ---
+        x = Concatenate()([x_seq, x_cross])
+        
+        # 最终分类层
         x = Dense(128, activation='gelu', kernel_regularizer=l2(self.l2_reg))(x)
         x = Dropout(self.dropout_rate)(x)
         x = Dense(64, activation='gelu', kernel_regularizer=l2(self.l2_reg))(x)
         x = Dropout(self.dropout_rate/2)(x)  # 输出层前降低dropout以稳定训练
         
         # 输出层
-        #temperature = 1.25
-        #x = Dense(NUM_CLASSES, name='logits')(x)
-        #outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output')(x)
         if self.predict_type.is_classify():
             outputs = Dense(NUM_CLASSES, activation='softmax', name='output')(x)
         elif self.predict_type.is_binary():

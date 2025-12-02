@@ -85,7 +85,7 @@ def get_loss(loss_type, predict_type):
         if predict_type.is_classify():
             loss_fn = 'sparse_categorical_crossentropy'
         elif predict_type.is_binary():
-            loss_fn = 'binary_crossentropy'
+            loss_fn = 'binary_crossentropy'#tf.keras.losses.BinaryCrossentropy(label_smoothing=0.1)#'binary_crossentropy'
         else:
             raise ValueError("Unsupported predict_type for classification model.")
     return loss_fn
