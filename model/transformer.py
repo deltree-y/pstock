@@ -19,7 +19,7 @@ class Time2Vec(tf.keras.layers.Layer):
     def __init__(self, output_dim, kernel_regularizer=None, **kwargs):
         super(Time2Vec, self).__init__(**kwargs)
         self.output_dim = output_dim
-        self.kernel_regularizer = kernel_regularizer
+        self.kernel_regularizer = tf.keras.regularizers.get(kernel_regularizer)
 
     def build(self, input_shape):
         # input_shape: (batch, seq_len, 1)
@@ -57,7 +57,7 @@ class Time2Vec(tf.keras.layers.Layer):
         config = super(Time2Vec, self).get_config()
         config.update({
             "output_dim": self.output_dim,
-            "kernel_regularizer": self.kernel_regularizer,
+            "kernel_regularizer": tf.keras.regularizers.serialize(self.kernel_regularizer),
         })
         return config
 
