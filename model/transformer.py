@@ -16,8 +16,8 @@ from model.losses import binary_focal_loss, focal_loss, get_loss
 
 # --- 优化: Time2Vec 层 (学习型时间编码) ---
 class Time2Vec(tf.keras.layers.Layer):
-    def __init__(self, output_dim, kernel_regularizer=None):
-        super(Time2Vec, self).__init__()
+    def __init__(self, output_dim, kernel_regularizer=None, **kwargs):
+        super(Time2Vec, self).__init__(**kwargs)
         self.output_dim = output_dim
         self.kernel_regularizer = kernel_regularizer
 
@@ -53,10 +53,18 @@ class Time2Vec(tf.keras.layers.Layer):
         
         return tf.concat([v_linear, v_periodic], axis=-1)
 
+    def get_config(self):
+        config = super(Time2Vec, self).get_config()
+        config.update({
+            "output_dim": self.output_dim,
+            "kernel_regularizer": self.kernel_regularizer,
+        })
+        return config
+
 # --- 优化: Deep & Cross Network (DCN) 层 ---
 class CrossNet(tf.keras.layers.Layer):
-    def __init__(self, layer_num=2, reg=1e-5):
-        super(CrossNet, self).__init__()
+    def __init__(self, layer_num=2, reg=1e-5, **kwargs):
+        super(CrossNet, self).__init__(**kwargs)
         self.layer_num = layer_num
         self.reg = reg
 
@@ -77,6 +85,14 @@ class CrossNet(tf.keras.layers.Layer):
             xw = tf.reduce_sum(xl * self.W[i], axis=-1, keepdims=True)
             xl = x0 * xw + self.b[i] + xl
         return xl
+
+    def get_config(self):
+        config = super(CrossNet, self).get_config()
+        config.update({
+            "layer_num": self.layer_num,
+            "reg": self.reg,
+        })
+        return config
 
 def positional_encoding(length, depth):
     """
