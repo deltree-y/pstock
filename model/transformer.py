@@ -16,8 +16,8 @@ from model.losses import binary_focal_loss, focal_loss, get_loss
 
 # --- 优化: Time2Vec 层 (学习型时间编码) ---
 class Time2Vec(tf.keras.layers.Layer):
-    def __init__(self, output_dim, kernel_regularizer=None):
-        super(Time2Vec, self).__init__()
+    def __init__(self, output_dim, kernel_regularizer=None, **kwargs):  # 增加**kwargs
+        super(Time2Vec, self).__init__(**kwargs)                        # 传递**kwargs
         self.output_dim = output_dim
         self.kernel_regularizer = kernel_regularizer
 
@@ -53,10 +53,24 @@ class Time2Vec(tf.keras.layers.Layer):
         
         return tf.concat([v_linear, v_periodic], axis=-1)
 
+    def get_config(self):  # MODIFIED: add get_config
+        config = super().get_config()
+        config.update({
+            "output_dim": self.output_dim,
+            "kernel_regularizer": tf.keras.regularizers.serialize(self.kernel_regularizer)
+        })
+        return config
+
+    @classmethod
+    def from_config(cls, config):  # MODIFIED: for compatibility
+        config["kernel_regularizer"] = tf.keras.regularizers.deserialize(config["kernel_regularizer"])
+        return cls(**config)
+
+
 # --- 优化: Deep & Cross Network (DCN) 层 ---
 class CrossNet(tf.keras.layers.Layer):
-    def __init__(self, layer_num=2, reg=1e-5):
-        super(CrossNet, self).__init__()
+    def __init__(self, layer_num=2, reg=1e-5, **kwargs):               # 增加**kwargs
+        super(CrossNet, self).__init__(**kwargs)                       # 传递**kwargs
         self.layer_num = layer_num
         self.reg = reg
 
@@ -77,6 +91,19 @@ class CrossNet(tf.keras.layers.Layer):
             xw = tf.reduce_sum(xl * self.W[i], axis=-1, keepdims=True)
             xl = x0 * xw + self.b[i] + xl
         return xl
+
+    def get_config(self):  # MODIFIED: add get_config
+        config = super().get_config()
+        config.update({
+            "layer_num": self.layer_num,
+            "reg": self.reg,
+        })
+        return config
+
+    @classmethod
+    def from_config(cls, config):  # MODIFIED: for compatibility
+        return cls(**config)
+
 
 def positional_encoding(length, depth):
     """
@@ -287,8 +314,9 @@ class TransformerModel():
     def load(self, filename):
         from keras.models import load_model
         try:
+            from model.transformer import CrossNet, Time2Vec  # 加载自定义层
             print(f"\nloading model file -[{filename}]...", end="", flush=True)
-            self.model = load_model(filename)
+            self.model = load_model(filename, custom_objects={"CrossNet": CrossNet, "Time2Vec": Time2Vec})
             print("complete!")
         except Exception as e:
             logging.error(f"\nmodel file load failed! {e}")

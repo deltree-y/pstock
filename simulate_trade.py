@@ -428,9 +428,9 @@ if __name__ == "__main__":
     t1l_buy_feature = FeatureType.T1L05_F55#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55)
     t1l_th = 0.54
 
-    t2h_sell_type = PredictType.BINARY_T2_H08#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
-    t2h_sell_feature = FeatureType.T2H08_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
-    t2h_th = 0.52
+    t2h_sell_type = PredictType.BINARY_T2_H07#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
+    t2h_sell_feature = FeatureType.T2H07_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
+    t2h_th = 0.461
 
     t1h_sell_type = PredictType.BINARY_T1_H05#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
     t1h_sell_feature = FeatureType.T1H05_F55#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)

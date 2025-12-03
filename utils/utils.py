@@ -144,7 +144,8 @@ class FeatureType(Enum):
     T1L15_F75 = 't1l15_features_75'
 
     T2H05_F55 = 't2h05_features_55' #TODO:待添加真实特征
-
+    T2H06_F55 = 't2h06_features_55' #TODO:待添加真实特征
+    T2H07_F55 = 't2h07_features_55' #TODO:待添加真实特征
     T2H08_F55 = 't2h08_features_55' #TODO:待添加真实特征
 
     T2H10_F25 = 't2h10_features_25'
@@ -183,6 +184,8 @@ class PredictType(Enum):
     BINARY_T2_L15 = ("BINARY_T2_L15", -1.5, "T2L")
 
     BINARY_T2_H05 = ("BINARY_T2_H05", 0.5, "T2H")
+    BINARY_T2_H06 = ("BINARY_T2_H06", 0.6, "T2H")
+    BINARY_T2_H07 = ("BINARY_T2_H07", 0.7, "T2H")
     BINARY_T2_H08 = ("BINARY_T2_H08", 0.8, "T2H")
     BINARY_T2_H10 = ("BINARY_T2_H10", 1.0, "T2H")
     BINARY_T2_H15 = ("BINARY_T2_H15", 1.5, "T2H")

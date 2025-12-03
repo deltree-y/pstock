@@ -63,20 +63,20 @@ def auto_search():
     # ---模型通用参数---
     model_type = ModelType.TRANSFORMER
     p = 2
-    dropout_rate = 0.3
-    feature_type_list = [FeatureType.T2H08_F55]
-    predict_type_list = [PredictType.BINARY_T2_H08]
+    dropout_rate = 0.5
+    feature_type_list = [FeatureType.T2H07_F55]
+    predict_type_list = [PredictType.BINARY_T2_H07]
     loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
     lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.0001]#[0.00007]
     threshold = 0.5 # 二分类阈值
 
     # ===== 训练参数 =====
-    epochs = 150
+    epochs = 120
     batch_size = 512
     patience = 30
     train_size = 0.9
-    cyc = 3    # 搜索轮数
+    cyc = 1    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
@@ -173,21 +173,21 @@ def auto_search():
 
                         scores = vx_pred_raw[:, 0]
                         best_thr, best_f1 = 0.5, 0
-                        for thr in np.linspace(0.2, 0.8, 50):   # 举例：0.3~0.7 扫一遍
+                        for thr in np.linspace(0.4, 0.6, 100):   # 举例：0.3~0.7 扫一遍
                             pred = (scores > thr).astype(int)
                             f1 = f1_score(vy, pred, average='macro')
                             if f1 > best_f1:
                                 best_f1, best_thr = f1, thr
-                        print(f"二分类最优阈值: {best_thr:.2f}, 对应macro F1: {best_f1:.3f}")
+                        print(f"二分类最优阈值: {best_thr:.3f}, 对应macro F1: {best_f1:.3f}")
                         history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall, 'best_thr': best_thr})
                         
                         for record in history_correction:
-                            print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.2f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
+                            print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
 
 
     print(f"\n[RESULT] Best : {best_paras}, min val_loss: {best_val:.4f}")
     for record in history_correction:
-        print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.2f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
+        print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
     best_model.save(save_path)
     plot_l2_loss_curves(history_dict, epochs)
 
