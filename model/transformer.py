@@ -230,19 +230,20 @@ class TransformerModel():
 
         # --- Path 2: DCN (Cross特征融合) ---
         # 优化: 提取截面特征 (使用最后一个时间步的特征)
-        x_cross = inputs[:, -1, :] 
-        x_cross = LayerNormalization()(x_cross)
+        #x_cross = inputs[:, -1, :] 
+        #x_cross = LayerNormalization()(x_cross)
         
         # 通过 DCN 学习特征交叉
-        dcn_layer = CrossNet(layer_num=3, reg=self.l2_reg)
-        x_cross = dcn_layer(x_cross)
+        #dcn_layer = CrossNet(layer_num=3, reg=self.l2_reg)
+        #x_cross = dcn_layer(x_cross)
         
         # DCN 输出投影 (可选)
-        x_cross = Dense(128, activation='gelu', kernel_regularizer=l2(self.l2_reg))(x_cross)
-        x_cross = Dropout(self.dropout_rate)(x_cross)
+        #x_cross = Dense(128, activation='gelu', kernel_regularizer=l2(self.l2_reg))(x_cross)
+        #x_cross = Dropout(self.dropout_rate)(x_cross)
 
         # --- Fusion: 融合时序与截面特征 ---
-        x = Concatenate()([x_seq, x_cross])
+        #x = Concatenate()([x_seq, x_cross])
+        x = x_seq  # 仅使用Transformer路径
         
         # 最终分类层
         x = Dense(128, activation='gelu', kernel_regularizer=l2(self.l2_reg))(x)

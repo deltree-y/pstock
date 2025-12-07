@@ -61,26 +61,26 @@ def auto_search():
     t_start_date, t_end_date = '20160104', '20250101'
 
     # ---模型通用参数---
-    model_type = ModelType.TRANSFORMER
+    model_type = ModelType.RESIDUAL_LSTM
     p = 2
-    dropout_rate = 0.5
-    feature_type_list = [FeatureType.T2H07_F55]
-    predict_type_list = [PredictType.BINARY_T2_H07]
+    dropout_rate = 0.3
+    feature_type_list = [FeatureType.T2H05_F55]
+    predict_type_list = [PredictType.BINARY_T2_H05]
     loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
-    lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
+    lr_list = [0.0001]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.0001]#[0.00007]
     threshold = 0.5 # 二分类阈值
 
     # ===== 训练参数 =====
     epochs = 120
-    batch_size = 512
+    batch_size = 1024
     patience = 30
     train_size = 0.9
     cyc = 1    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
-    lstm_depth_list, base_units_list = [6], [64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
+    lstm_depth_list, base_units_list = [6], [64]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
     nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_stacks-增大会整体重复残差结构，直接增加模型深度, nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口
     d_model_list, num_heads_list, ff_dim_list, num_layers_list = [64], [8], [512], [4] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     filters_list, kernel_size_list, conv1d_depth_list = [128], [8], [4]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
@@ -173,7 +173,7 @@ def auto_search():
 
                         scores = vx_pred_raw[:, 0]
                         best_thr, best_f1 = 0.5, 0
-                        for thr in np.linspace(0.4, 0.6, 100):   # 举例：0.3~0.7 扫一遍
+                        for thr in np.linspace(0.2, 0.8, 600):   # 举例：0.3~0.7 扫一遍
                             pred = (scores > thr).astype(int)
                             f1 = f1_score(vy, pred, average='macro')
                             if f1 > best_f1:

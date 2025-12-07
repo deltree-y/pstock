@@ -224,10 +224,14 @@ def simulate_trading(
             op_strategy = StrategyType.SELL
             op_amount = f.get_stock_quantity()
             prob_t1h, label_t1h = _predict_binary_label(m_t1h_sell, x_t1h_sell, threshold=t1h_threshold)
+            #prob_t1h=1
 
-            #if label_t1h == 1:  #改为不判断,只要有就卖出
+            if label_t1h == 1:  #有卖出意向
+                sell_rate = t1h_sell_type.val / 100.0  # 正数，如 +1.0 -> 0.01
+            else:
+                sell_rate = SELL_RATE / 100  #按底价卖出
             # 2) 卖出挂单价（由 BINARY_T1_Hzz 的阈值决定）
-            sell_rate = t1h_sell_type.val / 100.0  # 正数，如 +1.0 -> 0.01
+            #sell_rate = t1h_sell_type.val / 100.0  # 正数，如 +1.0 -> 0.01
             sell_price = base_price * (1 + sell_rate)
 
             # 3) 从“主 T1L 数据集”的 raw_data 中获取真实 T1H 价格
@@ -258,7 +262,12 @@ def simulate_trading(
         prob_t1l_buy, label_t1l_buy = _predict_binary_label(m_t1l_buy, x_t1l_buy, threshold=t1l_threshold)
         prob_t2h_sell, label_t2h_sell = _predict_binary_label(m_t2h_sell, x_t2h_sell, threshold=t2h_threshold)
 
-        has_buy_intent = (label_t1l_buy == 1) and (label_t2h_sell == 1)
+        #has_buy_intent = (label_t1l_buy == 1) and (label_t2h_sell == 1)
+        has_buy_intent = (label_t2h_sell == 1)
+        if label_t1l_buy == 1:
+            buy_rate = t1l_buy_type.val / 100.0 
+        else:
+            buy_rate = BUY_RATE / 100.0
 
         if has_buy_intent and f.get_stock_quantity() == 0 and op_strategy != StrategyType.SELL:
             op_strategy = StrategyType.BUY
@@ -305,13 +314,14 @@ def simulate_trading(
         str_confidence = f"T1L/T2H置信率:{prob_t1l_buy*100:.1f}%/{prob_t2h_sell*100:.1f}%"
         str_base_price = f"{base_price:.2f}"
         str_op_strategy = f"{op_strategy}"
+        str_buy_judge = f"{label_t1l_buy}/{label_t2h_sell}"
         str_op_price = f"{predict_price:.2f}/({real_price:.2f})" if op_strategy != StrategyType.HOLD else "             "
         str_op_amount = f"{int(op_amount):5d}" if op_strategy != StrategyType.HOLD else "-----"
         str_is_op_success = f"{' OK.' if is_op_success else 'NOK!'}" if op_strategy != StrategyType.HOLD else "    "
         str_cur_qty = f"{int(f.get_stock_quantity()):5d}"
         str_equity = f"{total_equity:.2f}"
         #print(f"{d} - 买入意向:", {True: "Yes", False: "No "}[has_buy_intent], f"T1L/T2H置信率:{prob_t1l_buy*100:.1f}%/{prob_t2h_sell*100:.1f}%, 买入量:[{int(qty):5d}], 当前权益: {total_equity:.2f}")
-        print(f"{d}({str_base_price}) : <{str_op_strategy}> [{str_op_amount}]@[{str_op_price}] - {str_is_op_success}, 当前持仓/资本:{str_cur_qty}/{str_equity}")
+        print(f"{d}({str_base_price}) : <{str_op_strategy}({str_buy_judge})> [{str_op_amount}]@[{str_op_price}] - {str_is_op_success}, 当前持仓/资本:{str_cur_qty}/{str_equity}")
 
     # 回测结束，如仍有持仓，按最后一天收盘价强制平仓（可选）
     if f.get_stock_quantity() > 0 and len(equity_dates) > 0:
@@ -330,7 +340,7 @@ def simulate_trading(
 
     _, start_price = ds_t1l_buy.get_predictable_dataset_by_date(date_list[-1])
     _, end_price   = ds_t1l_buy.get_predictable_dataset_by_date(date_list[0])
-    print("=" * 80)
+    print("=" * 90)
     print(f"")
     print(f"回测股票: {stock_code}")
     print(f"模型: {model_type}")
@@ -343,7 +353,7 @@ def simulate_trading(
     print(f"结束资金: {final_equity:.2f}")
     print(f"总收益率: {total_return:.2f}%")
     print(f"交易次数: {len(trade_log)}")
-    print("=" * 80)
+    print("=" * 90)
 
     for rec in trade_log:
         # rec: (d, side, price, qty, equity, base_price, real_T1x_price, prob)
@@ -420,21 +430,22 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
+    BUY_RATE, SELL_RATE = -1.0, 0.6
 
-    model_type = ModelType.TRANSFORMER#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
 
     # PredictType/FeatureType（各自独立）
     t1l_buy_type = PredictType.BINARY_T1_L05#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10)
     t1l_buy_feature = FeatureType.T1L05_F55#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55)
-    t1l_th = 0.54
+    t1l_th = 0.548
 
-    t2h_sell_type = PredictType.BINARY_T2_H07#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
-    t2h_sell_feature = FeatureType.T2H07_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
-    t2h_th = 0.461
+    t2h_sell_type = PredictType.BINARY_T2_H05#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
+    t2h_sell_feature = FeatureType.T2H05_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
+    t2h_th = 0.518
 
-    t1h_sell_type = PredictType.BINARY_T1_H05#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
-    t1h_sell_feature = FeatureType.T1H05_F55#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
-    t1h_th = 0.49
+    t1h_sell_type = PredictType.BINARY_T1_H10#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
+    t1h_sell_feature = FeatureType.T1H10_F55#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
+    t1h_th = 0.535
 
     end_date = args.end_date or datetime.now().strftime("%Y%m%d")
 
