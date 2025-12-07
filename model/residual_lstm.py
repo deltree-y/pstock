@@ -157,6 +157,8 @@ class ResidualLSTMModel:
             outputs = Dense(NUM_CLASSES, activation='softmax', name='output')(x_last)
         elif self.predict_type.is_binary():
             outputs = Dense(1, activation='sigmoid', name='output')(x_last)
+        elif self.predict_type.is_regress():
+            outputs = Dense(1, activation='linear', name='output')(x_last)
         else:
             raise ValueError("Unsupported predict_type for classification model.")
 

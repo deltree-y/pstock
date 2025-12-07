@@ -73,7 +73,11 @@ def binary_focal_loss(gamma=2.0, alpha=0.25):
     return loss
 
 # 根据输入值及预测类型来选择损失函数
-def get_loss(loss_type, predict_type):
+def get_loss(loss_type, predict_type:PredictType):
+    if predict_type.is_regress():
+        # 回归默认使用MSE
+        return 'mse' if loss_type is None else loss_type
+
     if loss_type == 'focal_loss':
         if predict_type.is_classify():
             loss_fn = focal_loss(gamma=2.0, alpha=0.25)

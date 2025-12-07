@@ -15,6 +15,7 @@ class LossHistory(Callback):
     def on_epoch_end(self, epoch, logs=None):
         self.losses.append(logs.get('loss'))
         self.val_losses.append(logs.get('val_loss'))
+        # 可能不存在val_accuracy（回归任务）
         self.val_t1_accu.append(logs.get('val_accuracy'))
 
         loss_diff = self.val_losses[-1] - self.val_losses[-2] if epoch > 0 else self.val_losses[-1]
@@ -23,12 +24,17 @@ class LossHistory(Callback):
         speed = spend_time.seconds / (epoch + 1)
         min_remaining = speed * (self.epoch - epoch - 1) / 60
         finished_time = (timedelta(seconds=(speed * (self.epoch - epoch - 1))) + datetime.now()).strftime('%H:%M')
+
+        acc = logs.get('accuracy')
+        val_acc = logs.get('val_accuracy')
+        acc_str = f"{acc*100:.2f}" if acc is not None else "--"
+        val_acc_str = f"{val_acc*100:.2f}" if val_acc is not None else "--"
+
         # 只输出回归损失
         if logs:
             print(f"\n{epoch + 1}/{self.epoch}: "
-                  f"t:[{logs.get('loss'):.4f}/{logs.get('accuracy')*100:.2f}], "
-                  #f"v:[{logs.get('val_loss'):.4f}/{logs.get('val_accuracy')*100:.2f}]({loss_diff:+.4f}),",
-                  f"v:[{logs.get('val_loss'):.4f}/{logs.get('val_accuracy')*100:.2f}]({loss_diff_ratio:+.2f}%),",
+                  f"t:[{logs.get('loss'):.4f}/{acc_str}], "
+                  f"v:[{logs.get('val_loss'):.4f}/{val_acc_str}]({loss_diff_ratio:+.2f}%),",
                   f"lr({self.model.learning_rate_status}):{tf.keras.backend.get_value(self.model.optimizer.lr):.6f}",
                   f"{speed:.1f}s/ep, ed:{finished_time}({min_remaining/60:.1f}h)", end="", flush=True)
                     

@@ -6,7 +6,7 @@ import tensorflow as tf
 import pandas as pd
 import torch
 from sklearn.utils import compute_class_weight
-from sklearn.metrics import f1_score
+from sklearn.metrics import f1_score, mean_absolute_error
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
 from model.analyze import plot_l2_loss_curves, print_recall_score
@@ -166,30 +166,46 @@ def auto_search():
                         print(f"\n[INFO] paras={paras}, min val_loss={min_val:.4f}")
                         if min_val < best_val:
                             best_paras, best_val, best_model = paras, min_val, model
-                        correct_rate, correct_mean_prob, wrong_mean_prob = print_predict_result(t_list, ds_pred, model, pt, threshold=threshold)
-                        vx_pred_raw = model.model.predict(vx)
-                        macro_recall = print_recall_score(vx_pred_raw, vy, pt, threshold=threshold)
-                        #best_model.save(f"{save_path}")
 
-                        scores = vx_pred_raw[:, 0]
-                        best_thr, best_f1 = 0.5, 0
-                        for thr in np.linspace(0.2, 0.8, 600):   # 举例：0.3~0.7 扫一遍
-                            pred = (scores > thr).astype(int)
-                            f1 = f1_score(vy, pred, average='macro')
-                            if f1 > best_f1:
-                                best_f1, best_thr = f1, thr
-                        print(f"二分类最优阈值: {best_thr:.3f}, 对应macro F1: {best_f1:.3f}")
-                        history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall, 'best_thr': best_thr})
+                        if pt.is_regress():
+                            vx_pred_raw = model.model.predict(vx)
+                            mae = mean_absolute_error(vy, vx_pred_raw.reshape(-1))
+                            print(f"[回归] 验证MAE: {mae:.4f}")
+                            history_correction.append({'para': paras, 'val_loss': min_val, 'mae': mae})
+                        else:
+
+                            correct_rate, correct_mean_prob, wrong_mean_prob = print_predict_result(t_list, ds_pred, model, pt, threshold=threshold)
+                            vx_pred_raw = model.model.predict(vx)
+                            macro_recall = print_recall_score(vx_pred_raw, vy, pt, threshold=threshold)
+                            #best_model.save(f"{save_path}")
+
+                            scores = vx_pred_raw[:, 0]
+                            best_thr, best_f1 = 0.5, 0
+                            for thr in np.linspace(0.2, 0.8, 600):   # 举例：0.3~0.7 扫一遍
+                                pred = (scores > thr).astype(int)
+                                f1 = f1_score(vy, pred, average='macro')
+                                if f1 > best_f1:
+                                    best_f1, best_thr = f1, thr
+                            print(f"二分类最优阈值: {best_thr:.3f}, 对应macro F1: {best_f1:.3f}")
+                            history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall, 'best_thr': best_thr})
                         
                         for record in history_correction:
-                            print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
+                            if pt.is_regress():
+                                print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}")
+                            else:
+                                print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
+                                #print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
 
 
     print(f"\n[RESULT] Best : {best_paras}, min val_loss: {best_val:.4f}")
     for record in history_correction:
-        print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
+        if predict_type_list[0].is_regress():
+            print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}")
+        else:
+            print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
+        #print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
     best_model.save(save_path)
     plot_l2_loss_curves(history_dict, epochs)
-
+    
 if __name__ == "__main__":
     auto_search()

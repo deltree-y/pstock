@@ -149,6 +149,8 @@ class ResidualTCNModel:
             outputs = Dense(NUM_CLASSES, activation='softmax', name='output')(x)
         elif self.predict_type.is_binary():
             outputs = Dense(1, activation='sigmoid', name='output')(x)
+        elif self.predict_type.is_regress():
+            outputs = Dense(1, activation='linear', name='output')(x)
         else:
             raise ValueError("Unsupported predict_type for classification model.")            
         self.model = Model(inputs=inputs, outputs=outputs)

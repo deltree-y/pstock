@@ -172,6 +172,10 @@ class StockDataset():
                 else:
                     raise ValueError(f"StockDataset.split_train_test_dataset_by_stock() - Unknown predict_type: {self.predict_type}")
                 raw_dataset_y = raw_y
+            elif self.predict_type.is_regress():#回归
+                # 默认使用第一个目标列(t1l变化率)作为回归目标
+                dataset_y = raw_y[:, 0].reshape(-1, 1).astype(float)
+                raw_dataset_y = raw_y
             else:
                 raise ValueError(f"StockDataset.split_train_test_dataset_by_stock() - Unknown predict_type: {self.predict_type}")
             train_count = int(len(raw_x) * train_size)
@@ -407,6 +411,9 @@ class StockDataset():
                 return (raw_y[:,3]*100 >= self.predict_type.val).astype(int).reshape(-1, 1)
             else:
                 raise ValueError(f"StockDataset.get_real_y_by_raw_y() - Unknown predict_type: {self.predict_type}")
+        elif self.predict_type.is_regress():#回归
+            # 与split保持一致，默认返回第一列(t1l变化率)
+            return raw_y[:,0].reshape(-1,1).astype(float)
         else:
             raise ValueError(f"StockDataset.get_real_y_by_raw_y() - Unknown predict_type: {self.predict_type}")
 
