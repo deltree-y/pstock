@@ -64,8 +64,8 @@ def auto_search():
     model_type = ModelType.RESIDUAL_LSTM
     p = 2
     dropout_rate = 0.3
-    feature_type_list = [FeatureType.T2H05_F55]
-    predict_type_list = [PredictType.BINARY_T2_H05]
+    feature_type_list = [FeatureType.ALL]
+    predict_type_list = [PredictType.REGRESS]
     loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
     lr_list = [0.0001]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.0001]#[0.00007]

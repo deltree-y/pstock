@@ -105,7 +105,9 @@ def _get_real_t1_prices(ds: StockDataset, date_str: str):
 
 def simulate_trading(
     stock_code: str,
-    model_type: ModelType,
+    t1l_model_type: ModelType,
+    t2h_model_type: ModelType,
+    t1h_model_type: ModelType,
     # 买入信号用的二分类 + 特征
     t1l_buy_type: PredictType,      # BINARY_T1_Lxx
     t1l_buy_feature: FeatureType,   # 如 FeatureType.T1L10_F55
@@ -163,7 +165,7 @@ def simulate_trading(
     si, ds_t1l_buy, m_t1l_buy = build_ds_and_model(
         stock_code=stock_code,
         feature_type=t1l_buy_feature,
-        model_type=model_type,
+        model_type=t1l_model_type,
         predict_type=t1l_buy_type,
         backtest_start=backtest_start,
         backtest_end=backtest_end,
@@ -172,7 +174,7 @@ def simulate_trading(
     _, ds_t2h_sell, m_t2h_sell = build_ds_and_model(
         stock_code=stock_code,
         feature_type=t2h_sell_feature,
-        model_type=model_type,
+        model_type=t2h_model_type,
         predict_type=t2h_sell_type,
         backtest_start=backtest_start,
         backtest_end=backtest_end,
@@ -181,7 +183,7 @@ def simulate_trading(
     _, ds_t1h_sell, m_t1h_sell = build_ds_and_model(
         stock_code=stock_code,
         feature_type=t1h_sell_feature,
-        model_type=model_type,
+        model_type=t1h_model_type,
         predict_type=t1h_sell_type,
         backtest_start=backtest_start,
         backtest_end=backtest_end,
@@ -343,7 +345,7 @@ def simulate_trading(
     print("=" * 90)
     print(f"")
     print(f"回测股票: {stock_code}")
-    print(f"模型: {model_type}")
+    print(f"模型(t1l/t2h/t1h): {t1l_model_type}/{t2h_model_type}/{t1h_model_type}")
     print(f"T1L_buy:  {t1l_buy_type} / {t1l_buy_feature}")
     print(f"T2H_sell: {t2h_sell_type} / {t2h_sell_feature}")
     print(f"T1H_sell: {t1h_sell_type} / {t1h_sell_feature}")
@@ -432,7 +434,9 @@ if __name__ == "__main__":
     args = parse_args()
     BUY_RATE, SELL_RATE = -1.0, 0.6
 
-    model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    t1l_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    t2h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    t1h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
 
     # PredictType/FeatureType（各自独立）
     t1l_buy_type = PredictType.BINARY_T1_L05#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10)
@@ -451,7 +455,9 @@ if __name__ == "__main__":
 
     simulate_trading(
         stock_code=args.stock_code,
-        model_type=model_type,
+        t1l_model_type=t1l_model_type,
+        t2h_model_type=t2h_model_type,
+        t1h_model_type=t1h_model_type,
         t1l_buy_type=t1l_buy_type,
         t1l_buy_feature=t1l_buy_feature,
         t2h_sell_type=t2h_sell_type,
