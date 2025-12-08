@@ -186,7 +186,7 @@ class TransformerModel():
         
         self.class_weight_dict = class_weights
 
-        self.history = LossHistory()
+        self.history = LossHistory(predict_type=self.predict_type, test_x=self.test_x, test_y=self.test_y)
         logging.info(f"Transformer input shape: {x.shape}, output shape: {y.shape}")
         self.create_model(x[0].shape)
         self.model.summary() if IS_PRINT_MODEL_SUMMARY else None

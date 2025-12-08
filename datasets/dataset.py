@@ -68,7 +68,7 @@ class StockDataset():
         raw_dataset_list = [self.raw_dataset] + list(self.rel_raw_dataset_list) if self.if_has_related else [self.raw_dataset]
 
         # 1.5 基于所有的原始y数据生成分箱器
-        self.raw_y = self.get_y_from_raw_dataset(np.vstack(raw_dataset_list)) #取出y
+        self.raw_y = self.get_y_from_raw_dataset(np.vstack(raw_dataset_list)) #取出y(多个)
         self.bins1, self.bins2 = self.get_bins(self.raw_y)
 
         # 2. 按股票分离测试集与验证集,并对y进行分箱,返回对应的y
@@ -82,8 +82,8 @@ class StockDataset():
         self.normalized_windowed_test_x = self.get_normalized_windowed_x(self.raw_test_x) if train_size < 1 else None
 
         # 6. 对齐y数据, 因为x按窗口化后会减少数据,所以y也要按窗口大小相应减少
-        self.train_y_no_window, self.test_y_no_window = self.train_y.astype(int), self.test_y.astype(int) #保存未窗口化的y数据,供有需要的使用
-        self.train_y, self.test_y = self.train_y[:-self.window_size+1].astype(int), self.test_y[:-self.window_size+1].astype(int) #由于x按窗口化后会减少数据,所以y也要相应减少
+        self.train_y_no_window, self.test_y_no_window = self.train_y, self.test_y #保存未窗口化的y数据,供有需要的使用
+        self.train_y, self.test_y = self.train_y[:-self.window_size+1], self.test_y[:-self.window_size+1] #由于x按窗口化后会减少数据,所以y也要相应减少
 
         #logging.info(f"train x/y shape - <{self.normalized_windowed_train_x.shape}/{self.train_y.shape}>")
         #logging.info(f"test  x/y shape - <{self.normalized_windowed_test_x.shape}/{self.test_y.shape}>")
@@ -157,7 +157,7 @@ class StockDataset():
                 logging.error(f"StockDataset.split_train_test_dataset_by_stock() - Too few data, will be skipped. data shape: {raw_data.shape}")
                 continue
             if self.predict_type.is_classify():#多分类
-                dataset_y = self.get_binned_y_use_qcut(raw_y[:,[0,3]])  #只对t1l和t2h分箱
+                dataset_y = self.get_binned_y_use_qcut(raw_y[:,[0,3]])  #只对t1l和t2h分箱,返回值为int类型
                 raw_dataset_y = raw_y
             elif self.predict_type.is_binary():#二分类
                 #按不同的二分类预测类型,生成对应的二分类y(0或1)
@@ -174,7 +174,7 @@ class StockDataset():
                 raw_dataset_y = raw_y
             elif self.predict_type.is_regress():#回归
                 # 默认使用第一个目标列(t1l变化率)作为回归目标
-                dataset_y = raw_y[:, 0].reshape(-1, 1).astype(float)
+                dataset_y = raw_y[:, 0].reshape(-1, 1).astype(float)*100
                 raw_dataset_y = raw_y
             else:
                 raise ValueError(f"StockDataset.split_train_test_dataset_by_stock() - Unknown predict_type: {self.predict_type}")
@@ -445,8 +445,8 @@ if __name__ == "__main__":
         idx_code_list=idx_code_list,
         rel_code_list=rel_code_list,
         si=si,
-        start_date='20000104',
-        end_date='20251030',
+        start_date='20150701',
+        end_date='20251201',
         train_size=1,
         feature_type=FeatureType.T1L10_F55,
         if_update_scaler=True,

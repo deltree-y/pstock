@@ -80,7 +80,7 @@ def select_joint_features(df_bin, df_multi, top_k=15, alpha=0.5):
     return df['feature'].head(top_k).tolist()
 
 
-def feature_importance_analysis(ds, feature_names, pearson_threshold=0.03, mi_threshold=0.01, importance_threshold=0.01, n_features=25):
+def feature_importance_analysis(ds, feature_names, pearson_threshold=0.03, mi_threshold=0.01, importance_threshold=0.01, n_features=55):
     """分析并选择最重要的特征"""
     feature_data = ds.raw_train_x[-len(ds.train_y):]  # 对齐数据
     target = ds.train_y[:, 0]  # 回归目标

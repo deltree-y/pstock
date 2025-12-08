@@ -6,7 +6,7 @@ import tensorflow as tf
 import pandas as pd
 import torch
 from sklearn.utils import compute_class_weight
-from sklearn.metrics import f1_score, mean_absolute_error
+from sklearn.metrics import f1_score, mean_absolute_error, r2_score
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
 from model.analyze import plot_l2_loss_curves, print_recall_score
@@ -64,16 +64,16 @@ def auto_search():
     model_type = ModelType.RESIDUAL_LSTM
     p = 2
     dropout_rate = 0.3
-    feature_type_list = [FeatureType.ALL]
+    feature_type_list = [FeatureType.T1L_REG_F50]
     predict_type_list = [PredictType.REGRESS]
-    loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy
-    lr_list = [0.0001]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
+    loss_type = 'mse' #focal_loss,binary_crossentropy,mse
+    lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.0001]#[0.00007]
     threshold = 0.5 # 二分类阈值
 
     # ===== 训练参数 =====
     epochs = 120
-    batch_size = 1024
+    batch_size = 256
     patience = 30
     train_size = 0.9
     cyc = 1    # 搜索轮数
@@ -82,7 +82,7 @@ def auto_search():
     # ----- 模型相关参数 ----
     lstm_depth_list, base_units_list = [6], [64]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
     nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_stacks-增大会整体重复残差结构，直接增加模型深度, nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口
-    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [64], [8], [512], [4] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
+    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [64], [8], [256], [4] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     filters_list, kernel_size_list, conv1d_depth_list = [128], [8], [4]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
 
     if model_type == ModelType.RESIDUAL_LSTM:# LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
@@ -123,16 +123,19 @@ def auto_search():
 
                         # 检查标签范围
                         print("标签最小:", ty.min(), "标签最大:", ty.max())
+                        print(f"DEBUG: ty-{ty[:10]}, \nvy-{vy[:10]}")
 
                         # ===== 根据上面的选择和参数自动配置模型参数 =====
                         if pt.is_classify():
                             class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
                             cls_weights = dict(enumerate(class_weights))
-                        else:
-                            cls_weights = None
+                        elif pt.is_binary():
                             classes = np.unique(ty)
                             class_weights = compute_class_weight('balanced', classes=classes, y=ty)
                             cls_weights = {int(c): w for c, w in zip(classes, class_weights)}
+                        else:
+                            cls_weights = None
+
                         if model_type == ModelType.RESIDUAL_LSTM:
                             paras = f"{pt}_{ft}_{l2_reg}_{lr}_{p1}_{p2}_{cyc_sn}" 
                             model_params = dict(p=p, depth=p1, base_units=p2, dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, predict_type=pt)
@@ -156,8 +159,9 @@ def auto_search():
                         print(f"\n{'='*5} 开始训练处理: model={model_type} {'='*5}")
                         print(f"{'='*5} 训练参数: epochs={epochs}, batch_size={batch_size}, patience={patience}, train_size={train_size} {'='*5}")
                         print(f"{'='*5} 模型参数: feature={ft}, model_params={model_params} {'='*5}\n")
-                        print_ratio(ty, "训练集(ty)")
-                        print_ratio(vy, "验证集(vy)")
+                        if pt.is_classify() or pt.is_binary():
+                            print_ratio(ty, "训练集(ty)")
+                            print_ratio(vy, "验证集(vy)")
                         
                         #开始训练
                         val_losses, model = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
@@ -170,10 +174,11 @@ def auto_search():
                         if pt.is_regress():
                             vx_pred_raw = model.model.predict(vx)
                             mae = mean_absolute_error(vy, vx_pred_raw.reshape(-1))
-                            print(f"[回归] 验证MAE: {mae:.4f}")
+                            r2 = r2_score(vy, vx_pred_raw.reshape(-1))
+                            acc_at1pct = np.mean(np.abs(vx_pred_raw.reshape(-1) - vy) <= 0.01)
+                            print(f"[回归] 验证MAE: {mae:.4f}, R2: {r2:.4f}, Accuracy@1%: {acc_at1pct:.2%}")
                             history_correction.append({'para': paras, 'val_loss': min_val, 'mae': mae})
                         else:
-
                             correct_rate, correct_mean_prob, wrong_mean_prob = print_predict_result(t_list, ds_pred, model, pt, threshold=threshold)
                             vx_pred_raw = model.model.predict(vx)
                             macro_recall = print_recall_score(vx_pred_raw, vy, pt, threshold=threshold)
@@ -194,7 +199,6 @@ def auto_search():
                                 print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}")
                             else:
                                 print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
-                                #print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
 
 
     print(f"\n[RESULT] Best : {best_paras}, min val_loss: {best_val:.4f}")
@@ -203,9 +207,16 @@ def auto_search():
             print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}")
         else:
             print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
-        #print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
     best_model.save(save_path)
     plot_l2_loss_curves(history_dict, epochs)
     
 if __name__ == "__main__":
+    # 允许显存按需增长，避免一次性占满
+    gpus = tf. config.experimental.list_physical_devices('GPU')
+    if gpus:
+        try:
+            for gpu in gpus:
+                tf.config.experimental.set_memory_growth(gpu, True)
+        except RuntimeError as e:
+            print(e)
     auto_search()

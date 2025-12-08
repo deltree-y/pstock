@@ -111,7 +111,7 @@ class ResidualTCNModel:
         self.predict_type = predict_type
 
         self.learning_rate_status = "init"
-        self.history = LossHistory()
+        self.history = LossHistory(predict_type=self.predict_type, test_x=self.test_x, test_y=self.test_y)
         logging.info(f"ResidualTCN input shape: {self.x.shape}, output shape: {self.y.shape}")
         self.create_model(self.x.shape[1:])
 

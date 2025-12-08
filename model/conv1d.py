@@ -72,7 +72,7 @@ class Conv1DResModel:
         self.se_ratio = se_ratio
         self.predict_type = predict_type
         self.learning_rate_status = "init"
-        self.history = LossHistory()
+        self.history = LossHistory(predict_type=self.predict_type, test_x=self.test_x, test_y=self.test_y)
         logging.info(f"Conv1DResModel: input shape={self.x.shape if self.x is not None else None}, y shape={self.y.shape if self.y is not None else None}")
 
         if x is not None:

@@ -101,7 +101,7 @@ class ResidualLSTMModel:
         self.learning_rate_status = "init"
         self.predict_type = predict_type
 
-        self.history = LossHistory()
+        self.history = LossHistory(predict_type=self.predict_type, test_x=self.test_x, test_y=self.test_y)
         self.depth = depth
         self.base_units = base_units
         self.dropout_rate = dropout_rate

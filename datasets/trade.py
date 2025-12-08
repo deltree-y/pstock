@@ -209,6 +209,9 @@ class Trade():
             #皮尔逊+互信息+树模型交集特征
             basic_features = ['ts_code', 'trade_date', 'open', 'high', 'low', 'close']#, 'stock_idx']
 
+            t1lreg_features_55 = ['date_full', 'dv_ratio', 'high', 'vol', 'y5_us_trycr', '6m', 'on', 'turnover_rate_f', 'vol_max_10d', 'w52_bd', 'close_to_his_high', 'close_vs_low', 'obv', 'atr_14', 'm1', 'total_mv', 'vol_mean_10d', 'y20', 'y30', 'w4_ce', 'industry_idx', 'volatility_5d', 'sell_elg_vol', 'BBB_20_2.0', 'close_to_high_20d', 'low', 'ltc', 'return_5d', 'close_to_his_low', 'vol_mean_20d', 'w4_bd', 'ltr_avg', 'w26_ce', 'close_vs_open', 'w52_ce', 'vol_max_5d', 'w26_bd', 'macd_signal', 'y10', 'y5', 'y10_us_trycr', 'vol_max_20d', 'volatility_10d', 'y30_us_trycr', 'natr_14', 'stddev_10', 'return_10d', 'open', 'pe', 'ps', 'y1', 'close', 'amplitude', '1y', 'roc_10', '1w', 'pb', 'buy_elg_vol', 'cmt']
+            t1lreg_features_50 = t1lreg_features_55[:50]
+
             t1l03_features_55 = ['natr_14', 'amplitude', 'dv_ratio', 'e_factor', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'date_full', 'total_mv', 'turnover_rate_f', 'on', 'pb', 'pe', 'close_to_high_20d', 'macd_cross', '1y', '6m', '1w', 'log_volume', 'vol_max_20d', 'vol_max_10d', 'atr_14', 'y5_us_trycr', 'ps', 'ADX_14', 'stddev_10', 'weekday', 'w26_bd', 'vol_max_5d', 'y10_us_trycr', 'w52_ce', 'w52_bd', 'w26_ce', 'y1', 'DMP_14', 'industry_idx', 'm1', 'w4_bd', 'w4_ce', 'ltr_avg', 'y5', 'y30_us_trycr', 'y10', 'vol_mean_20d', 'y20', 'ltc', 'roc_10', 'rsi_14', 'return_10d', 'cmt', 'buy_elg_vol', 'vol_ratio_20d', 'sell_elg_vol', 'y30']
             t1l04_features_55 = ['natr_14', 'amplitude', 'dv_ratio', 'e_factor', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'date_full', 'total_mv', 'turnover_rate_f', 'on', 'pb', 'pe', 'close_to_high_20d', 'macd_cross', '1y', '6m', '1w', 'log_volume', 'vol_max_20d', 'vol_max_10d', 'atr_14', 'y5_us_trycr', 'ps', 'ADX_14', 'stddev_10', 'weekday', 'w26_bd', 'vol_max_5d', 'y10_us_trycr', 'w52_ce', 'w52_bd', 'w26_ce', 'y1', 'DMP_14', 'industry_idx', 'm1', 'w4_bd', 'w4_ce', 'ltr_avg', 'y5', 'y30_us_trycr', 'y10', 'vol_mean_20d', 'y20', 'ltc', 'roc_10', 'rsi_14', 'return_10d', 'cmt', 'buy_elg_vol', 'vol_ratio_20d', 'sell_elg_vol', 'y30']
             t1l05_features_55 = ['natr_14', 'amplitude', 'dv_ratio', 'e_factor', 'volatility_10d', 'BBB_20_2.0', 'volatility_5d', 'date_full', 'total_mv', 'turnover_rate_f', 'on', 'pb', 'pe', 'close_to_high_20d', 'macd_cross', '1y', '6m', '1w', 'log_volume', 'vol_max_20d', 'vol_max_10d', 'atr_14', 'y5_us_trycr', 'ps', 'ADX_14', 'stddev_10', 'weekday', 'w26_bd', 'vol_max_5d', 'y10_us_trycr', 'w52_ce', 'w52_bd', 'w26_ce', 'y1', 'DMP_14', 'industry_idx', 'm1', 'w4_bd', 'w4_ce', 'ltr_avg', 'y5', 'y30_us_trycr', 'y10', 'vol_mean_20d', 'y20', 'ltc', 'roc_10', 'rsi_14', 'return_10d', 'cmt', 'buy_elg_vol', 'vol_ratio_20d', 'sell_elg_vol', 'y30']
@@ -280,11 +283,11 @@ class Trade():
             return [],[],[],[]
         #1. 根据数据剪掉部分头部数据,进行对齐
         self.__trade_datas = self.__raw_data_pure_np[2:, :]     #从第三天开始对齐
-        self.__trade_date_list = self.__trade_date_list[2:]  #从第三天开始对齐
+        self.__trade_date_list = self.__trade_date_list[2:]     #从第三天开始对齐
         self.__t1l_change_rate = self.__t1l_change_rate[1:]    #从第二天开始对齐
         self.__t1h_change_rate = self.__t1h_change_rate[1:]    #从第二天开始对齐
-        #self.t2l_change_rate = self.t2l_change_rate    #从第三天开始对齐,不需要变动
-        #self.t2h_change_rate = self.t2h_change_rate    #从第三天开始对齐,不需要变动
+        self.__t2l_change_rate = self.__t2l_change_rate         #从第三天开始对齐,不需要变动
+        self.__t2h_change_rate = self.__t2h_change_rate         #从第三天开始对齐,不需要变动
 
         #2. 组合生成头部对齐的数据
         #self.combine_data_np = np.column_stack((self.__trade_date_list, self.__trade_datas, self.__t1l_change_rate, self.__t2h_change_rate))
@@ -295,8 +298,7 @@ class Trade():
         return self.combine_data_np[:-max_cut_days], self.raw_data_np[:-max_cut_days]
 
     #计算t1,t2变化率
-    #t1_change_rate表示T1低值的变化率
-    def update_t1_change_rate(self):#表示T1低值的变化率
+    def update_t1_change_rate(self):
         ##计算说明:
         # t1l_change_rate = t1_low  - t0_close / t0_close
         # t1h_change_rate = t1_high - t0_close / t0_close
@@ -309,8 +311,7 @@ class Trade():
             if self.stock_type != StockType.INDEX else self.__raw_data_pure_np[:-1, 0]-self.__raw_data_pure_np[:-1, 0]
         #self.t1_change_rate = np.array([RateCat(rate=x,scale=T1L_SCALE).get_label() for x in self.t1_change_rate])
     
-    #t2_change_rate表示T2高值的变化率
-    def update_t2_change_rate(self):#表示T2高值的变化率
+    def update_t2_change_rate(self):
         ##计算说明:
         # t2l_change_rate = t2_low  - t0_close / t0_close
         # t2h_change_rate = t2_high - t0_close / t0_close

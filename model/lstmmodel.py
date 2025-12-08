@@ -54,7 +54,7 @@ class LSTMModel():
         self.class_weight_dict = class_weights
         self.predict_type = predict_type
 
-        self.history = LossHistory()
+        self.history = LossHistory(predict_type=self.predict_type, test_x=self.test_x, test_y=self.test_y)
         self.create_model_mini(x[0].shape)
         self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
         logging.info(f"LSTM Mini Model: input shape={self.x.shape}, y shape={self.y.shape}")
