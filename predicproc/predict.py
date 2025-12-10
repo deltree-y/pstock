@@ -2,6 +2,7 @@ import sys, os, logging
 import numpy as np
 from cat import RateCat
 from utils.utils import PredictType
+from utils.const_def import ACCU_RATE_THRESHOLD
 
 class Predict():
     def __init__(self, predicted_data, base_price, predict_type, bins1=None, bins2=None, threshold=0.5):
@@ -34,8 +35,10 @@ class Predict():
         elif self.is_binary:
             self.prob = float(predicted_data[0,0])
             self.pred_label = int(self.prob > self.threshold)
-        else:
+        elif self.is_regress:
             self.pred_value = float(predicted_data[0,0])
+        else:
+            raise ValueError("未知的预测类型。")
     
     #打印预测结果
     def print_predict_result(self, desc="预测"):
@@ -52,32 +55,12 @@ class Predict():
             label = f"{symbol[0]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})" if self.pred_label==1 else f"{symbol[1]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})"
             prob_rate = self.prob*100 if self.pred_label==1 else (1-self.prob)*100
             print(f"{desc}RAW<{self.prob:<.3f}>, T0价格[{self.bp:.2f}], {self.predict_type.label} {label}, 置信率:[{prob_rate:.2f}%]")
-        else:
+        elif self.is_regress:
             print(f"{desc}回归预测涨跌幅: {self.pred_value:.4f}, 预测价格: {self.bp * (1 + self.pred_value):.2f}")
-
-    #打印预测结果VS真实值
-    def print_predict_result_with_real(self, real_y):
-        predict_wrong_str = ""
-        if self.is_classify:
-            predict_list = [round(x, 3) for x in self.predicted_data[0]]
-            #print(f"预测类别概率分布: {predict_list}")
-            confi = max(self.predicted_data[0]) * 100  # 多分类的置信率
-            print(f"预测t0p[{self.bp}] t1l 标签[{self.y1r.get_label()}]({confi:.2f}%) 区间: [{self.y1r.get_rate_from_label('min')*100:.2f}%, {self.y1r.get_rate_from_label('max')*100:.2f}%]({self.y1r.get_rate_from_label('avg')*100:.2f}%), 预测价格: {self.bp * (1 + self.y1r.get_rate_from_label('avg')):.2f}")
-        elif self.is_binary:
-            if self.predict_type.is_binary_t1_low() or self.predict_type.is_binary_t2_low():
-                symbol = ['<=', '> ']
-            else:
-                symbol = ['>=', '< ']
-            label = f"{symbol[0]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})" if self.pred_label==1 else f"{symbol[1]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})"
-            prob_rate = self.prob*100 if self.pred_label==1 else (1-self.prob)*100
-            pred_result_str = f"" if self.pred_label==real_y[0,0] else f" <--- [{self.pred_label}/{real_y[0,0]}]预测错误!!!"
-            print(f"预测RAW<{self.prob:<.3f}>, T0bp[{self.bp:.2f}], {self.predict_type.label} {label}, 置信率[{prob_rate:.2f}%] {pred_result_str}")
         else:
-            #TODO:此处需要修改为与真实值比较
-            print(f"预测回归预测涨跌幅: {self.pred_value:.4f}, 预测价格: {self.bp * (1 + self.pred_value):.2f}")
+            print("未知的预测类型，无法打印结果。")
 
     #打印预测结果VS真实值,返回字符串
-    #TODO: 此处进处理了二分类, 还未对多分类及回归进行处理
     def get_predict_result_with_real_str(self, real_y):
         predict_wrong_str = ""
         if self.is_classify:
@@ -103,9 +86,14 @@ class Predict():
             pred_result_str = f"" if self.pred_label==real_y[0,0] else f" <--- [{self.pred_label}/{real_y[0,0]}]预测错误!!!"
             predict_wrong_str = f"预测RAW<{self.prob:<.3f}>, T0bp[{self.bp:.2f}], {self.predict_type.label} {label}, 置信率[{prob_rate:.2f}%] {pred_result_str}" if self.pred_label!=real_y[0,0] else ""
             pred_dot_str = f"{self.pred_label}" if self.pred_label==real_y[0,0] else f"x"
+        elif self.is_regress:
+            pred_dot_str = "-"
+            #print(f"预测回归预测涨跌幅: {self.pred_value:.4f}, 真实涨跌幅: {real_y[0,0]*100:.4f}, 预测价格: {self.bp * (1 + self.pred_value/100):.2f}")
+            pred_dot_str = "o" if np.abs(self.pred_value - real_y[0,0]*100) <=ACCU_RATE_THRESHOLD else "x"
+            predict_wrong_str = f"[{self.bp * (1 + self.pred_value/100):.2f}], 预测/真实涨跌幅(差异): {self.pred_value: .2f}%/{real_y[0,0]*100: .2f}%({(self.pred_value - real_y[0,0]*100): .2f})" if pred_dot_str=="x" else ""
         else:
-            #TODO:此处需要修改为与真实值比较
-            print(f"预测回归预测涨跌幅: {self.pred_value:.4f}, 预测价格: {self.bp * (1 + self.pred_value):.2f}")
+            pred_dot_str = "?"
+            print("未知的预测类型，无法打印结果。")
         
         return pred_dot_str, predict_wrong_str
 
@@ -131,31 +119,14 @@ class Predict():
             obj.pred_label = int(prob)
             obj.prob = float(prob)
             return obj
-        else:
+        elif predict_type.is_regress():
             value = float(real_y[0]) if real_y.ndim>0 else float(real_y)
             obj = Predict(np.array([[value]]), base_price, predict_type)
             obj.is_regress = True
             obj.pred_value = value
             return obj
-
-
-    #def print_predict_result(self):
-    #   if self.predict_type.is_classify():
-    #        predict_list = [round(x, 3) for x in self.predicted_data[0]]
-    #        print(f"Predict raw result: {predict_list}")            
-    #        print(f"Predict t0p[{self.bp}] t1l label[{self.y1r.get_label()}] pct min/avg/max is <{self.y1r.get_rate_from_label('min')*100:.2f}%/{self.y1r.get_rate_from_label('avg')*100:.2f}%/{self.y1r.get_rate_from_label('max')*100:.2f}%> price is <{self.y1r.get_rate_from_label('min')*self.bp+self.bp:.2f}/{self.y1r.get_rate_from_label('avg')*self.bp+self.bp:.2f}/{self.y1r.get_rate_from_label('max')*self.bp+self.bp:.2f}>")
-    #    elif self.predict_type.is_binary():
-    #        if self.predict_type.is_binary_t1_low() or self.predict_type.is_binary_t2_low():
-    #            symbol = ['<=', '>']
-    #        else:
-    #            symbol = ['>=', '<']
-    #        if self.predicted_data[0,0]>0.5:
-    #            label = f'{symbol[0]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})'
-    #            prob_rate = self.predicted_data[0,0]*100
-    #        else:
-    #            label = f'{symbol[1]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})'
-    #            prob_rate = (1 - self.predicted_data[0,0])*100
-    #        print(f"RAW<{self.predicted_data[0,0]:<.3f}>, T0价格[{self.bp:.2f}], {self.predict_type.label} {label}, 置信率:[{prob_rate:.2f}%]")
+        else:
+            raise ValueError("未知的预测类型。")
 
 
 class RegPredict():

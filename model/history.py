@@ -2,11 +2,12 @@ import tensorflow as tf
 import numpy as np
 from datetime import datetime, timedelta
 from keras.callbacks import Callback
+from utils.utils import PredictType
 from utils.const_def import ACCU_RATE_THRESHOLD
 
 
 class LossHistory(Callback):
-    def __init__(self, predict_type=None, test_x=None, test_y=None):
+    def __init__(self, predict_type:PredictType, test_x=None, test_y=None):
         super(LossHistory, self).__init__()
         self.predict_type = predict_type
         self.test_x = test_x
@@ -19,8 +20,13 @@ class LossHistory(Callback):
         self.val_accu, self.val_t1_accu, self.val_t2_accu = [], [], []
 
     def on_epoch_end(self, epoch, logs=None):
-        self.losses.append(logs.get('loss'))
-        self.val_losses.append(logs.get('val_loss'))
+        cur_loss = logs.get('loss') if not self.predict_type.is_regress() else logs.get('mae')
+        cur_val_loss = logs.get('val_loss') if not self.predict_type.is_regress() else logs.get('val_mae')
+        cur_acc = logs.get('accuracy')
+        cur_val_acc = logs.get('val_accuracy')
+
+        self.losses.append(cur_loss)
+        self.val_losses.append(cur_val_loss)
 
         if self.predict_type.is_regress():# 回归任务
             if self.test_x is not None and self.test_y is not None:
@@ -33,8 +39,8 @@ class LossHistory(Callback):
             else:
                 acc_str, val_acc_str = "--/--", "--/--"
         else:# 分类任务
-            acc = logs.get('accuracy')
-            val_accu = logs.get('val_accuracy')
+            acc = cur_acc
+            val_accu = cur_val_acc
             acc_str = f"{acc*100:.2f}" if acc is not None else "--"
             val_acc_str = f"{val_accu*100:.2f}" if val_accu is not None else "--"
             self.val_accu.append(val_accu)
@@ -51,16 +57,16 @@ class LossHistory(Callback):
         # 只输出回归损失
         if logs:
             print(f"\n{epoch + 1}/{self.epoch}: "
-                  f"t:[{logs.get('loss'):.4f}/{acc_str}], "
-                  f"v:[{logs.get('val_loss'):.4f}/{val_acc_str}]({loss_diff_ratio:+.2f}%),",
+                  f"t:[{cur_loss:.4f}/{acc_str}], "
+                  f"v:[{cur_val_loss:.4f}/{val_acc_str}]({loss_diff_ratio:+.2f}%),",
                   f"lr({self.model.learning_rate_status}):{tf.keras.backend.get_value(self.model.optimizer.lr):.6f}",
                   f"{speed:.1f}s/ep, ed:{finished_time}({min_remaining/60:.1f}h)", 
                   end="", flush=True)
                     
             loss_improve_str, val_improve_str = None, None
-            if epoch > 0 and logs.get('val_loss') < min(self.val_losses[:-1]):  #val_loss更小时增加打印项目
-                loss_improve_str = f"[{min(self.val_losses[:-1])-logs.get('val_loss'):.5f}]"
-                loss_improve_ratio_str = f"[{100*(min(self.val_losses[:-1])-logs.get('val_loss'))/min(self.val_losses[:-1]):.2f}%]"
+            if epoch > 0 and cur_val_loss < min(self.val_losses[:-1]):  #val_loss更小时增加打印项目
+                loss_improve_str = f"[{min(self.val_losses[:-1])-cur_val_loss:.5f}]"
+                loss_improve_ratio_str = f"[{100*(min(self.val_losses[:-1])-cur_val_loss)/min(self.val_losses[:-1]):.2f}%]"
             if epoch > 0 and val_accu > max(self.val_accu[:-1]):    #val_accuracy更大时增加打印项目
                 val_improve_str = f"[{(val_accu-max(self.val_accu[:-1]))*100:.2f}]"
             if loss_improve_str is not None or val_improve_str is not None:

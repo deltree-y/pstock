@@ -14,7 +14,7 @@ from bins import BinManager
 from utils.tk import TOKEN
 from utils.utils import FeatureType, setup_logging
 from utils.utils import StockType, PredictType
-from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, MIN_TRADE_DATA_ROWS, T1L_SCALE, T2H_SCALE, ALL_CODE_LIST, IDX_CODE_LIST
+from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, MIN_TRADE_DATA_ROWS, T1L_SCALE, T2H_SCALE, ALL_CODE_LIST, IDX_CODE_LIST, CLIP_Y_PERCENT
 from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 
 # | 数据来源/阶段                 | 变量名                             | 说明                                                       | 数据格式            | 特点/备注                       |
@@ -175,6 +175,9 @@ class StockDataset():
             elif self.predict_type.is_regress():#回归
                 # 默认使用第一个目标列(t1l变化率)作为回归目标
                 dataset_y = raw_y[:, 0].reshape(-1, 1).astype(float)*100
+                # 裁剪极值，避免训练被极端样本主导
+                dataset_y = np.clip(dataset_y, -CLIP_Y_PERCENT, CLIP_Y_PERCENT)
+
                 raw_dataset_y = raw_y
             else:
                 raise ValueError(f"StockDataset.split_train_test_dataset_by_stock() - Unknown predict_type: {self.predict_type}")

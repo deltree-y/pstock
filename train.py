@@ -17,7 +17,7 @@ from model.conv1d import Conv1DResModel
 from model.utils import get_model_file_name
 from predicproc.show import print_predict_result
 from utils.tk import TOKEN
-from utils.const_def import ALL_CODE_LIST, NUM_CLASSES, IDX_CODE_LIST, BIG_IDX_CODE_LIST, BANK_CODE_LIST_10
+from utils.const_def import ALL_CODE_LIST, NUM_CLASSES, IDX_CODE_LIST, BIG_IDX_CODE_LIST, BANK_CODE_LIST_10, ACCU_RATE_THRESHOLD
 from utils.utils import FeatureType, PredictType, ModelType, setup_logging, print_ratio, print_nan_inf_info
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
@@ -56,31 +56,31 @@ def auto_search():
     si = StockInfo(TOKEN)
     primary_stock_code = '600036.SH'
     index_code_list = IDX_CODE_LIST#BIG_IDX_CODE_LIST#IDX_CODE_LIST
-    related_stock_list = ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
+    related_stock_list = []#ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
     t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].astype(str).tolist()
-    t_start_date, t_end_date = '20160104', '20250101'
+    t_start_date, t_end_date = '20060104', '20250101'
 
     # ---模型通用参数---
     model_type = ModelType.RESIDUAL_LSTM
     p = 2
-    dropout_rate = 0.3
+    dropout_rate = 0.2
     feature_type_list = [FeatureType.T1L_REG_F50]
     predict_type_list = [PredictType.REGRESS]
-    loss_type = 'mse' #focal_loss,binary_crossentropy,mse
-    lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
-    l2_reg_list = [0.0001]#[0.00007]
+    loss_type = 'robust_mse' #focal_loss,binary_crossentropy,mse
+    lr_list = [0.0001]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
+    l2_reg_list = [0.0005]#[0.00007]
     threshold = 0.5 # 二分类阈值
 
     # ===== 训练参数 =====
-    epochs = 120
+    epochs = 150
     batch_size = 256
     patience = 30
     train_size = 0.9
-    cyc = 1    # 搜索轮数
+    cyc = 3    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
-    lstm_depth_list, base_units_list = [6], [64]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
+    lstm_depth_list, base_units_list = [2], [256]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
     nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_stacks-增大会整体重复残差结构，直接增加模型深度, nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口
     d_model_list, num_heads_list, ff_dim_list, num_layers_list = [64], [8], [256], [4] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     filters_list, kernel_size_list, conv1d_depth_list = [128], [8], [4]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
@@ -171,15 +171,15 @@ def auto_search():
                         if min_val < best_val:
                             best_paras, best_val, best_model = paras, min_val, model
 
+                        correct_rate, correct_mean_prob, wrong_mean_prob = print_predict_result(t_list, ds_pred, model, pt, threshold=threshold)
                         if pt.is_regress():
                             vx_pred_raw = model.model.predict(vx)
                             mae = mean_absolute_error(vy, vx_pred_raw.reshape(-1))
                             r2 = r2_score(vy, vx_pred_raw.reshape(-1))
-                            acc_at1pct = np.mean(np.abs(vx_pred_raw.reshape(-1) - vy) <= 0.01)
+                            acc_at1pct = np.mean(np.abs(vx_pred_raw.reshape(-1) - vy) <= ACCU_RATE_THRESHOLD)
                             print(f"[回归] 验证MAE: {mae:.4f}, R2: {r2:.4f}, Accuracy@1%: {acc_at1pct:.2%}")
-                            history_correction.append({'para': paras, 'val_loss': min_val, 'mae': mae})
+                            history_correction.append({'para': paras, 'val_loss': min_val, 'mae': mae, 'acc':acc_at1pct, 'correct_rate': correct_rate})
                         else:
-                            correct_rate, correct_mean_prob, wrong_mean_prob = print_predict_result(t_list, ds_pred, model, pt, threshold=threshold)
                             vx_pred_raw = model.model.predict(vx)
                             macro_recall = print_recall_score(vx_pred_raw, vy, pt, threshold=threshold)
                             #best_model.save(f"{save_path}")
@@ -196,7 +196,7 @@ def auto_search():
                         
                         for record in history_correction:
                             if pt.is_regress():
-                                print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}")
+                                print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}, Acc:{record['acc']:.2%}, correct_rate:{record['correct_rate']:.2%}")
                             else:
                                 print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
 
@@ -204,11 +204,11 @@ def auto_search():
     print(f"\n[RESULT] Best : {best_paras}, min val_loss: {best_val:.4f}")
     for record in history_correction:
         if predict_type_list[0].is_regress():
-            print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}")
+            print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}, Acc:{record['acc']:.2%}, correct_rate:{record['correct_rate']:.2%}")
         else:
             print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
     best_model.save(save_path)
-    plot_l2_loss_curves(history_dict, epochs)
+    #plot_l2_loss_curves(history_dict, epochs)
     
 if __name__ == "__main__":
     # 允许显存按需增长，避免一次性占满

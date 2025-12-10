@@ -141,24 +141,17 @@ class ResidualLSTMModel:
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc1")(x_last)
         x_last = Dropout(self.dropout_rate, name="fc1_drop")(x_last)
-        #x_last = Dense(self.base_units * self.p, activation=activations.swish,
         x_last = Dense(self.base_units  * 2, activation=activations.swish,
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc2")(x_last)
-        #x_last = Dropout(self.dropout_rate, name="fc2_drop")(x_last)
-        #x_last = Dense(32, activation=activations.swish,
-        #               kernel_regularizer=l2(self.l2_reg),
-        #               name="fc3")(x_last)
-        # 输出层
-        #temperature = 1.25
-        #x_last = Dense(NUM_CLASSES, name='logits')(x_last)
-        #outputs = Lambda(lambda x: tf.nn.softmax(x / temperature), name='output')(x_last)
+
         if self.predict_type.is_classify():
             outputs = Dense(NUM_CLASSES, activation='softmax', name='output')(x_last)
         elif self.predict_type.is_binary():
             outputs = Dense(1, activation='sigmoid', name='output')(x_last)
         elif self.predict_type.is_regress():
-            outputs = Dense(1, activation='linear', name='output')(x_last)
+            logits = Dense(1, activation='tanh', name='logits')(x_last)
+            outputs = Lambda(lambda t: 5.0 * t, name='output')(logits)  # 预测范围限定在 [-5,5] 百分点
         else:
             raise ValueError("Unsupported predict_type for classification model.")
 
@@ -169,16 +162,20 @@ class ResidualLSTMModel:
         self.y = ty.astype(int) if ty is not None else self.y
 
         loss_fn = get_loss(self.loss_type, self.predict_type)
+        # 回归用 MAE 早停，其它任务仍用 val_loss
+        monitor_metric = 'val_mae' if self.predict_type.is_regress() else 'val_loss'
+        metrics = {'output': ['mae','mse']} if self.predict_type.is_regress() else {'output': 'accuracy'}
+
         self.model.compile(
             #optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
             #optimizer=SGD(learning_rate=learning_rate, momentum=0.9, nesterov=True),
             optimizer=tfa.optimizers.AdamW(learning_rate=learning_rate, weight_decay=1e-4, clipnorm=0.5),
             loss={'output': loss_fn},
-            metrics={'output': 'accuracy'}
+            metrics=metrics
         )        
         
         # 添加学习率调度和早停
-        warmup_steps, hold_steps = int(0.3 * epochs), int(0.4 * epochs)
+        warmup_steps, hold_steps = int(0.1 * epochs), int(0.1 * epochs)
         lr_scheduler = WarmUpCosineDecayScheduler(
             learning_rate_base=learning_rate,
             total_steps=epochs,
@@ -186,7 +183,7 @@ class ResidualLSTMModel:
             hold_steps=hold_steps
         )
         early_stopping = EarlyStopping(
-            monitor='val_loss',
+            monitor=monitor_metric,
             patience=patience,
             restore_best_weights=True,
             verbose=1

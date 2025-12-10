@@ -6,6 +6,7 @@ CONTINUOUS_DAYS = 50
 NUM_CLASSES = 4  # 减少类别数量以改善类别平衡
 MIN_TRADE_DATA_ROWS = 100   # 最少交易数据行数要求
 ACCU_RATE_THRESHOLD = 0.1   # 回归任务的准确率阈值，预测值与真实值的差值在该阈值内则认为预测正确
+CLIP_Y_PERCENT = 5.0        # 回归标签裁剪/损失加权的最大百分点（5%）
 
 IDX_CODE_LIST = ['000001.SH', '399001.SZ']#, '399006.SZ']  # 上证指数, 深证成指, 创业板指
 CODE_LIST_TEMP = ['000001.SZ']

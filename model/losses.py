@@ -1,6 +1,22 @@
 import tensorflow as tf
 from utils.utils import PredictType
 
+def robust_mse_with_clip(clip=5.0, alpha=1.0):
+    """
+    对大误差做裁剪/降权的MSE：
+      - 先对误差做截断 clip（单位：百分点）
+      - 误差越大权重越低：1 / (1 + (err/clip)**alpha)
+    """
+    def loss_fn(y_true, y_pred):
+        y_true_f = tf.cast(y_true, tf.float32)
+        y_pred_f = tf.cast(y_pred, tf.float32)
+        err = tf.abs(y_true_f - y_pred_f)
+        clipped = tf.minimum(err, clip)
+        weight = 1.0 / (1.0 + tf.pow(err / clip, alpha))
+        return tf.reduce_mean(weight * tf.square(clipped))
+    loss_fn.__name__ = f"robust_mse_clip{clip}_a{alpha}"
+    return loss_fn
+
 def mse_with_variance_push(var_floor_ratio: float = 0.5, penalty_weight: float = 0.05, eps: float = 1e-9):
     def loss_fn(y_true, y_pred):
         # ensure float32 tensors
@@ -75,6 +91,8 @@ def binary_focal_loss(gamma=2.0, alpha=0.25):
 # 根据输入值及预测类型来选择损失函数
 def get_loss(loss_type, predict_type:PredictType):
     if predict_type.is_regress():
+        if loss_type == 'robust_mse':
+            return robust_mse_with_clip()
         # 回归默认使用MSE
         return 'mse' if loss_type is None else loss_type
 
