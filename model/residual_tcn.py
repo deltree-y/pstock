@@ -103,9 +103,9 @@ class ResidualTCNModel:
         self.l2_reg = l2_reg
         self.causal = causal
         self.x = x.astype(float)
-        self.y = y.astype(int)
+        self.y = y
         self.test_x = test_x.astype(float) if test_x is not None else None
-        self.test_y = test_y.astype(int) if test_y is not None else None
+        self.test_y = test_y if test_y is not None else None
         self.class_weights = class_weights
         self.loss_type = loss_type
         self.predict_type = predict_type
@@ -150,20 +150,23 @@ class ResidualTCNModel:
         elif self.predict_type.is_binary():
             outputs = Dense(1, activation='sigmoid', name='output')(x)
         elif self.predict_type.is_regress():
-            outputs = Dense(1, activation='linear', name='output')(x)
+            logits = Dense(1, activation='tanh', name='logits')(x)
+            outputs = Lambda(lambda t: 5.0 * t, name='output')(logits)
         else:
             raise ValueError("Unsupported predict_type for classification model.")            
         self.model = Model(inputs=inputs, outputs=outputs)
 
     def train(self, tx, ty, epochs=120, batch_size=256, learning_rate=0.001, patience=20):
         self.x = tx.astype('float32') if tx is not None else self.x
-        self.y = ty.astype(int) if ty is not None else self.y
+        self.y = ty if ty is not None else self.y
+        metrics = {'output': ['mae','mse']} if self.predict_type.is_regress() else {'output': 'accuracy'}
+        monitor_metric = 'val_mae' if self.predict_type.is_regress() else 'val_loss'
 
         loss_fn = get_loss(self.loss_type, self.predict_type)
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
             loss={'output': loss_fn},
-            metrics={'output': 'accuracy'}
+            metrics=metrics
         )
         warmup_steps, hold_steps = int(0.2 * epochs), int(0.2 * epochs)
         lr_scheduler = WarmUpCosineDecayScheduler(
@@ -173,7 +176,7 @@ class ResidualTCNModel:
             hold_steps=hold_steps
         )
         early_stopping = EarlyStopping(
-            monitor='val_loss',
+            monitor=monitor_metric,
             patience=patience,
             restore_best_weights=True,
             verbose=1

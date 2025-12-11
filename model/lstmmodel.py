@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 from datetime import datetime
 from keras.models import Sequential, Model, load_model
-from keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, BatchNormalization, LayerNormalization
+from keras.layers import Input, LSTM, Dense, Dropout, Bidirectional, BatchNormalization, LayerNormalization, Lambda
 from keras.callbacks import ModelCheckpoint, Callback, ReduceLROnPlateau, EarlyStopping
 from keras.regularizers import l2
 from keras.optimizers import Adam
@@ -37,9 +37,9 @@ class LSTMModel():
         
         self.p = p
         self.x = x.astype('float32')
-        self.y = y.astype(int)  # 分类任务 y 应为整数类别
+        self.y = y  
         self.test_x = test_x.astype('float32') if test_x is not None else None
-        self.test_y = test_y.astype(int) if test_y is not None else None
+        self.test_y = test_y if test_y is not None else None
         self.loss_type = loss_type
         self.learning_rate_status = "init"
 
@@ -69,20 +69,23 @@ class LSTMModel():
         elif self.predict_type.is_binary():
             outputs = Dense(1, activation='sigmoid', name='output')(x)
         elif self.predict_type.is_regress():
-            outputs = Dense(1, activation='linear', name='output')(x)
+            logits = Dense(1, activation='tanh', name='logits')(x)
+            outputs = Lambda(lambda t: 5.0 * t, name='output')(logits)
         else:
             raise ValueError("Unsupported predict_type for classification model.")
         self.model = Model(inputs=inputs, outputs=outputs)
 
     def train(self, tx, ty, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
         self.x = tx.astype('float32') if tx is not None else self.x
-        self.y = ty.astype(int) if ty is not None else self.y
-        
+        self.y = ty if ty is not None else self.y
         loss_fn = get_loss(self.loss_type, self.predict_type)
+        metrics = {'output': ['mae','mse']} if self.predict_type.is_regress() else {'output': 'accuracy'}
+        monitor_metric = 'val_mae' if self.predict_type.is_regress() else 'val_loss'
+
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
             loss={'output': loss_fn},
-            metrics={'output': 'accuracy'}
+            metrics=metrics
         )        
         
         # 添加学习率调度和早停
@@ -94,7 +97,7 @@ class LSTMModel():
             hold_steps=hold_steps
         )
         early_stopping = EarlyStopping(
-            monitor='val_loss',
+            monitor=monitor_metric,
             patience=patience,
             restore_best_weights=True,
             verbose=1

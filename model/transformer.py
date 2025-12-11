@@ -167,9 +167,9 @@ class TransformerModel():
             self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
             return
         self.x = x.astype('float32')
-        self.y = y.astype(int)  # 多分类标签（分箱后的类别编号）
+        self.y = y 
         self.test_x = test_x.astype('float32') if test_x is not None else None
-        self.test_y = test_y.astype(int) if test_y is not None else None
+        self.test_y = test_y if test_y is not None else None
         self.d_model = d_model
         self.num_heads = num_heads
         self.ff_dim = ff_dim
@@ -257,7 +257,8 @@ class TransformerModel():
         elif self.predict_type.is_binary():
             outputs = Dense(1, activation='sigmoid', name='output')(x)
         elif self.predict_type.is_regress():
-            outputs = Dense(1, activation='linear', name='output')(x)
+            logits = Dense(1, activation='tanh', name='logits')(x)
+            outputs = Lambda(lambda t: 5.0 * t, name='output')(logits)
         else:
             raise ValueError("Unsupported predict_type for classification model.")
 
@@ -266,7 +267,9 @@ class TransformerModel():
 
     def train(self, tx, ty, epochs=80, batch_size=512, learning_rate=0.002, weight_decay=1e-5, patience=30):
         self.x = tx.astype('float32') if tx is not None else self.x
-        self.y = ty.astype(int) if ty is not None else self.y
+        self.y = ty if ty is not None else self.y
+        metrics = {'output': ['mae','mse']} if self.predict_type.is_regress() else {'output': 'accuracy'}
+        monitor_metric = 'val_mae' if self.predict_type.is_regress() else 'val_loss'
 
         optimizer = optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5)#AdamW(learning_rate=learning_rate, weight_decay=weight_decay, clipnorm=0.5)
 
@@ -274,7 +277,7 @@ class TransformerModel():
         self.model.compile(
             optimizer=optimizer,
             loss={'output': loss_fn},
-            metrics={'output': 'accuracy'}
+            metrics=metrics
         )        
 
         # 添加学习率调度和早停
@@ -286,7 +289,7 @@ class TransformerModel():
             hold_steps=hold_steps  # 5%的步数保持不变
         )
         early_stopping = EarlyStopping(
-            monitor='val_loss',
+            monitor=monitor_metric,
             patience=patience,
             restore_best_weights=True,
             verbose=1

@@ -9,6 +9,8 @@ def print_predict_result(t_list, ds, m, predict_type, threshold=0.5):
     predict_wrong_list_str = ""
     correct_probs = []
     wrong_probs = []
+    residual = []
+    pred_values = []
 
     print(f"\n预测结果如下:")
     for t0 in t_list:
@@ -27,6 +29,8 @@ def print_predict_result(t_list, ds, m, predict_type, threshold=0.5):
             is_correct = pred.y1r.get_label() == real_y[0,0]
         elif pred.is_regress:
             is_correct = (pred_dot == "o")
+            residual.append(abs(pred.pred_value - real_y[0,0]*100))
+            pred_values.append(pred.pred_value)
         else:
             print("未知的预测类型，无法判断正确性。")
             is_correct = False
@@ -61,4 +65,4 @@ def print_predict_result(t_list, ds, m, predict_type, threshold=0.5):
         print("无错误数据统计平均置信率")
     print("-"*100)
 
-    return correct_cnt / len(t_list), np.mean(correct_probs)*100, np.mean(wrong_probs)*100
+    return correct_cnt / len(t_list), np.mean(correct_probs)*100, np.mean(wrong_probs)*100, np.mean(residual) if residual else None, np.std(pred_values) if pred_values else None

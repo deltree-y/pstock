@@ -94,9 +94,9 @@ class ResidualLSTMModel:
 
         self.p = p
         self.x = x.astype('float32')
-        self.y = y.astype(int)  # 分类任务 y 应为整数类别
+        self.y = y
         self.test_x = test_x.astype('float32') if test_x is not None else None
-        self.test_y = test_y.astype(int) if test_y is not None else None
+        self.test_y = test_y if test_y is not None else None
         self.loss_type = loss_type
         self.learning_rate_status = "init"
         self.predict_type = predict_type
@@ -159,7 +159,7 @@ class ResidualLSTMModel:
 
     def train(self, tx, ty, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
         self.x = tx.astype('float32') if tx is not None else self.x
-        self.y = ty.astype(int) if ty is not None else self.y
+        self.y = ty if ty is not None else self.y
 
         loss_fn = get_loss(self.loss_type, self.predict_type)
         # 回归用 MAE 早停，其它任务仍用 val_loss
