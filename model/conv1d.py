@@ -1,20 +1,13 @@
-import os, sys, logging
-import numpy as np
 import tensorflow as tf
-from keras.models import Model, load_model
+from keras.models import Model
 from keras.layers import (
     Input, Conv1D, BatchNormalization, Activation, Dropout,
     Add, GlobalAveragePooling1D, Dense, Multiply, LayerNormalization, Lambda
 )
 from keras.regularizers import l2
-from keras.optimizers import Adam
-from keras.callbacks import EarlyStopping
-from datetime import datetime
-from utils.const_def import NUM_CLASSES, IS_PRINT_MODEL_SUMMARY
 from utils.utils import PredictType
-from model.losses import get_loss
+from model.base_model import BaseModel
 from model.history import LossHistory
-from model.utils import WarmUpCosineDecayScheduler
 
 def se_block(x, ratio=8, name_prefix="se"):
     ch = x.shape[-1]
@@ -46,122 +39,60 @@ def residual_conv_block(x, filters, kernel_size=5, dropout_rate=0.2, l2_reg=1e-5
     y = Activation('relu', name=f"out_relu_{block_id}")(y)
     return y
 
-class Conv1DResModel:
+class Conv1DResModel(BaseModel):
     def __init__(self, x=None, y=None, test_x=None, test_y=None, fn=None, 
                  filters=64, kernel_size=5, depth=4, 
                  dropout_rate=0.2, l2_reg=1e-5, use_se=True, se_ratio=8,
                  class_weights=None, loss_type=None, 
-                 predict_type=PredictType.CLASSIFY):
-        if fn is not None:
-            self.load(fn)
-            self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
-            return
-
-        self.x = x.astype('float32') if x is not None else None
-        self.y = y if y is not None else None
-        self.test_x = test_x.astype('float32') if test_x is not None else None
-        self.test_y = test_y if test_y is not None else None
+                 predict_type=PredictType.CLASSIFY,
+                 ):
         self.filters = filters
         self.kernel_size = kernel_size
         self.depth = depth
         self.dropout_rate = dropout_rate
         self.l2_reg = l2_reg
-        self.class_weights = class_weights
-        self.loss_type = loss_type
         self.use_se = use_se
         self.se_ratio = se_ratio
-        self.predict_type = predict_type
-        self.learning_rate_status = "init"
-        self.history = LossHistory(predict_type=self.predict_type, test_x=self.test_x, test_y=self.test_y)
-        logging.info(f"Conv1DResModel: input shape={self.x.shape if self.x is not None else None}, y shape={self.y.shape if self.y is not None else None}")
 
-        if x is not None:
-            self.create_model(self.x.shape[1:])
-            self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
+        if fn is not None:
+            # 直接加载已保存模型（无自定义层，无需 custom_objects）
+            self.model = type(self).load(fn)
+            self.history = LossHistory(predict_type=predict_type, test_x=test_x, test_y=test_y)
+            return
 
-    def create_model(self, input_shape):
+        super().__init__(
+            x=x,
+            y=y,
+            test_x=test_x,
+            test_y=test_y,
+            loss_type=loss_type,
+            class_weights=class_weights,
+            predict_type=predict_type,
+        )
+
+    def _build(self, input_shape):
         inp = Input(shape=input_shape)
         x = inp
-        # 多层残差Conv1D
+
+        # 多层残差 Conv1D
         for i in range(self.depth):
             x = residual_conv_block(
-                x, filters=self.filters, kernel_size=self.kernel_size,
-                dropout_rate=self.dropout_rate, l2_reg=self.l2_reg,
-                use_se=self.use_se, se_ratio=self.se_ratio, block_id=i
+                x,
+                filters=self.filters,
+                kernel_size=self.kernel_size,
+                dropout_rate=self.dropout_rate,
+                l2_reg=self.l2_reg,
+                use_se=self.use_se,
+                se_ratio=self.se_ratio,
+                block_id=i,
             )
+
         x = GlobalAveragePooling1D(name="gap")(x)
         x = Dense(128, activation='relu', kernel_regularizer=l2(self.l2_reg), name="fc1")(x)
         x = Dropout(self.dropout_rate, name="fc1_drop")(x)
         x = Dense(64, activation='relu', kernel_regularizer=l2(self.l2_reg), name="fc2")(x)
         x = Dropout(self.dropout_rate, name="fc2_drop")(x)
-        if self.predict_type.is_classify():
-            out = Dense(NUM_CLASSES, activation='softmax', name='output')(x)
-        elif self.predict_type.is_binary():
-            out = Dense(1, activation='sigmoid', name='output')(x)
-        elif self.predict_type.is_regress():
-            logits = Dense(1, activation='tanh', name='logits')(x)
-            out = Lambda(lambda t: 5.0 * t, name='output')(logits)
-        else:
-            raise ValueError("Unsupported predict_type for classification model.")
-        self.model = Model(inputs=inp, outputs=out)
 
-    def train(self, tx, ty, epochs=100, batch_size=256, learning_rate=0.001, patience=20):
-        self.x = tx.astype('float32') if tx is not None else self.x
-        self.y = ty if ty is not None else self.y
-        loss_fn = get_loss(self.loss_type, self.predict_type)
-        metrics = {'output': ['mae','mse']} if self.predict_type.is_regress() else {'output': 'accuracy'}
-        monitor_metric = 'val_mae' if self.predict_type.is_regress() else 'val_loss'
-
-        self.model.compile(
-            optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            loss={'output': loss_fn},
-            metrics=metrics
-        )
-        # 学习率调度和早停
-        warmup_steps, hold_steps = int(0.2 * epochs), int(0.2 * epochs)
-        lr_scheduler = WarmUpCosineDecayScheduler(
-            learning_rate_base=learning_rate,
-            total_steps=epochs,
-            warmup_steps=warmup_steps,
-            hold_steps=hold_steps
-        )
-        early_stopping = EarlyStopping(
-            monitor=monitor_metric,
-            patience=patience,
-            restore_best_weights=True,
-            verbose=1
-        )
-        start_time = datetime.now()
-        self.history.set_para(epochs, start_time)
-        self.model.fit(
-            x=self.x, y=self.y,
-            batch_size=batch_size,
-            validation_data=(self.test_x, self.test_y),
-            validation_freq=1,
-            callbacks=[self.history, lr_scheduler, early_stopping],
-            epochs=epochs,
-            shuffle=True,
-            class_weight=self.class_weights,
-            verbose=0
-        )
-        spend_time = datetime.now() - start_time
-        return "\n total spend:%.2f(h)/%.1f(m), %.1f(s)/epoc, %.2f(h)/10k" \
-            % (spend_time.seconds/3600, spend_time.seconds/60,
-               spend_time.seconds/epochs, 10000*(spend_time.seconds/3600)/epochs)
-
-    def save(self, filename):
-        try:
-            self.model.save(filename)
-            logging.info(f"\nmodel file saved -[{filename}]")
-        except Exception as e:
-            logging.error(f"\nmodel file save failed! {e}")
-            exit()
-
-    def load(self, filename):
-        try:
-            print(f"\nloading model file -[{filename}]...", end="", flush=True)
-            self.model = load_model(filename)
-            print("complete!")
-        except Exception as e:
-            logging.error(f"\nmodel file load failed! {e}")
-            exit()
+        # 共用基类输出头
+        outputs = self.build_output_head(x, self.predict_type)
+        self.model = Model(inputs=inp, outputs=outputs)

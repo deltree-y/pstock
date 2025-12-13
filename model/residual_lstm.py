@@ -2,25 +2,17 @@ import os, sys, logging, warnings
 import tensorflow as tf
 import warnings
 warnings.filterwarnings("ignore")
-import tensorflow_addons as tfa
-import numpy as np
 from pathlib import Path
-from datetime import datetime
 from keras import activations
-from keras.models import Model, load_model
-from keras.callbacks import EarlyStopping
+from keras.models import Model
 from keras.regularizers import l2
-from keras.optimizers import Adam, SGD
-from utils.const_def import NUM_CLASSES, IS_PRINT_MODEL_SUMMARY
-from utils.utils import PredictType
-from model.history import LossHistory
-from model.utils import WarmUpCosineDecayScheduler
-from model.losses import focal_loss, binary_focal_loss, get_loss
-from sklearn.utils.class_weight import compute_class_weight
 from keras.layers import (
     Input, LSTM, Bidirectional, Dropout, LayerNormalization,
     Dense, Add, Conv1D, GlobalAveragePooling1D, Multiply, Activation, Lambda
 )
+from model.base_model import BaseModel   # 新增
+from model.history import LossHistory    # 仍可重用
+from utils.utils import PredictType
 
 o_path = os.getcwd()
 sys.path.append(o_path)
@@ -77,7 +69,7 @@ def residual_bilstm_block(x,
     out = Activation(activations.swish, name=f"act_{block_id}")(out)
     return out
 
-class ResidualLSTMModel:
+class ResidualLSTMModel(BaseModel):
     def __init__(self,
                  x=None, y=None,
                  test_x=None,test_y=None,
@@ -87,21 +79,7 @@ class ResidualLSTMModel:
                  loss_fn=None, class_weights=None, loss_type=None,
                  predict_type=PredictType.CLASSIFY
                  ):
-        if fn is not None:
-            self.load(fn)
-            self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
-            return
-
         self.p = p
-        self.x = x.astype('float32')
-        self.y = y
-        self.test_x = test_x.astype('float32') if test_x is not None else None
-        self.test_y = test_y if test_y is not None else None
-        self.loss_type = loss_type
-        self.learning_rate_status = "init"
-        self.predict_type = predict_type
-
-        self.history = LossHistory(predict_type=self.predict_type, test_x=self.test_x, test_y=self.test_y)
         self.depth = depth
         self.base_units = base_units
         self.dropout_rate = dropout_rate
@@ -109,10 +87,22 @@ class ResidualLSTMModel:
         self.se_ratio = se_ratio
         self.l2_reg = l2_reg
         self.loss_fn = loss_fn  # 保存传入的自定义损失（可为 None）
-        self.class_weight_dict = class_weights
 
-        self._build(self.x.shape[1:])
-        self.model.summary() if IS_PRINT_MODEL_SUMMARY else None
+        if fn is not None:  #根据是否传入文件名来决定是否加载已有模型
+            self.model = super().load(fn)
+            self.history = LossHistory(predict_type=predict_type, test_x=test_x, test_y=test_y)
+            #self.model = ResidualLSTMModel.load(fn, custom_objects=None)
+            return
+
+        super().__init__(
+            x=x,
+            y=y,
+            test_x=test_x,
+            test_y=test_y,
+            loss_type=loss_type,
+            class_weights=class_weights,
+            predict_type=predict_type,
+        )
         logging.info(f"ResidualLSTMModel: input shape={self.x.shape}, y shape={self.y.shape}")
 
     def _build(self, input_shape):
@@ -135,7 +125,6 @@ class ResidualLSTMModel:
         x_last = x[:, -1, :]
         x_last = LayerNormalization(name="ln_last")(x_last)
         x_last = Dropout(self.dropout_rate, name="drop_last")(x_last)
-
         # 回归头
         x_last = Dense(self.base_units * self.p * 2, activation=activations.swish,
                        kernel_regularizer=l2(self.l2_reg),
@@ -144,87 +133,6 @@ class ResidualLSTMModel:
         x_last = Dense(self.base_units  * 2, activation=activations.swish,
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc2")(x_last)
-
-        if self.predict_type.is_classify():
-            outputs = Dense(NUM_CLASSES, activation='softmax', name='output')(x_last)
-        elif self.predict_type.is_binary():
-            outputs = Dense(1, activation='sigmoid', name='output')(x_last)
-        elif self.predict_type.is_regress():
-            logits = Dense(1, activation='tanh', name='logits')(x_last)
-            outputs = Lambda(lambda t: 5.0 * t, name='output')(logits)  # 预测范围限定在 [-5,5] 百分点
-        else:
-            raise ValueError("Unsupported predict_type for classification model.")
-
+        # 输出头, 由基类实现, 根据 predict_type 自动选择
+        outputs = self.build_output_head(x_last, self.predict_type)
         self.model = Model(inputs=inp, outputs=outputs)
-
-    def train(self, tx, ty, epochs=100, batch_size=32, learning_rate=0.001, patience=30):
-        self.x = tx.astype('float32') if tx is not None else self.x
-        self.y = ty if ty is not None else self.y
-
-        loss_fn = get_loss(self.loss_type, self.predict_type)
-        # 回归用 MAE 早停，其它任务仍用 val_loss
-        monitor_metric = 'val_mae' if self.predict_type.is_regress() else 'val_loss'
-        metrics = {'output': ['mae','mse']} if self.predict_type.is_regress() else {'output': 'accuracy'}
-
-        self.model.compile(
-            #optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
-            #optimizer=SGD(learning_rate=learning_rate, momentum=0.9, nesterov=True),
-            optimizer=tfa.optimizers.AdamW(learning_rate=learning_rate, weight_decay=1e-4, clipnorm=0.5),
-            loss={'output': loss_fn},
-            metrics=metrics
-        )        
-        
-        # 添加学习率调度和早停
-        warmup_steps, hold_steps = int(0.1 * epochs), int(0.1 * epochs)
-        lr_scheduler = WarmUpCosineDecayScheduler(
-            learning_rate_base=learning_rate,
-            total_steps=epochs,
-            warmup_steps=warmup_steps,
-            hold_steps=hold_steps
-        )
-        early_stopping = EarlyStopping(
-            monitor=monitor_metric,
-            patience=patience,
-            restore_best_weights=True,
-            verbose=1
-        )
-
-        
-        start_time = datetime.now()
-        self.history.set_para(epochs, start_time)
-        
-        # 添加所有callback
-        callbacks = [self.history, lr_scheduler, early_stopping]
-        
-        self.model.fit(
-            x=self.x, y=self.y,
-            batch_size=batch_size,
-            validation_data=(self.test_x, self.test_y),
-            validation_freq=1,
-            callbacks=callbacks,
-            epochs=epochs, 
-            shuffle=True, 
-            class_weight=self.class_weight_dict,
-            verbose=0  # 改为0以减少输出
-        )
-        
-        spend_time = datetime.now() - start_time
-        return "\n total spend:%.2f(h)/%.1f(m), %.1f(s)/epoc, %.2f(h)/10k"\
-              %(spend_time.seconds/3600, spend_time.seconds/60, spend_time.seconds/epochs, 10000*(spend_time.seconds/3600)/epochs)
-
-    def save(self, filename):
-        try:
-            self.model.save(filename)
-            logging.info(f"\nmodel file saved -[{filename}]")
-        except:
-            logging.error("\nmodel file save failed!")
-            exit()
-
-    def load(self, filename):
-        try:
-            print("\nloading model file -[%s]..."%(filename),end="",flush=True)
-            self.model = load_model(filename)
-            print("complete!")
-        except:
-            logging.error("\nmodel file load failed!")
-            exit()
