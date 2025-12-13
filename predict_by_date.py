@@ -83,13 +83,13 @@ def main():
             is_historical = len(idx) > 0 and idx[0] < len(ds.raw_y)
             if is_historical:
                 real_raw_y = ds.raw_y[idx[0]]
-                if predict_type.is_binary_t1_low():
+                if predict_type.is_t1_low():
                     real_y = (real_raw_y[0]*100 <= predict_type.val).astype(int).reshape(-1, 1)
-                elif predict_type.is_binary_t1_high():
+                elif predict_type.is_t1_high():
                     real_y = (real_raw_y[1]*100 >= predict_type.val).astype(int).reshape(-1, 1)
-                elif predict_type.is_binary_t2_low():
+                elif predict_type.is_t2_low():
                     real_y = (real_raw_y[2]*100 <= predict_type.val).astype(int).reshape(-1, 1)
-                elif predict_type.is_binary_t2_high():
+                elif predict_type.is_t2_high():
                     real_y = (real_raw_y[3]*100 >= predict_type.val).astype(int).reshape(-1, 1)
 
                 # 用Predict类处理真实标签

@@ -113,54 +113,59 @@ class ModelType(Enum):
 
 
 class FeatureType(Enum):
+    #以auto()方式生成枚举值时，其取值为其名称的小写形式(如T1l='t1l')
+    def _generate_next_value_(name, start, count, last_values):
+        return name.lower()   # 或 name 本身、不用lower()
+        
     ALL = 'all_features'
 
-    T1L_REG_F55 = 't1lreg_features_55'
-    T1L_REG_F50 = 't1lreg_features_50'
+    BINARY_T1L03_F55 = auto()
+    BINARY_T1L04_F55 = auto()
+    BINARY_T1L05_F35 = auto()
+    BINARY_T1L05_F55 = auto()
+    BINARY_T1L06_F55 = auto()
+    BINARY_T1L07_F55 = auto()
+    BINARY_T1L08_F55 = auto()
+    BINARY_T1L08_F30 = auto()
+
+    BINARY_T1L10_F15 = auto()
+    BINARY_T1L10_F35 = auto()
+    BINARY_T1L10_F55 = auto()
+
+    BINARY_T1L15_F35 = auto()
+    BINARY_T1L15_F55 = auto()
+    BINARY_T1L15_F75 = auto()
+
+    BINARY_T1H05_F55 = auto()
+
+    BINARY_T1H08_F18 = auto()
+
+    BINARY_T1H10_F35 = auto()
+    BINARY_T1H10_F55 = auto()
+    BINARY_T1H10_F75 = auto()
+
+    BINARY_T1H15_F35 = auto() #TODO: 是否应为t1h15_features_35？
+    BINARY_T1H15_F55 = auto() #TODO: 是否应为t1h15_features_55？
+    BINARY_T1H15_F75 = auto() #TODO: 是否应为t1h15_features_75？
+
+    BINARY_T2H03_F55 = auto() #TODO:待添加真实特征
+    BINARY_T2H04_F55 = auto() #TODO:待添加真实特征
+    BINARY_T2H05_F55 = auto() #TODO:待添加真实特征
+    BINARY_T2H06_F55 = auto() #TODO:待添加真实特征
+    BINARY_T2H07_F55 = auto() #TODO:待添加真实特征
+    BINARY_T2H08_F55 = auto() #TODO:待添加真实特征
+
+    BINARY_T2H10_F25 = auto()
+    BINARY_T2H10_F35 = auto()
+    BINARY_T2H10_F45 = auto()
+    BINARY_T2H10_F55 = auto()
+
+    REGRESS_T1L_F55 = auto()
+    REGRESS_T1L_F50 = auto()
 
     CLASSIFY_F50 = 'classify_features_50'
     CLASSIFY_F30 = 'classify_features_30'
 
-    T1L03_F55 = 't1l03_features_55'
-    T1L04_F55 = 't1l04_features_55'
-    T1L05_F35 = 't1l05_features_35'
-    T1L05_F55 = 't1l05_features_55'
-    T1L06_F55 = 't1l06_features_55'
-    T1L07_F55 = 't1l07_features_55'
-    T1L08_F55 = 't1l08_features_55'
-    T1L08_F30 = 't1l08_features_30'
-
-    T1L10_F15 = 't1l10_features_15'
-    T1L10_F35 = 't1l10_features_35'
-    T1L10_F55 = 't1l10_features_55'
-
-    T1L15_F35 = 't1l15_features_35'
-    T1L15_F55 = 't1l15_features_55'
-    T1L15_F75 = 't1l15_features_75'
-
-    T1H05_F55 = 't1h05_features_55'
-
-    T1H08_F18 = 't1h08_features_18' 
-
-    T1H10_F35 = 't1h10_features_35'
-    T1H10_F55 = 't1h10_features_55'
-    T1H10_F75 = 't1h10_features_75'
-
-    T1H15_F35 = 't1h10_features_35' #TODO: 是否应为t1h15_features_35？
-    T1H15_F55 = 't1h10_features_55' #TODO: 是否应为t1h15_features_55？
-    T1H15_F75 = 't1h10_features_75' #TODO: 是否应为t1h15_features_75？
-
-    T2H03_F55 = 't2h03_features_55' #TODO:待添加真实特征
-    T2H04_F55 = 't2h04_features_55' #TODO:待添加真实特征
-    T2H05_F55 = 't2h05_features_55' #TODO:待添加真实特征
-    T2H06_F55 = 't2h06_features_55' #TODO:待添加真实特征
-    T2H07_F55 = 't2h07_features_55' #TODO:待添加真实特征
-    T2H08_F55 = 't2h08_features_55' #TODO:待添加真实特征
-
-    T2H10_F25 = 't2h10_features_25'
-    T2H10_F35 = 't2h10_features_35'
-    T2H10_F45 = 't2h10_features_45'
-    T2H10_F55 = 't2h10_features_55'
 
     def __str__(self):
         return self.name
@@ -172,43 +177,50 @@ class FeatureType(Enum):
     def short_name(self):
         if self == FeatureType.ALL:
             return "ALL"
-        else:   #返回"xx_Fxx"字样
+        else:   #返回"xxxxx_Fxx"字样
             s = self.name
-            return s[s.rfind('_')-2:s.rfind('_')] + s[s.rfind('_')+1:]
+            if s[:3] == "BIN":
+                return s[s.rfind('_')-2:s.rfind('_')] + s[s.rfind('_')+1:]
+            elif s[:3] == "REG":
+                return s.split("_", 2)[2] if s.count("_") >= 2 else s
+            elif s[:5] == "CLASS":
+                raise "需要增加对应处理"#TODO
     
 class PredictType(Enum):
-    BINARY_T1_L03 = ("BINARY_T1_L03", -0.3, "T1L")
-    BINARY_T1_L04 = ("BINARY_T1_L04", -0.4, "T1L")
-    BINARY_T1_L05 = ("BINARY_T1_L05", -0.5, "T1L")
-    BINARY_T1_L06 = ("BINARY_T1_L06", -0.6, "T1L")
-    BINARY_T1_L07 = ("BINARY_T1_L07", -0.7, "T1L")
-    BINARY_T1_L08 = ("BINARY_T1_L08", -0.8, "T1L")
-    BINARY_T1_L10 = ("BINARY_T1_L10", -1.0, "T1L")
-    BINARY_T1_L15 = ("BINARY_T1_L15", -1.5, "T1L") 
+    BINARY_T1_L03 = ("BINARY_T1_L03", -0.3, "BIN_T1L")
+    BINARY_T1_L04 = ("BINARY_T1_L04", -0.4, "BIN_T1L")
+    BINARY_T1_L05 = ("BINARY_T1_L05", -0.5, "BIN_T1L")
+    BINARY_T1_L06 = ("BINARY_T1_L06", -0.6, "BIN_T1L")
+    BINARY_T1_L07 = ("BINARY_T1_L07", -0.7, "BIN_T1L")
+    BINARY_T1_L08 = ("BINARY_T1_L08", -0.8, "BIN_T1L")
+    BINARY_T1_L10 = ("BINARY_T1_L10", -1.0, "BIN_T1L")
+    BINARY_T1_L15 = ("BINARY_T1_L15", -1.5, "BIN_T1L") 
 
-    BINARY_T1_H05 = ("BINARY_T1_H05", 0.5, "T1H")
-    BINARY_T1_H06 = ("BINARY_T1_H06", 0.6, "T1H")
-    BINARY_T1_H07 = ("BINARY_T1_H07", 0.7, "T1H")
-    BINARY_T1_H08 = ("BINARY_T1_H08", 0.8, "T1H")
-    BINARY_T1_H10 = ("BINARY_T1_H10", 1.0, "T1H")
-    BINARY_T1_H15 = ("BINARY_T1_H15", 1.5, "T1H")
+    BINARY_T1_H05 = ("BINARY_T1_H05", 0.5, "BIN_T1H")
+    BINARY_T1_H06 = ("BINARY_T1_H06", 0.6, "BIN_T1H")
+    BINARY_T1_H07 = ("BINARY_T1_H07", 0.7, "BIN_T1H")
+    BINARY_T1_H08 = ("BINARY_T1_H08", 0.8, "BIN_T1H")
+    BINARY_T1_H10 = ("BINARY_T1_H10", 1.0, "BIN_T1H")
+    BINARY_T1_H15 = ("BINARY_T1_H15", 1.5, "BIN_T1H")
 
-    BINARY_T2_L05 = ("BINARY_T2_L05", -0.5, "T2L")
-    BINARY_T2_L08 = ("BINARY_T2_L08", -0.8, "T2L")
-    BINARY_T2_L10 = ("BINARY_T2_L10", -1.0, "T2L")
-    BINARY_T2_L15 = ("BINARY_T2_L15", -1.5, "T2L")
+    BINARY_T2_L05 = ("BINARY_T2_L05", -0.5, "BIN_T2L")
+    BINARY_T2_L08 = ("BINARY_T2_L08", -0.8, "BIN_T2L")
+    BINARY_T2_L10 = ("BINARY_T2_L10", -1.0, "BIN_T2L")
+    BINARY_T2_L15 = ("BINARY_T2_L15", -1.5, "BIN_T2L")
 
-    BINARY_T2_H03 = ("BINARY_T2_H03", 0.3, "T2H")
-    BINARY_T2_H04 = ("BINARY_T2_H04", 0.4, "T2H")
-    BINARY_T2_H05 = ("BINARY_T2_H05", 0.5, "T2H")
-    BINARY_T2_H06 = ("BINARY_T2_H06", 0.6, "T2H")
-    BINARY_T2_H07 = ("BINARY_T2_H07", 0.7, "T2H")
-    BINARY_T2_H08 = ("BINARY_T2_H08", 0.8, "T2H")
-    BINARY_T2_H10 = ("BINARY_T2_H10", 1.0, "T2H")
-    BINARY_T2_H15 = ("BINARY_T2_H15", 1.5, "T2H")
+    BINARY_T2_H03 = ("BINARY_T2_H03", 0.3, "BIN_T2H")
+    BINARY_T2_H04 = ("BINARY_T2_H04", 0.4, "BIN_T2H")
+    BINARY_T2_H05 = ("BINARY_T2_H05", 0.5, "BIN_T2H")
+    BINARY_T2_H06 = ("BINARY_T2_H06", 0.6, "BIN_T2H")
+    BINARY_T2_H07 = ("BINARY_T2_H07", 0.7, "BIN_T2H")
+    BINARY_T2_H08 = ("BINARY_T2_H08", 0.8, "BIN_T2H")
+    BINARY_T2_H10 = ("BINARY_T2_H10", 1.0, "BIN_T2H")
+    BINARY_T2_H15 = ("BINARY_T2_H15", 1.5, "BIN_T2H")
+
+    REGRESS_T1L =  ("REGRESS_T1L",  1100.0, "REG_T1L")
+    REGRESS_T1H =  ("REGRESS_T1H",  1200.0, "REG_T1H")
 
     CLASSIFY = ("CLASSIFY", 100.0, "CLASSIFY")
-    REGRESS =  ("REGRESS",  1000.0, "REGRESS")
 
     def __str__(self):
         return self.value[2]
@@ -226,22 +238,22 @@ class PredictType(Enum):
 
     def is_binary(self):
         return self.value[0][:6] == "BINARY"
-    
-    def is_binary_t1_low(self):
-        return self.label == "T1L"
-    
-    def is_binary_t1_high(self):
-        return self.label == "T1H"
-    
-    def is_binary_t2_low(self):
-        return self.label == "T2L"
-    
-    def is_binary_t2_high(self):
-        return self.label == "T2H"
-    
+
     def is_classify(self):
-        return self.label == "CLASSIFY"
-
+        return self.value[0][:8] == "CLASSIFY"
+    
     def is_regress(self):
-        return self.label == "REGRESS"
+        return self.value[0][:7] == "REGRESS"
 
+    def is_t1_low(self):
+        return self.value[2][-3:] == "T1L"
+    
+    def is_t1_high(self):
+        return self.value[2][-3:] == "T1H"
+    
+    def is_t2_low(self):
+        return self.value[2][-3:] == "T2L"
+    
+    def is_t2_high(self):
+        return self.value[2][-3:] == "T2H"
+    

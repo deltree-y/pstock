@@ -161,20 +161,26 @@ class StockDataset():
                 raw_dataset_y = raw_y
             elif self.predict_type.is_binary():#二分类
                 #按不同的二分类预测类型,生成对应的二分类y(0或1)
-                if self.predict_type.is_binary_t1_low():
+                if self.predict_type.is_t1_low():
                     dataset_y = (raw_y[:, 0]*100 <= self.predict_type.val).astype(int).reshape(-1, 1)
-                elif self.predict_type.is_binary_t1_high():
+                elif self.predict_type.is_t1_high():
                     dataset_y = (raw_y[:, 1]*100 >= self.predict_type.val).astype(int).reshape(-1, 1)
-                elif self.predict_type.is_binary_t2_low():
+                elif self.predict_type.is_t2_low():
                     dataset_y = (raw_y[:, 2]*100 <= self.predict_type.val).astype(int).reshape(-1, 1)
-                elif self.predict_type.is_binary_t2_high():
+                elif self.predict_type.is_t2_high():
                     dataset_y = (raw_y[:, 3]*100 >= self.predict_type.val).astype(int).reshape(-1, 1)
                 else:
                     raise ValueError(f"StockDataset.split_train_test_dataset_by_stock() - Unknown predict_type: {self.predict_type}")
                 raw_dataset_y = raw_y
             elif self.predict_type.is_regress():#回归
-                # 默认使用第一个目标列(t1l变化率)作为回归目标
-                dataset_y = raw_y[:, 0].reshape(-1, 1).astype(float)*100
+                if self.predict_type.is_t1_low():
+                    dataset_y = raw_y[:, 0].reshape(-1, 1).astype(float)*100
+                elif self.predict_type.is_t1_high():
+                    dataset_y = raw_y[:, 1].reshape(-1, 1).astype(float)*100
+                elif self.predict_type.is_t2_low():
+                    dataset_y = raw_y[:, 2].reshape(-1, 1).astype(float)*100
+                elif self.predict_type.is_t2_high():
+                    dataset_y = raw_y[:, 3].reshape(-1, 1).astype(float)*100
                 # 裁剪极值，避免训练被极端样本主导
                 dataset_y = np.clip(dataset_y, -CLIP_Y_PERCENT, CLIP_Y_PERCENT)
 
@@ -404,19 +410,27 @@ class StockDataset():
             return self.get_binned_y_use_qcut(raw_y)
         elif self.predict_type.is_binary():#二分类
             #按不同的二分类预测类型,生成对应的二分类y(0或1)
-            if self.predict_type.is_binary_t1_low():
+            if self.predict_type.is_t1_low():
                 return (raw_y[:,0]*100 <= self.predict_type.val).astype(int).reshape(-1, 1)
-            elif self.predict_type.is_binary_t1_high():
+            elif self.predict_type.is_t1_high():
                 return (raw_y[:,1]*100 >= self.predict_type.val).astype(int).reshape(-1, 1)
-            elif self.predict_type.is_binary_t2_low():
+            elif self.predict_type.is_t2_low():
                 return (raw_y[:,2]*100 <= self.predict_type.val).astype(int).reshape(-1, 1)
-            elif self.predict_type.is_binary_t2_high():
+            elif self.predict_type.is_t2_high():
                 return (raw_y[:,3]*100 >= self.predict_type.val).astype(int).reshape(-1, 1)
             else:
                 raise ValueError(f"StockDataset.get_real_y_by_raw_y() - Unknown predict_type: {self.predict_type}")
         elif self.predict_type.is_regress():#回归
-            # 与split保持一致，默认返回第一列(t1l变化率)
-            return raw_y[:,0].reshape(-1,1).astype(float)
+            if self.predict_type.is_t1_low():
+                return raw_y[:,0].reshape(-1,1).astype(float)
+            elif self.predict_type.is_t1_high():
+                return raw_y[:,1].reshape(-1,1).astype(float)
+            elif self.predict_type.is_t2_low():
+                return raw_y[:,2].reshape(-1,1).astype(float)
+            elif self.predict_type.is_t2_high():
+                return raw_y[:,3].reshape(-1,1).astype(float)
+            else:
+                raise ValueError(f"StockDataset.get_real_y_by_raw_y() - Unknown predict_type: {self.predict_type}")            
         else:
             raise ValueError(f"StockDataset.get_real_y_by_raw_y() - Unknown predict_type: {self.predict_type}")
 
@@ -451,7 +465,7 @@ if __name__ == "__main__":
         start_date='20150701',
         end_date='20251201',
         train_size=1,
-        feature_type=FeatureType.T1L10_F55,
+        feature_type=FeatureType.BINARY_T1L10_F55,
         if_update_scaler=True,
         predict_type=PredictType.BINARY_T1_L10
     )

@@ -64,19 +64,19 @@ def auto_search():
     model_type = ModelType.RESIDUAL_LSTM
     p = 2
     dropout_rate = 0.2
-    feature_type_list = [FeatureType.T1L_REG_F50]
-    predict_type_list = [PredictType.REGRESS]
+    feature_type_list = [FeatureType.REGRESS_T1L_F50]
+    predict_type_list = [PredictType.REGRESS_T1L]
     loss_type = 'robust_mse' #focal_loss,binary_crossentropy,mse
-    lr_list = [0.00001]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
+    lr_list = [0.00003]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.00001]#[0.00007]
     threshold = 0.5 # 二分类阈值
 
     # ===== 训练参数 =====
-    epochs = 120
+    epochs = 12
     batch_size = 256
     patience = 30
     train_size = 0.9
-    cyc = 3    # 搜索轮数
+    cyc = 1    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----

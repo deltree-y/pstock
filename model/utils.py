@@ -117,10 +117,10 @@ def get_model_file_name(stock_code, model_type, predict_type, feature_type,suffi
 def load_model_by_params(stock_code, model_type, predict_type, feature_type):
     model_fn = get_model_file_name(stock_code, model_type, predict_type, feature_type)
 
-    from model.lstmmodel import LSTMModel
     from model.residual_lstm import ResidualLSTMModel
     from model.residual_tcn import ResidualTCNModel
     from model.transformer import TransformerModel
+    from model.conv1d import Conv1DResModel
     
     if model_type == ModelType.RESIDUAL_LSTM:
         model = ResidualLSTMModel(fn=model_fn, predict_type=predict_type)
@@ -128,8 +128,8 @@ def load_model_by_params(stock_code, model_type, predict_type, feature_type):
         model = ResidualTCNModel(fn=model_fn, predict_type=predict_type)
     elif model_type == ModelType.TRANSFORMER:
         model = TransformerModel(fn=model_fn, predict_type=predict_type)
-    elif model_type == ModelType.MINI:
-        model = LSTMModel(fn=model_fn, predict_type=predict_type)
+    elif model_type == ModelType.CONV1D:
+        model = Conv1DResModel(fn=model_fn, predict_type=predict_type)
     else:
         raise ValueError(f"Unknown model_type: {model_type}")
     return model

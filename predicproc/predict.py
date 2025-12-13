@@ -48,7 +48,7 @@ class Predict():
             print(f"{desc}类别概率分布: {predict_list}")
             print(f"{desc}t0p[{self.bp}] t1l label[{self.y1r.get_label()}]({confi:.2f}%) 区间: [{self.y1r.get_rate_from_label('min')*100:.2f}%, {self.y1r.get_rate_from_label('max')*100:.2f}%], 均值: {self.y1r.get_rate_from_label('avg')*100:.2f}%, 预测价格: {self.bp * (1 + self.y1r.get_rate_from_label('avg')):.2f}")
         elif self.is_binary:
-            if self.predict_type.is_binary_t1_low() or self.predict_type.is_binary_t2_low():
+            if self.predict_type.is_t1_low() or self.predict_type.is_t2_low():
                 symbol = ['<=', '> ']
             else:
                 symbol = ['>=', '< ']
@@ -77,7 +77,7 @@ class Predict():
                 if pred_label != real_label:
                     predict_wrong_str = f"预测t0p[{self.bp:.2f}] t1l label[{pred_label}]({confi:.2f}%), 区间: [{self.y1r.get_rate_from_label('min')*100:.2f}%, {self.y1r.get_rate_from_label('max')*100:.2f}%]({self.y1r.get_rate_from_label('avg')*100:.2f}%), 预测价格: {self.bp * (1 + self.y1r.get_rate_from_label('avg')):.2f}"
         elif self.is_binary:
-            if self.predict_type.is_binary_t1_low() or self.predict_type.is_binary_t2_low():
+            if self.predict_type.is_t1_low() or self.predict_type.is_t2_low():
                 symbol = ['<=', '> ']
             else:
                 symbol = ['>=', '< ']
