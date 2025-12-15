@@ -1,9 +1,10 @@
 #基于给定的日期list,使用给定的数据集和模型进行预测并打印结果
 from predicproc.predict import Predict
 import numpy as np
+from dataset import StockDataset
 
 
-def print_predict_result(t_list, ds, m, predict_type, threshold=0.5):
+def print_predict_result(t_list, ds:StockDataset, m, predict_type, threshold=0.5):
     print("-"*80)
     correct_cnt = 0
     predict_wrong_list_str = ""
@@ -11,25 +12,27 @@ def print_predict_result(t_list, ds, m, predict_type, threshold=0.5):
     wrong_probs = []
     residual = []
     pred_values = []
+    low_high_symbol = "涨" if predict_type.is_high() else "跌"
 
     print(f"\n预测结果如下:")
     for t0 in t_list:
         data, bp = ds.get_predictable_dataset_by_date(t0)
         real_y = ds.get_real_y_by_date(t0)
-        raw_y = ds.get_raw_y_by_date(t0)
+        #raw_y = ds.get_raw_y_by_date(t0)
         pred_scaled = m.model.predict(data, verbose=0)
         pred = Predict(pred_scaled, bp, predict_type, ds.bins1, ds.bins2, threshold=threshold)
 
-        pred_dot, predict_wrong_str = pred.get_predict_result_with_real_str(real_y)
-        predict_wrong_list_str += f"T0[{t0}], raw_y:[{raw_y[0]*bp+bp:<.2f}], {predict_wrong_str}\n" if predict_wrong_str!="" else ""
+        pred_dot, predict_wrong_str = pred.get_predict_result_with_real_str(t0, bp, real_y)
+        #predict_wrong_list_str += f"T0[{t0}], 真实/预测(差异)_{low_high_symbol} : [{(real_y*bp+bp):<.2f}/{predict_wrong_str}\n" if predict_wrong_str!="" else ""
+        predict_wrong_list_str += f"{predict_wrong_str}\n" if predict_wrong_str!="" else ""
 
         if pred.is_binary:
-            is_correct = pred.pred_label == real_y[0,0]
+            is_correct = pred.pred_label == real_y
         elif pred.is_classify:
-            is_correct = pred.y1r.get_label() == real_y[0,0]
+            is_correct = pred.y1r.get_label() == real_y
         elif pred.is_regress:
             is_correct = (pred_dot == "o")
-            residual.append(abs(pred.pred_value - real_y[0,0]*100))
+            residual.append(abs(pred.pred_value - real_y*100))
             pred_values.append(pred.pred_value)
         else:
             print("未知的预测类型，无法判断正确性。")

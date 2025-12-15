@@ -395,7 +395,8 @@ class StockDataset():
             y_aug = np.concatenate([y_aug, y])
         
         return X_aug, y_aug
-    
+
+    #根据日期获取原始y数据(4个值)
     def get_raw_y_by_date(self, date):
         date = type(self.raw_data[0, 0])(date)
         try:
@@ -434,11 +435,12 @@ class StockDataset():
         else:
             raise ValueError(f"StockDataset.get_real_y_by_raw_y() - Unknown predict_type: {self.predict_type}")
 
+    #根据日期获取真实y数据(1或2个值)
     def get_real_y_by_date(self, date):
         date = type(self.raw_data[0, 0])(date)
         raw_y = self.get_raw_y_by_date(date).reshape(1,-1)
         real_y = self.get_real_y_by_raw_y(raw_y)
-        return real_y
+        return real_y[0,0] if real_y.shape[1]==1 else real_y[0]
         
     
 

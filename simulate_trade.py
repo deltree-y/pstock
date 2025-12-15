@@ -192,7 +192,7 @@ def simulate_trading(
 
     # ===== 回测日期（统一用 StockInfo 的交易日列表） =====
     trade_dates_df = si.get_trade_open_dates(backtest_start, backtest_end)
-    date_list = trade_dates_df["trade_date"].astype(str).tolist()  # 从旧到新
+    date_list = trade_dates_df["trade_date"].astype(str).tolist()  # 从远到近
 
     f = Funds(init_amount=init_capital)
 

@@ -163,6 +163,9 @@ class FeatureType(Enum):
     REGRESS_T1L_F55 = auto()
     REGRESS_T1L_F50 = auto()
 
+    REGRESS_T1H_F55 = auto()
+    REGRESS_T1H_F50 = auto()
+
     CLASSIFY_F50 = 'classify_features_50'
     CLASSIFY_F30 = 'classify_features_30'
 
@@ -257,3 +260,9 @@ class PredictType(Enum):
     def is_t2_high(self):
         return self.value[2][-3:] == "T2H"
     
+    def is_low(self):
+        return self.value[2][-1] == "L"
+
+    def is_high(self):
+        return self.value[2][-1] == "H"
+
