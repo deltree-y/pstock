@@ -90,7 +90,7 @@ def binary_focal_loss(gamma=2.0, alpha=0.25):
 
 # 根据输入值及预测类型来选择损失函数
 def get_loss(loss_type, predict_type:PredictType):
-    if predict_type.is_regress():
+    if predict_type.is_regression():
         if loss_type == 'robust_mse':
             return robust_mse_with_clip()
         # 回归默认使用MSE

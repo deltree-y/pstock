@@ -21,15 +21,15 @@ class LossHistory(Callback):
         self.val_accu, self.val_t1_accu, self.val_t2_accu = [], [], []
 
     def on_epoch_end(self, epoch, logs=None):
-        cur_loss = logs.get('loss') if not self.predict_type.is_regress() else logs.get('mae')
-        cur_val_loss = logs.get('val_loss') if not self.predict_type.is_regress() else logs.get('val_mae')
+        cur_loss = logs.get('loss') if not self.predict_type.is_regression() else logs.get('mae')
+        cur_val_loss = logs.get('val_loss') if not self.predict_type.is_regression() else logs.get('val_mae')
         cur_acc = logs.get('accuracy')
         cur_val_acc = logs.get('val_accuracy')
 
         self.losses.append(cur_loss)
         self.val_losses.append(cur_val_loss)
 
-        if self.predict_type.is_regress():# 回归任务
+        if self.predict_type.is_regression():# 回归任务
             if self.test_x is not None and self.test_y is not None:
                 acc = ""
                 acc_str,val_acc_str = "--"

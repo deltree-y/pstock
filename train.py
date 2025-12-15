@@ -172,7 +172,7 @@ def auto_search():
                             best_paras, best_val, best_model = paras, min_val, model
 
                         correct_rate, correct_mean_prob, wrong_mean_prob, residual, pred_std = print_predict_result(t_list, ds_pred, model, pt, threshold=threshold)
-                        if pt.is_regress():
+                        if pt.is_regression():
                             vx_pred_raw = model.model.predict(vx)
                             mae = mean_absolute_error(vy, vx_pred_raw.reshape(-1))
                             r2 = r2_score(vy, vx_pred_raw.reshape(-1))
@@ -195,14 +195,14 @@ def auto_search():
                             history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall, 'best_thr': best_thr})
                         
                         for record in history_correction:
-                            if pt.is_regress():
+                            if pt.is_regression():
                                 print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}, Acc v/t:{record['acc']:.2%}/{record['correct_rate']:.2%}, 差均值/标准差:{record['residual']:.2f}/{record['pred_std']:.2f}")
                             else:
                                 print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
 
     print(f"\n[RESULT] Best : {best_paras}, min val_loss: {best_val:.4f}")
     for record in history_correction:
-        if predict_type_list[0].is_regress():
+        if predict_type_list[0].is_regression():
             print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}, Acc t/v:{record['acc']:.2%}/{record['correct_rate']:.2%}, 差均值/标准差:{record['residual']:.2f}/{record['pred_std']:.2f}")
         else:
             print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")

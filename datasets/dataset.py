@@ -172,7 +172,7 @@ class StockDataset():
                 else:
                     raise ValueError(f"StockDataset.split_train_test_dataset_by_stock() - Unknown predict_type: {self.predict_type}")
                 raw_dataset_y = raw_y
-            elif self.predict_type.is_regress():#回归
+            elif self.predict_type.is_regression():#回归
                 if self.predict_type.is_t1_low():
                     dataset_y = raw_y[:, 0].reshape(-1, 1).astype(float)*100
                 elif self.predict_type.is_t1_high():
@@ -421,7 +421,7 @@ class StockDataset():
                 return (raw_y[:,3]*100 >= self.predict_type.val).astype(int).reshape(-1, 1)
             else:
                 raise ValueError(f"StockDataset.get_real_y_by_raw_y() - Unknown predict_type: {self.predict_type}")
-        elif self.predict_type.is_regress():#回归
+        elif self.predict_type.is_regression():#回归
             if self.predict_type.is_t1_low():
                 return raw_y[:,0].reshape(-1,1).astype(float)
             elif self.predict_type.is_t1_high():

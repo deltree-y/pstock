@@ -13,7 +13,7 @@ class Predict():
         self.threshold = threshold
         self.is_classify = predict_type.is_classify()
         self.is_binary = predict_type.is_binary()
-        self.is_regress = predict_type.is_regress()
+        self.is_regress = predict_type.is_regression()
 
         self.y1r = RateCat(one_hot=self.predicted_data[0,:], scale=self.bins1.bins, tag='T1L') if self.is_classify else None
         #self.y2r = RateCat(one_hot=self.predicted_data[1,:], scale=self.bins2.bins, tag='T2H')
@@ -117,7 +117,7 @@ class Predict():
 
     @staticmethod
     #打印真实标签
-    def from_real_label(real_y, base_price, predict_type, bins1=None, bins2=None):
+    def from_real_label(real_y, base_price, predict_type:PredictType, bins1=None, bins2=None):
         import numpy as np
         real_y = np.asarray(real_y)
         if predict_type.is_classify():
@@ -136,7 +136,7 @@ class Predict():
             obj.pred_label = int(prob)
             obj.prob = float(prob)
             return obj
-        elif predict_type.is_regress():
+        elif predict_type.is_regression():
             value = float(real_y[0]) if real_y.ndim>0 else float(real_y)
             obj = Predict(np.array([[value]]), base_price, predict_type)
             obj.is_regress = True

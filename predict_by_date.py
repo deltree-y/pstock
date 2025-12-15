@@ -73,7 +73,7 @@ def main():
                 Predict(pred, base_price, predict_type, ds.bins1, ds.bins2).print_predict_result("预测")
             elif predict_type.is_binary():
                 Predict(pred, base_price, predict_type, threshold=thrld).print_predict_result("预测")
-            elif predict_type.is_regress():
+            elif predict_type.is_regression():
                 RegPredict(pred, base_price).print_predict_result("预测")
             else:
                 print(f"预测值: {pred}")

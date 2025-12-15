@@ -66,7 +66,7 @@ class BaseModel(ABC):
             return Dense(NUM_CLASSES, activation='softmax', name=name_prefix)(x_last)
         elif predict_type.is_binary():
             return Dense(1, activation='sigmoid', name=name_prefix)(x_last)
-        elif predict_type.is_regress():
+        elif predict_type.is_regression():
             logits = Dense(1, activation='tanh', name=f"{name_prefix}_logits")(x_last)
             return Lambda(lambda t: regress_scale * t, name=name_prefix)(logits)
         else:
@@ -75,7 +75,7 @@ class BaseModel(ABC):
     # ---------- 训练/编译通用逻辑 ----------
     def _compile(self, learning_rate):
         loss_fn = get_loss(self.loss_type, self.predict_type)
-        metrics = {"output": ["mae", "mse"]} if self.predict_type.is_regress() else {"output": "accuracy"}
+        metrics = {"output": ["mae", "mse"]} if self.predict_type.is_regression() else {"output": "accuracy"}
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
             loss={"output": loss_fn},
@@ -84,7 +84,7 @@ class BaseModel(ABC):
 
     def _callbacks(self, epochs, patience, learning_rate):
         warmup_steps, hold_steps = int(0.1 * epochs), int(0.1 * epochs) # 预热和保持各10%的训练周期
-        monitor_metric = "val_mae" if self.predict_type.is_regress() else "val_loss"    # 回归监控验证 MAE，分类监控验证 Loss
+        monitor_metric = "val_mae" if self.predict_type.is_regression() else "val_loss"    # 回归监控验证 MAE，分类监控验证 Loss
 
         lr_scheduler = WarmUpCosineDecayScheduler(
             learning_rate_base=learning_rate,

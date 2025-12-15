@@ -245,7 +245,7 @@ class PredictType(Enum):
     def is_classify(self):
         return self.value[0][:8] == "CLASSIFY"
     
-    def is_regress(self):
+    def is_regression(self):
         return self.value[0][:7] == "REGRESS"
 
     def is_t1_low(self):
