@@ -146,14 +146,21 @@ class Predict():
             raise ValueError("未知的预测类型。")
 
 
-class RegPredict():
-    def __init__(self, predicted_data, base_price, std_y=1, mean_y=0):
-        self.predicted_data = predicted_data  # shape: [n, 1]
-        self.bp = base_price
-        self.std_y = std_y
-        self.mean_y = mean_y
-
-    def print_predict_result(self):
-        pred_rate = self.predicted_data[0][0] * self.std_y + self.mean_y  # 直接取预测值
-        pred_price = self.bp * (100 + pred_rate)/100
-        logging.info(f"Predict base_price[{self.bp}] 预测涨跌幅[{pred_rate:.2f}%] 预测价格[{pred_price:.2f}]")
+def mc_dropout_predict(model, x, n_samples=30, batch_size=None):
+    """
+    对任意 Keras 模型执行 MC Dropout 推理：
+      - model: 已训练好的 keras.Model
+      - x:     输入张量或 numpy 数组
+      - n_samples: 采样次数
+    返回:
+      mean (np.ndarray), std (np.ndarray)
+    """
+    import tensorflow as tf
+    preds = []
+    for _ in range(n_samples):
+        # 关键：training=True 以启用 dropout
+        preds.append(model(x, training=True))
+    preds = tf.stack(preds, axis=0)          # [n_samples, batch, ...]
+    mean = tf.reduce_mean(preds, axis=0)
+    std = tf.math.reduce_std(preds, axis=0)
+    return mean.numpy(), std.numpy()

@@ -218,6 +218,7 @@ class StockDataset():
     #获取归一化参数
     def get_scaler(self, new_data=None, if_update=False, if_save=True):
         is_modified = False
+        scaler_fn = os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_' + self.feature_type.value + '_scaler.save')
 
         if if_update:
             if new_data is not None or not os.path.exists(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + "_scaler.save")):    #如果有输入数据参数或没有保存的归一化参数,则用该数据生成归一化参数
@@ -234,19 +235,19 @@ class StockDataset():
                 self.scaler.fit(df)
                 is_modified = True
                 if if_save and is_modified: #如果有更新且需要保存,则保存
-                    joblib.dump(self.scaler, os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_' + self.feature_type.value + '_scaler.save'))
-                    logging.info(f"write scaler cfg to {os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_' + self.feature_type.value + '_scaler.save')}")
+                    joblib.dump(self.scaler, scaler_fn)
+                    logging.info(f"write scaler cfg to {scaler_fn}")
             return self.scaler
-        elif os.path.exists(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_' + self.feature_type.value + '_scaler.save')):   #如果没有输入数据参数且有保存的归一化参数,则读取已有的归一化参数
+        elif os.path.exists(scaler_fn):   #如果没有输入数据参数且有保存的归一化参数,则读取已有的归一化参数
             try:
-                self.scaler = joblib.load(os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_' + self.feature_type.value + '_scaler.save'))
-                logging.info(f"load scaler from {os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_' + self.feature_type.value + '_scaler.save')}")
+                self.scaler = joblib.load(scaler_fn)
+                logging.info(f"load scaler from {scaler_fn}")
                 return self.scaler
             except Exception as e:
                 logging.error(f"StockDataset.get_real_normalize() - Failed to load scaler: {e}")
                 exit()
         else:
-            logging.error(f"StockDataset.get_real_normalize() - scaler file not exists: {os.path.join(BASE_DIR, SCALER_DIR, self.stock.ts_code + '_scaler.save')}")
+            logging.error(f"StockDataset.get_real_normalize() - scaler file not exists: {scaler_fn}")
             exit()
         
 

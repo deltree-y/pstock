@@ -163,8 +163,12 @@ class FeatureType(Enum):
     REGRESS_T1L_F55 = auto()
     REGRESS_T1L_F50 = auto()
 
+    REGRESS_T1H_F72 = auto()
     REGRESS_T1H_F55 = auto()
     REGRESS_T1H_F50 = auto()
+
+    REGRESS_T2H_F55 = auto()
+    REGRESS_T2H_F50 = auto()
 
     CLASSIFY_F50 = 'classify_features_50'
     CLASSIFY_F30 = 'classify_features_30'
@@ -222,6 +226,7 @@ class PredictType(Enum):
 
     REGRESS_T1L =  ("REGRESS_T1L",  1100.0, "REG_T1L")
     REGRESS_T1H =  ("REGRESS_T1H",  1200.0, "REG_T1H")
+    REGRESS_T2H =  ("REGRESS_T2H",  1300.0, "REG_T2H")
 
     CLASSIFY = ("CLASSIFY", 100.0, "CLASSIFY")
 

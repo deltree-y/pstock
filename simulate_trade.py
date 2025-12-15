@@ -483,8 +483,8 @@ if __name__ == "__main__":
     t2h_sell_feature = FeatureType.REGRESS_T1H_F50#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
     t2h_th = 0.518
 
-    t1h_sell_type = PredictType.BINARY_T1_H10#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
-    t1h_sell_feature = FeatureType.BINARY_T2H10_F55#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
+    t1h_sell_type = PredictType.REGRESS_T2H#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
+    t1h_sell_feature = FeatureType.REGRESS_T2H_F50#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
     t1h_th = 0.535
 
     end_date = args.end_date or datetime.now().strftime("%Y%m%d")

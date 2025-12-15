@@ -9,7 +9,7 @@ from keras.layers import Dense, Lambda
 
 from model.history import LossHistory
 from model.utils import WarmUpCosineDecayScheduler
-from model.losses import get_loss
+from model.losses import get_loss, robust_mse_with_clip
 from utils.utils import PredictType
 from utils.const_def import IS_PRINT_MODEL_SUMMARY, NUM_CLASSES
 
@@ -157,9 +157,15 @@ class BaseModel(ABC):
         若子类有自定义层，需要在 custom_objects 传入。
         调用方式：ChildModel.load(...) 后再包一层子类实例化逻辑。
         """
+        default_custom = {
+            "robust_mse_clip5.0_a1.0": robust_mse_with_clip(5.0, 1.0),
+            # 其他默认的自定义对象……
+        }
+        merged = {**default_custom, **(custom_objects or {})}
+
         try:
             print(f"\nloading model file -[{filename}]...", end="", flush=True)
-            m = load_model(filename, custom_objects=custom_objects)
+            m = load_model(filename, custom_objects=merged)
             print("done.")
             m.summary() if IS_PRINT_MODEL_SUMMARY else None
             return m
