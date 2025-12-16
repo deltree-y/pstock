@@ -64,8 +64,8 @@ def auto_search():
     model_type = ModelType.RESIDUAL_LSTM
     p = 2
     dropout_rate = 0.45
-    feature_type_list = [FeatureType.REGRESS_T1H_F50]
-    predict_type_list = [PredictType.REGRESS_T1H]
+    feature_type_list = [FeatureType.REGRESS_T1L_F50]
+    predict_type_list = [PredictType.REGRESS_T1L]
     loss_type = 'robust_mse' #focal_loss,binary_crossentropy,mse
     lr_list = [0.00002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.00001]#[0.00007]
@@ -80,7 +80,7 @@ def auto_search():
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
-    lstm_depth_list, base_units_list = [1], [128]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
+    lstm_depth_list, base_units_list = [1], [64]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
     nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
     d_model_list, num_heads_list, ff_dim_list, num_layers_list = [32], [4], [128], [2] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     filters_list, kernel_size_list, conv1d_depth_list = [128], [8], [4]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度

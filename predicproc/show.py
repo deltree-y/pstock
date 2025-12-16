@@ -30,7 +30,7 @@ def print_predict_result(t_list, ds:StockDataset, m, predict_type, threshold=0.5
             is_correct = pred.pred_label == real_y
         elif pred.is_classify:
             is_correct = pred.y1r.get_label() == real_y
-        elif pred.is_regress:
+        elif pred.is_regression:
             is_correct = (pred_dot == "o")
             residual.append(abs(pred.pred_value - real_y*100))
             pred_values.append(pred.pred_value)

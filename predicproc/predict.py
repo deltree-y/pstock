@@ -13,7 +13,7 @@ class Predict():
         self.threshold = threshold
         self.is_classify = predict_type.is_classify()
         self.is_binary = predict_type.is_binary()
-        self.is_regress = predict_type.is_regression()
+        self.is_regression = predict_type.is_regression()
 
         self.y1r = RateCat(one_hot=self.predicted_data[0,:], scale=self.bins1.bins, tag='T1L') if self.is_classify else None
         #self.y2r = RateCat(one_hot=self.predicted_data[1,:], scale=self.bins2.bins, tag='T2H')
@@ -35,7 +35,7 @@ class Predict():
         elif self.is_binary:
             self.prob = float(predicted_data[0,0])
             self.pred_label = int(self.prob > self.threshold)
-        elif self.is_regress:
+        elif self.is_regression:
             self.pred_value = float(predicted_data[0,0])
         else:
             raise ValueError("未知的预测类型。")
@@ -55,8 +55,8 @@ class Predict():
             label = f"{symbol[0]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})" if self.pred_label==1 else f"{symbol[1]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})"
             prob_rate = self.prob*100 if self.pred_label==1 else (1-self.prob)*100
             print(f"{desc}RAW<{self.prob:<.3f}>, T0价格[{self.bp:.2f}], {self.predict_type.label} {label}, 置信率:[{prob_rate:.2f}%]")
-        elif self.is_regress:
-            print(f"{desc}回归预测涨跌幅: {self.pred_value:.4f}, 预测价格: {self.bp * (1 + self.pred_value):.2f}")
+        elif self.is_regression:
+            print(f"{desc}回归预测涨跌幅: {self.pred_value:.2f}, 预测价格: {self.bp * (1 + self.pred_value):.2f}")
         else:
             print("未知的预测类型，无法打印结果。")
 
@@ -99,7 +99,7 @@ class Predict():
                 f"T0bp[{self.bp:.2f}], {self.predict_type.label} {label}, "
                 f"置信率[{prob_rate:.2f}%] {pred_result_str}"
                 ) if self.pred_label!=real_y else ""
-        elif self.is_regress:
+        elif self.is_regression:
             pred_dot_str = "-"
             pred_dot_str = "o" if np.abs(self.pred_value - real_y*100) <=ACCU_RATE_THRESHOLD else "x"
             predict_wrong_str = (
@@ -139,7 +139,7 @@ class Predict():
         elif predict_type.is_regression():
             value = float(real_y[0]) if real_y.ndim>0 else float(real_y)
             obj = Predict(np.array([[value]]), base_price, predict_type)
-            obj.is_regress = True
+            obj.is_regression = True
             obj.pred_value = value
             return obj
         else:

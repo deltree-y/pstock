@@ -74,9 +74,9 @@ def main():
             elif predict_type.is_binary():
                 Predict(pred, base_price, predict_type, threshold=thrld).print_predict_result("预测")
             elif predict_type.is_regression():
-                RegPredict(pred, base_price).print_predict_result("预测")
+                Predict(pred, base_price, predict_type).print_predict_result("预测")
             else:
-                print(f"预测值: {pred}")
+                raise ValueError(f"未知的预测类型: {predict_type}")
 
             # 是否输出真实结果对比  
             idx = np.where(ds.date_list == int(date_str))[0]
