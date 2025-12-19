@@ -135,12 +135,15 @@ class BaseModel(ABC):
             verbose=0,
         )
         spend = datetime.now() - start_time
-        return "\n total spend:%.2f(h)/%.1f(m), %.1f(s)/epoc, %.2f(h)/10k" % (
-            spend.seconds / 3600,
-            spend.seconds / 60,
-            spend.seconds / epochs,
-            10000 * (spend.seconds / 3600) / epochs,
-        )
+        early_stopping_epoch = callbacks[2].best_epoch + 1  # 修正 stopped_epoch 从0开始的问题
+        logging.info(f"\nTraining stopped at epoch {early_stopping_epoch}/{epochs}, learning rate status: {self.learning_rate_status}")
+        return early_stopping_epoch
+        #return "\n total spend:%.2f(h)/%.1f(m), %.1f(s)/epoc, %.2f(h)/10k" % (
+        #    spend.seconds / 3600,
+        #    spend.seconds / 60,
+        #    spend.seconds / epochs,
+        #    10000 * (spend.seconds / 3600) / epochs,
+        #)
 
     # ---------- 通用 IO ----------
     def save(self, filename):

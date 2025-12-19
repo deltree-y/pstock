@@ -32,6 +32,7 @@ def build_ds_and_model(
     backtest_start: str,
     backtest_end: str,
     train_size: float = 1.0,
+    model_suffix: str = "",
 ):
     """
     为某一套 (feature_type, predict_type) 构建独立的数据集和模型。
@@ -54,7 +55,7 @@ def build_ds_and_model(
         predict_type=predict_type,
         if_update_scaler=False,  # 回测时直接用已训练好的 scaler
     )
-    model = load_model_by_params(stock_code, model_type, predict_type, feature_type)
+    model = load_model_by_params(stock_code, model_type, predict_type, feature_type, suffix=model_suffix)
     return si, ds, model
 
 
@@ -123,6 +124,9 @@ def simulate_trading(
     t1l_threshold: float = 0.5,
     t2h_threshold: float = 0.5,
     t1h_threshold: float = 0.5,
+    t1l_test_cyc: int = 1,
+    t1h_test_cyc: int = 1,
+    raise_threshold:float = 0.5,
 ):
     """
     统一整合后的策略（按你最终描述）：
@@ -159,246 +163,254 @@ def simulate_trading(
     warnings.filterwarnings("ignore", category=UserWarning)
 
     backtest_start, backtest_end = start_date, end_date
+    total_return_log = []   # 总收益率
 
-    # ===== 构建四套 (feature, predict_type) 的数据集 & 模型 =====
-    # 选 T1L 买入数据集 ds_t1l_buy 作为“主时间轴”，用它的 raw_data 取 T1L/T1H 真实价格
-    si, ds_t1l, model_t1l = build_ds_and_model(
-        stock_code=stock_code,
-        feature_type=t1l_feature_type,
-        model_type=t1l_model_type,
-        predict_type=t1l_pred_type,
-        backtest_start=backtest_start,
-        backtest_end=backtest_end,
-        train_size=1.0,
-    )
-    _, ds_t2h, model_t2h = build_ds_and_model(
-        stock_code=stock_code,
-        feature_type=t2h_feature_type,
-        model_type=t2h_model_type,
-        predict_type=t2h_pred_type,
-        backtest_start=backtest_start,
-        backtest_end=backtest_end,
-        train_size=1.0,
-    )
-    _, ds_t1h, model_t1h = build_ds_and_model(
-        stock_code=stock_code,
-        feature_type=t1h_feature_type,
-        model_type=t1h_model_type,
-        predict_type=t1h_pred_type,
-        backtest_start=backtest_start,
-        backtest_end=backtest_end,
-        train_size=1.0,
-    )
+    for cyc_t1l in range(t1l_test_cyc):
+        for cyc_t1h in range(t1h_test_cyc):
+            print(f"\n{'='*50} 回测周期 t1l:{cyc_t1l+1}/ t1h:{cyc_t1h+1} {'='*50}")   
 
-    # ===== 回测日期（统一用 StockInfo 的交易日列表） =====
-    trade_dates_df = si.get_trade_open_dates(backtest_start, backtest_end)
-    date_list = trade_dates_df["trade_date"].astype(str).tolist()  # 从远到近
+            # ===== 构建四套 (feature, predict_type) 的数据集 & 模型 =====
+            # 选 T1L 买入数据集 ds_t1l_buy 作为“主时间轴”，用它的 raw_data 取 T1L/T1H 真实价格
+            si, ds_t1l, model_t1l = build_ds_and_model(
+                stock_code=stock_code,
+                feature_type=t1l_feature_type,
+                model_type=t1l_model_type,
+                predict_type=t1l_pred_type,
+                backtest_start=backtest_start,
+                backtest_end=backtest_end,
+                train_size=1.0,
+                model_suffix=str(cyc_t1l) if t1l_test_cyc > 1 else "",
+            )
+            _, ds_t1h, model_t1h = build_ds_and_model(
+                stock_code=stock_code,
+                feature_type=t1h_feature_type,
+                model_type=t1h_model_type,
+                predict_type=t1h_pred_type,
+                backtest_start=backtest_start,
+                backtest_end=backtest_end,
+                train_size=1.0,
+                model_suffix=str(cyc_t1h) if t1h_test_cyc > 1 else "",
+            )
+            _, ds_t2h, model_t2h = build_ds_and_model(
+                stock_code=stock_code,
+                feature_type=t2h_feature_type,
+                model_type=t2h_model_type,
+                predict_type=t2h_pred_type,
+                backtest_start=backtest_start,
+                backtest_end=backtest_end,
+                train_size=1.0,
+            )
 
-    f = Funds(init_amount=init_capital)
+            # ===== 回测日期（统一用 StockInfo 的交易日列表） =====
+            trade_dates_df = si.get_trade_open_dates(backtest_start, backtest_end)
+            date_list = trade_dates_df["trade_date"].astype(str).tolist()  # 从远到近
 
-    equity_curve = []       # 每日权益曲线
-    equity_dates = []       # 对应日期
-    trade_log = []          # 交易记录列表
-    have_position = False   # 当前是否有持仓
+            f = Funds(init_amount=init_capital)
 
-    for t0 in reversed(date_list):
-        op_strategy = StrategyType.HOLD     # 当日策略, 默认不动
-        is_op_success = False               # 当日是否有交易成功
-        predict_price, real_price = 0,0     # 当日挂单价 & 真实价
-        op_amount = 0                       # 当日操作数量  
-        qty = 0                             # 当日实际成交数量
-        #print("\n回测日期:", d)
-        # ---- 针对 T0，在四个数据集上分别构造窗口 ----
-        # 若任一关键数据集当天窗口不可用，则直接跳过该日
-        try:
-            x_t1l, t0_close_price   = ds_t1l.get_predictable_dataset_by_date(t0)
-            x_t2h, _                = ds_t2h.get_predictable_dataset_by_date(t0)
-            x_t1h, _                = ds_t1h.get_predictable_dataset_by_date(t0)
-        except Exception:
-            continue
+            equity_curve = []       # 每日权益曲线
+            equity_dates = []       # 对应日期
+            trade_log = []          # 交易记录列表
+            have_position = False   # 当前是否有持仓
 
-        # 记账 & 真实价用 base_price：统一采用主 T1L 买入数据集的基准价（T0 收盘价）
-        t0_close_price = float(t0_close_price)
+            for t0 in reversed(date_list):
+                op_strategy = StrategyType.HOLD     # 当日策略, 默认不动
+                is_op_success = False               # 当日是否有交易成功
+                predict_price, real_price = 0,0     # 当日挂单价 & 真实价
+                op_amount = 0                       # 当日操作数量  
+                qty = 0                             # 当日实际成交数量
+                #print("\n回测日期:", d)
+                # ---- 针对 T0，在四个数据集上分别构造窗口 ----
+                # 若任一关键数据集当天窗口不可用，则直接跳过该日
+                try:
+                    x_t1l, t0_close_price   = ds_t1l.get_predictable_dataset_by_date(t0)
+                    x_t1h, _                = ds_t1h.get_predictable_dataset_by_date(t0)
+                    x_t2h, _                = ds_t2h.get_predictable_dataset_by_date(t0)
+                except Exception:
+                    continue
 
-        # ====================== 卖出逻辑 ======================
-        if have_position and f.get_stock_quantity() > 0:    # 当前有持仓
-            op_strategy = StrategyType.SELL     # 当日先按卖出策略尝试卖出
-            op_amount = f.get_stock_quantity()  # 尝试卖出全部持仓
-            if t1h_pred_type.is_binary():
-                t1h_pred_val, label_t1h = _predict_binary_label(model_t1h, x_t1h, threshold=t1h_threshold)
-            elif t1h_pred_type.is_regression():
-                t1h_pred_val = float(model_t1h.model.predict(x_t1h, verbose=0)[0,0])
-                label_t1h = 1 # 总是有卖出意向
-            elif t1h_pred_type.is_classify():
-                #TODO: 多分类卖出意向判定
-                raise NotImplementedError("Classify type not implemented for T1H sell")
-            else:
-                raise ValueError(f"Unsupported PredictType for T1H sell: {t1h_pred_type}")
+                # 记账 & 真实价用 base_price：统一采用主 T1L 买入数据集的基准价（T0 收盘价）
+                t0_close_price = float(t0_close_price)
 
-            if label_t1h == 1:  #有卖出意向
-                if t1h_pred_type.is_binary():
-                    sell_rate = t1h_pred_type.val / 100.0  # 正数，如 +1.0 -> 0.01
-                elif t1h_pred_type.is_regression():
-                    sell_rate = t1h_pred_val / 100.0  # 按回归预测值卖出
-                elif t1h_pred_type.is_classify():
-                    raise NotImplementedError("Classify type not implemented for T1H sell")
+                # ====================== 卖出逻辑 ======================
+                if have_position and f.get_stock_quantity() > 0:    # 当前有持仓
+                    op_strategy = StrategyType.SELL     # 当日先按卖出策略尝试卖出
+                    op_amount = f.get_stock_quantity()  # 尝试卖出全部持仓
+                    if t1h_pred_type.is_binary():
+                        t1h_pred_val, label_t1h = _predict_binary_label(model_t1h, x_t1h, threshold=t1h_threshold)
+                    elif t1h_pred_type.is_regression():
+                        t1h_pred_val = float(model_t1h.model.predict(x_t1h, verbose=0)[0,0])
+                        label_t1h = 1 # 总是有卖出意向
+                    elif t1h_pred_type.is_classify():
+                        #TODO: 多分类卖出意向判定
+                        raise NotImplementedError("Classify type not implemented for T1H sell")
+                    else:
+                        raise ValueError(f"Unsupported PredictType for T1H sell: {t1h_pred_type}")
+
+                    if label_t1h == 1:  #有卖出意向
+                        if t1h_pred_type.is_binary():
+                            sell_rate = t1h_pred_type.val / 100.0  # 正数，如 +1.0 -> 0.01
+                        elif t1h_pred_type.is_regression():
+                            sell_rate = t1h_pred_val / 100.0  # 按回归预测值卖出
+                        elif t1h_pred_type.is_classify():
+                            raise NotImplementedError("Classify type not implemented for T1H sell")
+                        else:
+                            raise ValueError(f"Unsupported PredictType for T1H sell: {t1h_pred_type}")
+                    else:   #无卖出意向，按默认卖出底价卖出
+                        sell_rate = SELL_RATE / 100  #按底价卖出
+
+                    # 2) 卖出挂单价（由 BINARY_T1_Hzz 的阈值决定）
+                    sell_price = t0_close_price * (1 + sell_rate)
+
+                    # 3) 从“主 T1L 数据集”的 raw_data 中获取真实 T1H 价格
+                    _, real_t1h_price = _get_real_t1_prices(ds_t1l, t0)
+                    predict_price, real_price = sell_price, real_t1h_price
+
+                    if real_t1h_price is not None and real_t1h_price >= sell_price:
+                        qty = f.sell_all(sell_price, date=t0, is_print=False)
+                        if qty > 0: # 卖出成功
+                            is_op_success = True
+                            have_position = False
+                            trade_log.append(
+                                (
+                                    t0,
+                                    "SELL",
+                                    sell_price,
+                                    qty,
+                                    f.get_total_amount(sell_price),
+                                    t0_close_price,
+                                    real_t1h_price,
+                                    t1h_pred_val,
+                                )
+                            )
+
+                # ====================== 买入逻辑 ======================
+                # 1) T1L/T2H 二分类给出买入意向（“T1低值跌，T2高值涨”）
+                label_t1l_buy, label_t2h_sell = None, None
+                if t1l_pred_type.is_binary():
+                    t1l_pred_val, label_t1l_buy = _predict_binary_label(model_t1l, x_t1l, threshold=t1l_threshold)
+                elif t1l_pred_type.is_regression():
+                    t1l_pred_val = float(model_t1l.model.predict(x_t1l, verbose=0)[0,0])
+                elif t1l_pred_type.is_classify():
+                    raise NotImplementedError("Classify type not implemented for T1L buy")
                 else:
-                    raise ValueError(f"Unsupported PredictType for T1H sell: {t1h_pred_type}")
-            else:   #无卖出意向，按默认卖出底价卖出
-                sell_rate = SELL_RATE / 100  #按底价卖出
-
-            # 2) 卖出挂单价（由 BINARY_T1_Hzz 的阈值决定）
-            sell_price = t0_close_price * (1 + sell_rate)
-
-            # 3) 从“主 T1L 数据集”的 raw_data 中获取真实 T1H 价格
-            _, real_t1h_price = _get_real_t1_prices(ds_t1l, t0)
-            predict_price, real_price = sell_price, real_t1h_price
-
-            if real_t1h_price is not None and real_t1h_price >= sell_price:
-                qty = f.sell_all(sell_price, date=t0, is_print=False)
-                if qty > 0: # 卖出成功
-                    is_op_success = True
-                    have_position = False
-                    trade_log.append(
-                        (
-                            t0,
-                            "SELL",
-                            sell_price,
-                            qty,
-                            f.get_total_amount(sell_price),
-                            t0_close_price,
-                            real_t1h_price,
-                            t1h_pred_val,
-                        )
-                    )
-
-        # ====================== 买入逻辑 ======================
-        # 1) T1L/T2H 二分类给出买入意向（“T1低值跌，T2高值涨”）
-        if t1l_pred_type.is_binary():
-            t1l_pred_val, label_t1l_buy = _predict_binary_label(model_t1l, x_t1l, threshold=t1l_threshold)
-        elif t1l_pred_type.is_regression():
-            t1l_pred_val = float(model_t1l.model.predict(x_t1l, verbose=0)[0,0])
-            label_t1l_buy = 1 # 总是有买入意向
-        elif t1l_pred_type.is_classify():
-            raise NotImplementedError("Classify type not implemented for T1L buy")
-        else:
-            raise ValueError(f"Unsupported PredictType for T1L buy: {t1l_pred_type}")
-        
-        if t2h_pred_type.is_binary():
-            # T2H暂不参与买入决策
-            label_t2h_sell = 1 # 总是有买入意
-            t2h_pred_val, label_t2h_sell = _predict_binary_label(model_t2h, x_t2h, threshold=t2h_threshold)
-        elif t2h_pred_type.is_regression():
-            # T2H暂不参与买入决策
-            label_t2h_sell = 1 # 总是有买入意
-            #t2h_pred_val = float(model_t2h.model.predict(x_t2h, verbose=0)[0,0])
-        elif t2h_pred_type.is_classify():
-            raise NotImplementedError("Classify type not implemented for T2H sell")
-        else:
-            raise ValueError(f"Unsupported PredictType for T2H sell: {t2h_pred_type}")
-
-        has_buy_intent = (label_t1l_buy == 1) and (label_t2h_sell == 1)
-        if has_buy_intent == 1: #有买入意向
-            if t1l_pred_type.is_binary():
-                buy_rate = t1l_pred_type.val / 100.0 
-            elif t1l_pred_type.is_regression():
-                buy_rate = t1l_pred_val / 100.0
-            elif t1l_pred_type.is_classify():
-                raise NotImplementedError("Classify type not implemented for T1L buy")
-            else:
-                raise ValueError(f"Unsupported PredictType for T1L buy: {t1l_pred_type}")
-        else:   
-            buy_rate = BUY_RATE / 100.0 #无买入意向，按底价买入
-
-        if has_buy_intent and f.get_stock_quantity() == 0 and op_strategy != StrategyType.SELL: # 当前无持仓，且当天未按卖出策略卖出
-            op_strategy = StrategyType.BUY
-            # 2) 买入挂单价
-            buy_price = t0_close_price * (1 + buy_rate)
-            op_amount = f.get_buy_max_quantity(buy_price)
-
-            # 3) 真实 T1L 价格来自“主 T1L 数据集”的 raw_data T1 日 low
-            real_t1l_price, _ = _get_real_t1_prices(ds_t1l, t0)
-            predict_price, real_price = buy_price, real_t1l_price
-
-            if real_t1l_price is not None and real_t1l_price <= buy_price:
-                # 挂单成交
-                if use_buy_max:
-                    qty = f.buy_max(buy_price, date=t0, is_print=False)
+                    raise ValueError(f"Unsupported PredictType for T1L buy: {t1l_pred_type}")
+                
+                if t2h_pred_type.is_binary():
+                    
+                    label_t2h_sell = 1 # T2H暂不参与买入决策# 总是有买入意
+                    t2h_pred_val, label_t2h_sell = _predict_binary_label(model_t2h, x_t2h, threshold=t2h_threshold)
+                elif t2h_pred_type.is_regression():
+                    t2h_pred_val = float(model_t2h.model.predict(x_t2h, verbose=0)[0,0])
+                elif t2h_pred_type.is_classify():
+                    raise NotImplementedError("Classify type not implemented for T2H sell")
                 else:
-                    qty = f.buy_stock(buy_price, 100, date=t0)
+                    raise ValueError(f"Unsupported PredictType for T2H sell: {t2h_pred_type}")
 
-                if qty > 0:
-                    is_op_success = True
-                    have_position = True
-                    #print(f"买入成功, 当前持仓:{f.get_stock_quantity()}")
-                    trade_log.append(
-                        (
-                            t0,
-                            "BUY",
-                            buy_price,
-                            qty,
-                            f.get_total_amount(buy_price),
-                            t0_close_price,
-                            real_t1l_price,
-                            t1l_pred_val,
-                        )
-                    )
+                has_buy_intent = (t2h_pred_val - t1l_pred_val) > raise_threshold
+                has_buy_intent = 1 if has_buy_intent else 0
+                #print(f"t2h - t1l = {t2h_pred_val - t1l_pred_val:.2f} , t2h:{t2h_pred_val:.2f} , t1l:{t1l_pred_val:.2f}")
+                if has_buy_intent == 1: #有买入意向
+                    if t1l_pred_type.is_binary():
+                        buy_rate = t1l_pred_type.val / 100.0 
+                    elif t1l_pred_type.is_regression():
+                        buy_rate = t1l_pred_val / 100.0
+                    elif t1l_pred_type.is_classify():
+                        raise NotImplementedError("Classify type not implemented for T1L buy")
+                    else:
+                        raise ValueError(f"Unsupported PredictType for T1L buy: {t1l_pred_type}")
+                else:   
+                    buy_rate = BUY_RATE / 100.0 #无买入意向，按底价买入
 
-        # 4) 每日权益按 base_price 估值
-        total_equity = f.get_total_amount(t0_close_price)
-        equity_curve.append(total_equity)
-        equity_dates.append(t0)
+                if has_buy_intent and f.get_stock_quantity() == 0 and op_strategy != StrategyType.SELL: # 当前无持仓，且当天未按卖出策略卖出
+                    op_strategy = StrategyType.BUY
+                    # 2) 买入挂单价
+                    buy_price = t0_close_price * (1 + buy_rate)
+                    op_amount = f.get_buy_max_quantity(buy_price)
 
-        str_buy_intent = "Yes" if has_buy_intent else "No " #买入意向
-        str_confidence = f"T1L/T2H置信率:{t1l_pred_val*100:.1f}%/{t2h_pred_val*100:.1f}%" if t1l_pred_type.is_binary() and t2h_pred_type.is_binary() else ""
-        str_base_price = f"{t0_close_price:.2f}"
-        str_op_strategy = f"{op_strategy}"
-        str_buy_judge = f"{label_t1l_buy}/{label_t2h_sell}"
-        str_op_price = f"{predict_price:.2f}/({real_price:.2f})" if op_strategy != StrategyType.HOLD else "             "
-        str_op_amount = f"{int(op_amount):5d}" if op_strategy != StrategyType.HOLD else "-----"
-        str_is_op_success = f"{' OK.' if is_op_success else 'NOK!'}" if op_strategy != StrategyType.HOLD else "    "
-        str_cur_qty = f"{int(f.get_stock_quantity()):5d}"
-        str_equity = f"{total_equity:.2f}"
-        print(f"{t0}({str_base_price}) : <{str_op_strategy}({str_buy_judge})> [{str_op_amount}]@[{str_op_price}] - {str_is_op_success}, 当前持仓/资本:{str_cur_qty}/{str_equity}")
+                    # 3) 真实 T1L 价格来自“主 T1L 数据集”的 raw_data T1 日 low
+                    real_t1l_price, _ = _get_real_t1_prices(ds_t1l, t0)
+                    predict_price, real_price = buy_price, real_t1l_price
 
-    # 回测结束，如仍有持仓，按最后一天收盘价强制平仓（可选）
-    if f.get_stock_quantity() > 0 and len(equity_dates) > 0:
-        last_date = equity_dates[-1]
-        try:
-            _, last_price = ds_t1l.get_predictable_dataset_by_date(last_date)
-            last_price = float(last_price)
-        except Exception:
-            last_price = t0_close_price
-        f.sell_all(last_price, date=last_date, is_print=False)
-        total_equity = f.get_total_amount(last_price)
-        equity_curve[-1] = total_equity
+                    if real_t1l_price is not None and real_t1l_price <= buy_price:
+                        # 挂单成交
+                        if use_buy_max:
+                            qty = f.buy_max(buy_price, date=t0, is_print=False)
+                        else:
+                            qty = f.buy_stock(buy_price, 100, date=t0)
 
-    final_equity = equity_curve[-1] if equity_curve else init_capital
-    total_return = (final_equity - init_capital) / init_capital * 100
+                        if qty > 0:
+                            is_op_success = True
+                            have_position = True
+                            #print(f"买入成功, 当前持仓:{f.get_stock_quantity()}")
+                            trade_log.append(
+                                (
+                                    t0,
+                                    "BUY",
+                                    buy_price,
+                                    qty,
+                                    f.get_total_amount(buy_price),
+                                    t0_close_price,
+                                    real_t1l_price,
+                                    t1l_pred_val,
+                                )
+                            )
 
-    _, start_price = ds_t1l.get_predictable_dataset_by_date(date_list[-1])
-    _, end_price   = ds_t1l.get_predictable_dataset_by_date(date_list[0])
-    print("=" * 90)
-    print(f"")
-    print(f"回测股票: {stock_code}")
-    print(f"模型(t1l/t2h/t1h): {t1l_model_type}/{t2h_model_type}/{t1h_model_type}")
-    print(f"T1L_buy:  {t1l_pred_type} / {t1l_feature_type}")
-    print(f"T2H_sell: {t2h_pred_type} / {t2h_feature_type}")
-    print(f"T1H_sell: {t1h_pred_type} / {t1h_feature_type}")
-    print(f"数据起点(内部实际使用): {ds_t1l.stock.start_date}")
-    print(f"回测区间(实际遍历)/实际涨跌幅: [{backtest_start}] - [{backtest_end}]/{100*(end_price-start_price)/start_price:.2f}%")
-    print(f"初始资金: {init_capital:.2f}")
-    print(f"结束资金: {final_equity:.2f}")
-    print(f"总收益率: {total_return:.2f}%")
-    print(f"交易次数: {len(trade_log)}")
-    print("=" * 90)
+                # 4) 每日权益按 base_price 估值
+                total_equity = f.get_total_amount(t0_close_price)
+                equity_curve.append(total_equity)
+                equity_dates.append(t0)
 
-    for rec in trade_log:
-        # rec: (d, side, price, qty, equity, base_price, real_T1x_price, prob)
-        t0, side, price, qty, equity, bp, real_px, prob = rec
-        real_tag = "L" if side == "BUY" else "H"
-        extra = f", T0_close={bp:.2f}, real_T1{real_tag}={real_px:.2f}, prob={prob:.3f}"
-        print(f"{t0} {side:4s} @ {price:.2f}, qty={qty}, equity={equity:.0f}{extra}")
+                str_buy_intent = "Yes" if has_buy_intent else "No " #买入意向
+                str_confidence = f"T1L/T2H置信率:{t1l_pred_val*100:.1f}%/{t2h_pred_val*100:.1f}%" if t1l_pred_type.is_binary() and t2h_pred_type.is_binary() else ""
+                str_base_price = f"{t0_close_price:.2f}"
+                str_op_strategy = f"{op_strategy}"
+                str_buy_judge = f"({label_t1l_buy}/{label_t2h_sell})" if label_t1l_buy is not None and label_t2h_sell is not None else f"({(t2h_pred_val - t1l_pred_val): .1f})"
+                str_op_price = f"{predict_price:.2f}/({real_price:.2f})" if op_strategy != StrategyType.HOLD else "             "
+                str_op_amount = f"{int(op_amount):5d}" if op_strategy != StrategyType.HOLD else "-----"
+                str_is_op_success = f"{' OK.' if is_op_success else 'NOK!'}" if op_strategy != StrategyType.HOLD else "    "
+                str_cur_qty = f"{int(f.get_stock_quantity()):5d}"
+                str_equity = f"{total_equity:.2f}"
+                print(f"{t0}({str_base_price}) : <{str_op_strategy}{str_buy_judge}> [{str_op_amount}]@[{str_op_price}] - {str_is_op_success}, 当前持仓/资本:{str_cur_qty}/{str_equity}")
+
+            # 回测结束，如仍有持仓，按最后一天收盘价强制平仓（可选）
+            if f.get_stock_quantity() > 0 and len(equity_dates) > 0:
+                last_date = equity_dates[-1]
+                try:
+                    _, last_price = ds_t1l.get_predictable_dataset_by_date(last_date)
+                    last_price = float(last_price)
+                except Exception:
+                    last_price = t0_close_price
+                f.sell_all(last_price, date=last_date, is_print=False)
+                total_equity = f.get_total_amount(last_price)
+                equity_curve[-1] = total_equity
+
+            final_equity = equity_curve[-1] if equity_curve else init_capital
+            total_return = (final_equity - init_capital) / init_capital * 100
+            total_return_log.append(f"t1l cyc:{cyc_t1l} , t1h cyc:{cyc_t1h} , return:{total_return:.2f}") 
+
+            _, start_price = ds_t1l.get_predictable_dataset_by_date(date_list[-1])
+            _, end_price   = ds_t1l.get_predictable_dataset_by_date(date_list[0])
+            print("=" * 90)
+            print(f"")
+            print(f"回测股票: {stock_code}")
+            print(f"模型(t1l/t2h/t1h): {t1l_model_type}/{t2h_model_type}/{t1h_model_type}")
+            print(f"T1L_buy:  {t1l_pred_type} / {t1l_feature_type}")
+            print(f"T2H_sell: {t2h_pred_type} / {t2h_feature_type}")
+            print(f"T1H_sell: {t1h_pred_type} / {t1h_feature_type}")
+            print(f"数据起点(内部实际使用): {ds_t1l.stock.start_date}")
+            print(f"回测区间(实际遍历)/实际涨跌幅: [{backtest_start}] - [{backtest_end}]/{100*(end_price-start_price)/start_price:.2f}%")
+            print(f"初始资金: {init_capital:.2f}")
+            print(f"结束资金: {final_equity:.2f}")
+            print(f"总收益率: {total_return:.2f}%")
+            print(f"交易次数: {len(trade_log)}")
+            print("=" * 90)
+
+            for rec in trade_log:
+                # rec: (d, side, price, qty, equity, base_price, real_T1x_price, prob)
+                t0, side, price, qty, equity, bp, real_px, prob = rec
+                real_tag = "L" if side == "BUY" else "H"
+                extra = f", T0_close={bp:.2f}, real_T1{real_tag}={real_px:.2f}, prob={prob:.3f}"
+                #print(f"{t0} {side:4s} @ {price:.2f}, qty={qty}, equity={equity:.0f}{extra}")
 
     return {
         "dates": equity_dates,
@@ -406,6 +418,7 @@ def simulate_trading(
         "trades": trade_log,
         "final_equity": final_equity,
         "total_return": total_return,
+        "total_return_log": total_return_log,
     }
 
 
@@ -469,27 +482,29 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     BUY_RATE, SELL_RATE = -1.0, 0.6
+    RAISE_THRESHOLD = 1.1
+    T1L_TEST_CYC, T1H_TEST_CYC = 3, 3
 
-    t1l_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t2h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t1h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
 
     # PredictType/FeatureType（各自独立）
+    t1l_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
     t1l_buy_type = PredictType.REGRESS_T1L#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10)
     t1l_buy_feature = FeatureType.REGRESS_T1L_F50#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55)
     t1l_th = 0.548
 
-    t2h_sell_type = PredictType.REGRESS_T1H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
-    t2h_sell_feature = FeatureType.REGRESS_T1H_F50#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
-    t2h_th = 0.518
-
-    t1h_sell_type = PredictType.REGRESS_T2H#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
-    t1h_sell_feature = FeatureType.REGRESS_T2H_F50#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
+    t1h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    t1h_sell_type = PredictType.REGRESS_T1H#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
+    t1h_sell_feature = FeatureType.REGRESS_T1H_F50#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
     t1h_th = 0.535
+
+    t2h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    t2h_sell_type = PredictType.REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
+    t2h_sell_feature = FeatureType.REGRESS_T2H_F50#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
+    t2h_th = 0.518
 
     end_date = args.end_date or datetime.now().strftime("%Y%m%d")
 
-    simulate_trading(
+    result = simulate_trading(
         stock_code=args.stock_code,
         t1l_model_type=t1l_model_type,
         t2h_model_type=t2h_model_type,
@@ -507,4 +522,10 @@ if __name__ == "__main__":
         t1l_threshold=t1l_th,
         t2h_threshold=t2h_th,
         t1h_threshold=t1h_th,
+        t1l_test_cyc = T1L_TEST_CYC,
+        t1h_test_cyc = T1H_TEST_CYC,
+        raise_threshold=RAISE_THRESHOLD,
     )
+
+    for cyc_idx, ret in enumerate(result["total_return_log"]):
+        print(f"回测收益情况: {ret}")

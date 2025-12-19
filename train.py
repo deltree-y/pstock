@@ -43,9 +43,9 @@ def train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_
     else:
         raise ValueError(f"Unknown model_type: {model_type}")
     print(f"[INFO] Start training:")# l2_reg={l2_reg}")
-    model.train(tx=tx, ty=ty, **train_params)
+    early_stopping_epoch = model.train(tx=tx, ty=ty, **train_params)
     val_losses = model.history.val_losses
-    return val_losses, model
+    return val_losses, model, early_stopping_epoch
 
 def auto_search():
     setup_logging()
@@ -58,14 +58,14 @@ def auto_search():
     index_code_list = IDX_CODE_LIST#BIG_IDX_CODE_LIST#IDX_CODE_LIST
     related_stock_list = CODE_LIST_TEMP#CODE_LIST_TEMP#ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
     t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].astype(str).tolist()
-    t_start_date, t_end_date = '20070104', '20250101'
+    t_start_date, t_end_date = '20150104', '20250101'
 
     # ---模型通用参数---
     model_type = ModelType.RESIDUAL_LSTM
     p = 2
-    dropout_rate = 0.45
-    feature_type_list = [FeatureType.REGRESS_T1L_F50]
-    predict_type_list = [PredictType.REGRESS_T1L]
+    dropout_rate = 0.45#0.45
+    feature_type_list = [FeatureType.REGRESS_T2H_F50]
+    predict_type_list = [PredictType.REGRESS_T2H]
     loss_type = 'robust_mse' #focal_loss,binary_crossentropy,mse
     lr_list = [0.00002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
     l2_reg_list = [0.00001]#[0.00007]
@@ -74,13 +74,13 @@ def auto_search():
     # ===== 训练参数 =====
     epochs = 120
     batch_size = 256
-    patience = 30
+    patience = 40
     train_size = 0.9
-    cyc = 10    # 搜索轮数
+    cyc = 1    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
-    lstm_depth_list, base_units_list = [1], [64]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
+    lstm_depth_list, base_units_list = [1], [48]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
     nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
     d_model_list, num_heads_list, ff_dim_list, num_layers_list = [32], [4], [128], [2] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     filters_list, kernel_size_list, conv1d_depth_list = [128], [8], [4]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
@@ -153,7 +153,7 @@ def auto_search():
 
                         #训练参数配置
                         train_params = dict(epochs=epochs, batch_size=batch_size, learning_rate=lr, patience=patience)
-                        save_path = get_model_file_name(primary_stock_code, model_type, pt, ft)#, suffix=cyc_sn)
+                        save_path = get_model_file_name(primary_stock_code, model_type, pt, ft, suffix=cyc_sn) if cyc>1 else get_model_file_name(primary_stock_code, model_type, pt, ft, suffix="")
 
                         # ===== 训练前数据打印 =====
                         print(f"\n{'='*5} 开始训练处理: model={model_type} {'='*5}")
@@ -164,7 +164,7 @@ def auto_search():
                             print_ratio(vy, "验证集(vy)")
                         
                         #开始训练
-                        val_losses, model = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
+                        val_losses, model, early_stopping_epoch = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
                         history_dict[paras] = {'val_loss': val_losses}
                         min_val = np.min(val_losses)
                         print(f"\n[INFO] paras={paras}, min val_loss={min_val:.4f}")
@@ -178,11 +178,10 @@ def auto_search():
                             r2 = r2_score(vy, vx_pred_raw.reshape(-1))
                             acc_at1pct = np.mean(np.abs(vx_pred_raw.reshape(-1) - vy) <= ACCU_RATE_THRESHOLD)
                             print(f"[回归] 验证MAE: {mae:.4f}, R2: {r2:.4f}, Accuracy%: {acc_at1pct:.2%}")
-                            history_correction.append({'para': paras, 'val_loss': min_val, 'mae': mae, 'acc':acc_at1pct, 'correct_rate': correct_rate, 'residual': residual, 'pred_std': pred_std})
+                            history_correction.append({'para': paras, 'val_loss': min_val, 'mae': mae, 'acc':acc_at1pct, 'correct_rate': correct_rate, 'residual': residual, 'pred_std': pred_std, 'early_stopping_epoch': early_stopping_epoch })
                         else:
                             vx_pred_raw = model.model.predict(vx)
                             macro_recall = print_recall_score(vx_pred_raw, vy, pt, threshold=threshold)
-                            #best_model.save(f"{save_path}")
 
                             scores = vx_pred_raw[:, 0]
                             best_thr, best_f1 = 0.5, 0
@@ -192,21 +191,23 @@ def auto_search():
                                 if f1 > best_f1:
                                     best_f1, best_thr = f1, thr
                             print(f"二分类最优阈值: {best_thr:.3f}, 对应macro F1: {best_f1:.3f}")
-                            history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall, 'best_thr': best_thr})
-                        
+                            history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall, 'best_thr': best_thr, 'early_stopping_epoch': early_stopping_epoch})
+
+                        best_model.save(f"{save_path}")
+
                         for record in history_correction:
                             if pt.is_regression():
-                                print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}, Acc v/t:{record['acc']:.2%}/{record['correct_rate']:.2%}, 差均值/标准差:{record['residual']:.2f}/{record['pred_std']:.2f}")
+                                print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}({record['early_stopping_epoch']:3d}), MAE:{record['mae']:.4f}, Acc v/t:{record['acc']:.2%}/{record['correct_rate']:.2%}, 差均值/标准差:{record['residual']:.2f}/{record['pred_std']:.2f}")
                             else:
-                                print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
+                                print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}({record['early_stopping_epoch']:3d}), 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
 
     print(f"\n[RESULT] Best : {best_paras}, min val_loss: {best_val:.4f}")
-    for record in history_correction:
-        if predict_type_list[0].is_regression():
-            print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}, Acc t/v:{record['acc']:.2%}/{record['correct_rate']:.2%}, 差均值/标准差:{record['residual']:.2f}/{record['pred_std']:.2f}")
-        else:
-            print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
-    best_model.save(save_path)
+    #for record in history_correction:
+    #    if predict_type_list[0].is_regression():
+    #        print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}, Acc t/v:{record['acc']:.2%}/{record['correct_rate']:.2%}, 差均值/标准差:{record['residual']:.2f}/{record['pred_std']:.2f}")
+    #    else:
+    #        print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
+    #best_model.save(save_path)
     #plot_l2_loss_curves(history_dict, epochs)
     
 if __name__ == "__main__":

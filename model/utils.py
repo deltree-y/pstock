@@ -114,8 +114,8 @@ def get_model_file_name(stock_code, model_type, predict_type, feature_type,suffi
     return model_fn
 
 
-def load_model_by_params(stock_code, model_type, predict_type, feature_type):
-    model_fn = get_model_file_name(stock_code, model_type, predict_type, feature_type)
+def load_model_by_params(stock_code, model_type, predict_type, feature_type, suffix=""):
+    model_fn = get_model_file_name(stock_code, model_type, predict_type, feature_type, suffix=suffix)
 
     from model.residual_lstm import ResidualLSTMModel
     from model.residual_tcn import ResidualTCNModel
