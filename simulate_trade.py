@@ -295,8 +295,7 @@ def simulate_trading(
                 else:
                     raise ValueError(f"Unsupported PredictType for T1L buy: {t1l_pred_type}")
                 
-                if t2h_pred_type.is_binary():
-                    
+                if t2h_pred_type.is_binary():                    
                     label_t2h_sell = 1 # T2H暂不参与买入决策# 总是有买入意
                     t2h_pred_val, label_t2h_sell = _predict_binary_label(model_t2h, x_t2h, threshold=t2h_threshold)
                 elif t2h_pred_type.is_regression():
@@ -364,7 +363,8 @@ def simulate_trading(
                 str_confidence = f"T1L/T2H置信率:{t1l_pred_val*100:.1f}%/{t2h_pred_val*100:.1f}%" if t1l_pred_type.is_binary() and t2h_pred_type.is_binary() else ""
                 str_base_price = f"{t0_close_price:.2f}"
                 str_op_strategy = f"{op_strategy}"
-                str_buy_judge = f"({label_t1l_buy}/{label_t2h_sell})" if label_t1l_buy is not None and label_t2h_sell is not None else f"({(t2h_pred_val - t1l_pred_val): .1f})"
+                #str_buy_judge = f"({label_t1l_buy}/{label_t2h_sell})" if label_t1l_buy is not None and label_t2h_sell is not None else f"({(t2h_pred_val - t1l_pred_val): .1f})"
+                str_buy_judge = f"({(t2h_pred_val - t1l_pred_val): .1f})"
                 str_op_price = f"{predict_price:.2f}/({real_price:.2f})" if op_strategy != StrategyType.HOLD else "             "
                 str_op_amount = f"{int(op_amount):5d}" if op_strategy != StrategyType.HOLD else "-----"
                 str_is_op_success = f"{' OK.' if is_op_success else 'NOK!'}" if op_strategy != StrategyType.HOLD else "    "
@@ -482,7 +482,7 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     BUY_RATE, SELL_RATE = -1.0, 0.6
-    RAISE_THRESHOLD = 1.1
+    RAISE_THRESHOLD = 1
     T1L_TEST_CYC, T1H_TEST_CYC = 3, 3
 
 
@@ -498,8 +498,8 @@ if __name__ == "__main__":
     t1h_th = 0.535
 
     t2h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t2h_sell_type = PredictType.REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
-    t2h_sell_feature = FeatureType.REGRESS_T2H_F50#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
+    t2h_sell_type = PredictType.BINARY_T2_H05#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
+    t2h_sell_feature = FeatureType.BINARY_T2H05_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
     t2h_th = 0.518
 
     end_date = args.end_date or datetime.now().strftime("%Y%m%d")

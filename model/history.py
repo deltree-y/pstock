@@ -12,7 +12,7 @@ class LossHistory(Callback):
         self.predict_type = predict_type
         self.test_x = test_x
         self.test_y = test_y
-        print(f"DEBUG: self.test_y[:5]: {self.test_y[:5]}") if self.test_y is not None else None
+        #print(f"DEBUG: self.test_y[:5]: {self.test_y[:5]}") if self.test_y is not None else None
 
     def on_train_begin(self, logs={}):
         self.losses = []

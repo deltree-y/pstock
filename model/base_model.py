@@ -167,7 +167,7 @@ class BaseModel(ABC):
         merged = {**default_custom, **(custom_objects or {})}
 
         try:
-            print(f"\nloading model file -[{filename}]...", end="", flush=True)
+            print(f"loading model file -[{filename}]...", end="", flush=True)
             m = load_model(filename, custom_objects=merged)
             print("done.")
             m.summary() if IS_PRINT_MODEL_SUMMARY else None
