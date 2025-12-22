@@ -63,27 +63,27 @@ def auto_search():
     # ---模型通用参数---
     model_type = ModelType.RESIDUAL_LSTM
     p = 2
-    dropout_rate = 0.45#0.45
-    feature_type_list = [FeatureType.BINARY_T2H05_F55]#REGRESS_T2H_F50]
-    predict_type_list = [PredictType.BINARY_T2_H05]#REGRESS_T2H]
-    loss_type = 'binary_crossentropy' #focal_loss,binary_crossentropy,mse,robust_mse
-    lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
-    l2_reg_list = [0.00001]#[0.00007]
+    dropout_rate = 0.15#0.45
+    feature_type_list = [FeatureType.REGRESS_T1H_F50]#REGRESS_T2H_F50],BINARY_T2H10_F55
+    predict_type_list = [PredictType.REGRESS_T1H]#REGRESS_T2H],BINARY_T2_H10
+    loss_type = 'robust_mse' #focal_loss,binary_crossentropy,mse,robust_mse,confidence_penalty_loss
+    lr_list = [0.00001]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
+    l2_reg_list = [0.00008]#[0.00007]
     threshold = 0.5 # 二分类阈值
 
     # ===== 训练参数 =====
     epochs = 120
     batch_size = 256
-    patience = 40
+    patience = 30
     train_size = 0.9
-    cyc = 10    # 搜索轮数
+    cyc = 5    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
-    lstm_depth_list, base_units_list = [6], [64]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
+    lstm_depth_list, base_units_list = [2], [128]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
     nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
     d_model_list, num_heads_list, ff_dim_list, num_layers_list = [32], [4], [128], [2] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
-    filters_list, kernel_size_list, conv1d_depth_list = [128], [8], [4]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
+    filters_list, kernel_size_list, conv1d_depth_list = [64], [4], [2]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
 
     if model_type == ModelType.RESIDUAL_LSTM:# LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
         model_key_params = list(zip(lstm_depth_list, base_units_list, [None]*len(lstm_depth_list), [None]*len(lstm_depth_list)))
@@ -122,7 +122,7 @@ def auto_search():
                             raise ValueError("验证集数据包含 NaN 或 Inf, 请检查数据和特征工程")
 
                         # 检查标签范围
-                        print(f"标签最小/最大:[{ty.min()}/{ty.max()}], ty-{ty[:5]}, vy-{vy[:5]}")
+                        print(f"标签最小/最大:[{ty.min()}/{ty.max()}], ty:{ty[:5]}, vy:{vy[:5]}")
 
                         # ===== 根据上面的选择和参数自动配置模型参数 =====
                         if pt.is_classify():

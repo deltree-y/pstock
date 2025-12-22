@@ -129,9 +129,9 @@ class ResidualLSTMModel(BaseModel):
         x_last = Dense(self.base_units * self.p * 2, activation=activations.swish,
                        kernel_regularizer=l2(self.l2_reg),
                        name="fc1")(x_last)
-        x_last = Dropout(self.dropout_rate, name="fc1_drop")(x_last)
+        #x_last = Dropout(self.dropout_rate, name="fc1_drop")(x_last)
         x_last = Dense(self.base_units  * 2, activation=activations.swish,
-                       kernel_regularizer=l2(self.l2_reg),
+                       #kernel_regularizer=l2(self.l2_reg),
                        name="fc2")(x_last)
         # 输出头, 由基类实现, 根据 predict_type 自动选择
         outputs = self.build_output_head(x_last, self.predict_type)

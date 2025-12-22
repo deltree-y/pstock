@@ -305,7 +305,7 @@ def simulate_trading(
                 else:
                     raise ValueError(f"Unsupported PredictType for T2H sell: {t2h_pred_type}")
 
-                has_buy_intent = (t2h_pred_val - t1l_pred_val) > raise_threshold
+                has_buy_intent = (t2h_pred_val - t1l_pred_val) >= raise_threshold
                 has_buy_intent = 1 if has_buy_intent else 0
                 #print(f"t2h - t1l = {t2h_pred_val - t1l_pred_val:.2f} , t2h:{t2h_pred_val:.2f} , t1l:{t1l_pred_val:.2f}")
                 if has_buy_intent == 1: #有买入意向
@@ -482,25 +482,25 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     BUY_RATE, SELL_RATE = -1.0, 0.6
-    RAISE_THRESHOLD = 1
-    T1L_TEST_CYC, T1H_TEST_CYC = 3, 3
+    RAISE_THRESHOLD = 0.6
+    T1L_TEST_CYC, T1H_TEST_CYC = 5, 5
 
 
     # PredictType/FeatureType（各自独立）
     t1l_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
     t1l_buy_type = PredictType.REGRESS_T1L#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10)
     t1l_buy_feature = FeatureType.REGRESS_T1L_F50#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55)
-    t1l_th = 0.548
+    t1l_th = 0
 
     t1h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
     t1h_sell_type = PredictType.REGRESS_T1H#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
     t1h_sell_feature = FeatureType.REGRESS_T1H_F50#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
-    t1h_th = 0.535
+    t1h_th = 0
 
     t2h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t2h_sell_type = PredictType.BINARY_T2_H05#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
-    t2h_sell_feature = FeatureType.BINARY_T2H05_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
-    t2h_th = 0.518
+    t2h_sell_type = PredictType.BINARY_T2_H10#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
+    t2h_sell_feature = FeatureType.BINARY_T2H10_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
+    t2h_th = 0.498
 
     end_date = args.end_date or datetime.now().strftime("%Y%m%d")
 

@@ -9,7 +9,7 @@ from keras.layers import Dense, Lambda
 
 from model.history import LossHistory
 from model.utils import WarmUpCosineDecayScheduler
-from model.losses import get_loss, robust_mse_with_clip
+from model.losses import get_loss, robust_mse_with_clip, binary_focal_loss
 from utils.utils import PredictType
 from utils.const_def import IS_PRINT_MODEL_SUMMARY, NUM_CLASSES
 
@@ -162,6 +162,7 @@ class BaseModel(ABC):
         """
         default_custom = {
             "robust_mse_clip5.0_a1.0": robust_mse_with_clip(5.0, 1.0),
+            "loss":binary_focal_loss(gamma=2.0, alpha=0.25),
             # 其他默认的自定义对象……
         }
         merged = {**default_custom, **(custom_objects or {})}

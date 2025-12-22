@@ -88,6 +88,23 @@ def binary_focal_loss(gamma=2.0, alpha=0.25):
         return tf.reduce_mean(focal_factor * ce)
     return loss
 
+def confidence_penalty_loss(base_loss_fn, lam=0.2):
+    def loss(y_true, y_pred):
+        # 基本 BCE
+        base = base_loss_fn(y_true, y_pred)
+        # conf (y_pred 为概率)
+        conf = tf.abs(y_pred - 0.5) * 2  # 置信度 [0,1]
+        # 是否预测正确
+        y_pred_label = tf.cast(y_pred > 0.5, tf.int32)
+        y_true_cast = tf.cast(y_true, tf.int32)
+        correct = tf.cast(tf.equal(y_pred_label, y_true_cast), tf.float32)
+        # Encourage correct/high confidence, penalize wrong/high confidence
+        penalty = lam * tf.reduce_mean((1 - correct) * conf)
+        reward  = lam * tf.reduce_mean(correct * (1 - conf))
+        return base + penalty + reward
+    return loss
+
+
 # 根据输入值及预测类型来选择损失函数
 def get_loss(loss_type, predict_type:PredictType):
     if predict_type.is_regression():
@@ -100,9 +117,15 @@ def get_loss(loss_type, predict_type:PredictType):
         if predict_type.is_classify():
             loss_fn = focal_loss(gamma=2.0, alpha=0.25)
         elif predict_type.is_binary():
-            loss_fn = binary_focal_loss(gamma=2.0, alpha=0.25)
+            loss_fn = binary_focal_loss(gamma=6.0, alpha=0.75)#(gamma=2.0, alpha=0.25)
         else:
             raise ValueError("Unsupported predict_type for focal_loss.")
+    elif loss_type == 'confidence_penalty_loss':
+        if predict_type.is_binary():
+            base_loss = tf.keras.losses.BinaryCrossentropy()
+            loss_fn = confidence_penalty_loss(base_loss, lam=0.2)
+        else:
+            raise ValueError("confidence_penalty_loss only supports binary classification.")
     else:
         if predict_type.is_classify():
             loss_fn = 'sparse_categorical_crossentropy'
