@@ -63,12 +63,12 @@ def auto_search():
     # ---模型通用参数---
     model_type = ModelType.RESIDUAL_LSTM
     p = 2
-    dropout_rate = 0.15#0.45
+    dropout_rate = 0.3#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
     feature_type_list = [FeatureType.REGRESS_T1H_F50]#REGRESS_T2H_F50],BINARY_T2H10_F55
     predict_type_list = [PredictType.REGRESS_T1H]#REGRESS_T2H],BINARY_T2_H10
     loss_type = 'robust_mse' #focal_loss,binary_crossentropy,mse,robust_mse,confidence_penalty_loss
-    lr_list = [0.00001]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
-    l2_reg_list = [0.00008]#[0.00007]
+    lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
+    l2_reg_list = [0.0005]#[0.00007]
     threshold = 0.5 # 二分类阈值
 
     # ===== 训练参数 =====
