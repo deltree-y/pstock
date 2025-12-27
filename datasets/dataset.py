@@ -31,7 +31,8 @@ from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 # | 归一化, 窗口化后的x            | self.normalized_windowed_train_x  | 归一化, 窗口化后的训练集x, 三维数组                             | numpy.array        |                                  |
 # |                             | self.normalized_windowed_test_x   | 归一化, 窗口化后的测试集x, 三维数组                             | numpy.array        |                                  |
 class StockDataset():
-    def __init__(self, ts_code, idx_code_list, rel_code_list, si, start_date=None, end_date=None, train_size=0.8, if_update_scaler=True, feature_type=FeatureType.ALL, predict_type=PredictType.CLASSIFY):
+    def __init__(self, ts_code, idx_code_list, rel_code_list, si, start_date=None, end_date=None, train_size=0.8, if_update_scaler=True, 
+                 feature_type:FeatureType=FeatureType.ALL, predict_type:PredictType=PredictType.CLASSIFY, use_conv2_channel=False):
         self.p_trade = Trade(ts_code, si, start_date=start_date, end_date=end_date, feature_type=feature_type)
         self.idx_trade_list = [Trade(idx_code, si, stock_type=StockType.INDEX, start_date=start_date, end_date=end_date, feature_type=feature_type) for idx_code in idx_code_list]
         self.rel_trade_list = []
@@ -46,15 +47,70 @@ class StockDataset():
         self.if_update_scaler = if_update_scaler
         self.feature_type = feature_type
         self.predict_type = predict_type
+        self.use_conv2_channel = use_conv2_channel  # 新增参数
+
         self.scaler, self.bins1, self.bins2 = None, None, None
         self.y_cnt = self.p_trade.y_cnt
-        
+
+        if False:
+            # ================= 支持 channel 模式 BEGIN =================
+            if self.use_conv2_channel:
+                all_trades = [self.p_trade] + self.rel_trade_list
+                idx_raw_data_list = [t.raw_data_np for t in self.idx_trade_list] if self.if_has_index else []
+                raw_dataset_list = []   # 每个为[日期, features..., y1, y2, ...]
+                for trade in all_trades:
+                    dataset, _ = self.get_trade_data(trade)
+                    for idx_raw_data in idx_raw_data_list:
+                        dataset = self.left_join_pd_with_move_last(dataset, idx_raw_data, move_last_n_cols=self.y_cnt)
+                    raw_dataset_list.append(dataset)
+                # date_list、raw_data都可以用主股票的
+                self.date_list = raw_dataset_list[0][:, 0]
+                self.raw_data = raw_dataset_list[0]
+                
+                # 自动适配任务分割
+                (raw_train_x, train_y, raw_train_y), (raw_test_x, test_y, raw_test_y) = \
+                    self.split_train_test_dataset_by_stock(raw_dataset_list, self.train_size)
+                self.raw_train_x, self.train_y, self.raw_train_y = raw_train_x, train_y, raw_train_y
+                self.raw_test_x, self.test_y, self.raw_test_y = raw_test_x, test_y, raw_test_y
+
+                # 分箱或任务相关属性
+                self.raw_y = self.get_y_from_raw_dataset(np.vstack(raw_dataset_list))
+                self.bins1, self.bins2 = self.get_bins(self.raw_y)
+
+                # fit scaler
+                #feature_x_list = [x[:, 1:-self.y_cnt] if self.y_cnt > 0 else x[:, 1:] for x in self.raw_train_x]
+                concat_train_x = np.vstack(self.raw_train_x)
+                self.scaler = self.get_scaler(new_data=concat_train_x, if_update=self.if_update_scaler, if_save=True)
+
+                # 归一化+窗口化（shape: [样本, 时间步, feature, channel]）
+                #feature_x_list = [x[:, 1:-self.y_cnt] if self.y_cnt > 0 else x[:, 1:] for x in self.raw_train_x]
+                self.normalized_windowed_train_x = self.get_normalized_windowed_x(self.raw_train_x)
+                #feature_x_test_list = [x[:, 1:-self.y_cnt] if self.y_cnt > 0 else x[:, 1:] for x in self.raw_test_x]
+                self.normalized_windowed_test_x = self.get_normalized_windowed_x(self.raw_test_x) if train_size < 1 else None
+
+                # y 对齐窗口
+                self.train_y = self.train_y[:-self.window_size + 1]
+                if self.test_y is not None and self.normalized_windowed_test_x is not None:
+                    self.test_y = self.test_y[:-self.window_size + 1]
+
+                return
+            # ================= 支持 channel 模式 END ===================
+
         #处理主股票数据
         self.raw_dataset, self.raw_data = self.get_trade_data(self.p_trade)  #raw_dataset包含y不含t1t2数据, raw_data包含t1t2数据不含y
         self.date_list = self.raw_dataset[:,0]
         self.raw_date_list = self.raw_data[:,0]
         #处理关联股票数据
         self.rel_raw_dataset_list, self.rel_raw_data_list = zip(*[self.get_trade_data(rel_trade) for rel_trade in self.rel_trade_list]) if self.if_has_related else ([], [])
+        # ===== Debug: 打印各通道长度 & 最短通道 ts_code =====
+        channel_trades = [self.p_trade] + list(self.rel_trade_list)
+        channel_lens = [t.combine_data_np.shape[0] for t in channel_trades]
+        min_len = min(channel_lens) if channel_lens else 0
+        min_idx = channel_lens.index(min_len) if channel_lens else 0
+        logging.info(f"[channel length] { {t.ts_code: l for t, l in zip(channel_trades, channel_lens)} }"
+                     f" -> shortest: {channel_trades[min_idx].ts_code if channel_trades else 'N/A'} (len={min_len})")
+        # ====== ================ Debug END ==================
+
         self.raw_data = np.vstack(([self.raw_data] + list(self.rel_raw_data_list)) if self.if_has_related else self.raw_data)   #已包括主股票及关联股票数据
         #处理指数数据
         self.idx_raw_dataset_list, self.idx_raw_data_list = zip(*[self.get_trade_data(idx_trade) for idx_trade in self.idx_trade_list]) if self.if_has_index else ([], [])
@@ -72,10 +128,19 @@ class StockDataset():
         self.bins1, self.bins2 = self.get_bins(self.raw_y)
 
         # 2. 按股票分离测试集与验证集,并对y进行分箱,返回对应的y
-        (self.raw_train_x, self.train_y, self.raw_train_y), (self.raw_test_x, self.test_y, self.raw_test_y) = self.split_train_test_dataset_by_stock(raw_dataset_list, self.train_size)
-        
+        #(self.raw_train_x, self.train_y, self.raw_train_y), (self.raw_test_x, self.test_y, self.raw_test_y) = \
+        #    self.split_train_test_dataset_by_stock(raw_dataset_list, self.train_size)
+        (self.raw_train_x, self.train_y, self.raw_train_y), (self.raw_test_x, self.test_y, self.raw_test_y) = self.split_train_test_dataset_by_stock(
+            raw_dataset_list, self.train_size, collect_aligned_raw=self.use_conv2_channel
+        ) 
+
         # 4. 根据train_x的数据,生成并保存\读取归一化参数, #根据输入参数判断是否需要更新归一化参数配置,如果更新的话,就保存新的参数配置
-        self.scaler = self.get_scaler(new_data=self.raw_train_x, if_update=self.if_update_scaler, if_save=True)  
+        #self.scaler = self.get_scaler(new_data=self.raw_train_x, if_update=self.if_update_scaler, if_save=True)  
+        self.scaler = self.get_scaler(
+            new_data=self._stack_features_for_scaler(self.raw_train_x),
+            if_update=self.if_update_scaler,
+            if_save=True
+        )
 
         # 5. 归一化处理train_x/test_x, 并对x窗口化
         self.normalized_windowed_train_x = self.get_normalized_windowed_x(self.raw_train_x)
@@ -144,14 +209,18 @@ class StockDataset():
         return (np.array([y1_binned, y2_binned]).astype(int)).transpose()
 
     # 新增：每只股票单独切分训练/测试集，再合并
-    def split_train_test_dataset_by_stock(self, raw_dataset_list, train_size):
+    def split_train_test_dataset_by_stock(self, raw_dataset_list, train_size, collect_aligned_raw=False):
         train_x_list, train_y_list, test_x_list, test_y_list = [], [], [], []
         raw_train_y_list, raw_test_y_list = [], [] #保存未分箱的y数据,供有需要的使用
+        aligned_raw_list = [] if collect_aligned_raw else None  #for conv2d add
+        ch_train_x_list, ch_test_x_list = [], []  # 每通道切分后的X（含日期+y，后续再裁剪特征）
         for raw_data in raw_dataset_list:
             raw_data_with_idx = raw_data 
             if self.if_has_index:
                 for idx_raw_data in self.idx_raw_data_list:
                     raw_data_with_idx = self.left_join_pd_with_move_last(raw_data_with_idx, idx_raw_data, move_last_n_cols=self.y_cnt) if self.if_has_index else raw_data    #并接指数数据
+            if collect_aligned_raw:                         #for conv2d add
+                aligned_raw_list.append(raw_data_with_idx)  #for conv2d add
             raw_x, raw_y = self.get_dataset_xy(raw_data_with_idx)
             if len(raw_x) < NUM_CLASSES:
                 logging.error(f"StockDataset.split_train_test_dataset_by_stock() - Too few data, will be skipped. data shape: {raw_data.shape}")
@@ -195,6 +264,9 @@ class StockDataset():
             test_x_list.append(raw_x[:test_count])
             test_y_list.append(dataset_y[:test_count])
             raw_test_y_list.append(raw_dataset_y[:test_count])
+            if collect_aligned_raw:
+                ch_train_x_list.append(raw_data_with_idx[test_count:])
+                ch_test_x_list.append(raw_data_with_idx[:test_count])
 
         # 合并所有股票的训练集和测试集
         raw_train_x = np.vstack(train_x_list) if train_x_list else np.array([])
@@ -203,12 +275,21 @@ class StockDataset():
         raw_test_x = np.vstack(test_x_list) if test_x_list else np.array([])
         test_y = np.vstack(test_y_list) if test_y_list else np.array([])
         raw_test_y = np.vstack(raw_test_y_list) if raw_test_y_list else np.array([])
+        #return (raw_train_x, train_y, raw_train_y), (raw_test_x, test_y, raw_test_y)
+        #return (raw_train_x, train_y, raw_train_y), (raw_test_x, test_y, raw_test_y), aligned_raw_list  #for conv2d add
+        if collect_aligned_raw:
+            # 将通道切分结果存到实例属性，方便多通道流程使用
+            self.channel_raw_data_list = aligned_raw_list
+            self.channel_train_x_list = ch_train_x_list
+            self.channel_test_x_list = ch_test_x_list
         return (raw_train_x, train_y, raw_train_y), (raw_test_x, test_y, raw_test_y)
+
 
     #归一化处理数据
     def get_normalized_data(self, raw_data):
         if raw_data is not None:
             df = pd.DataFrame(raw_data)
+            #print(f"DEBUG:df head before norm:\n{df.head()}")
             scaled_data = self.scaler.transform(df) #归一化
         else:
             logging.error("Invalid parameters.")
@@ -225,11 +306,13 @@ class StockDataset():
                 self.scaler = StandardScaler()
                 #self.scaler = RobustScaler()#
                 #self.scaler = MinMaxScaler(feature_range=(-1, 1))  # 替换RobustScaler
+                if isinstance(new_data, np.ndarray) and new_data.ndim > 2:  #如果是多维数据,则先展开成二维
+                    new_data = new_data.reshape(-1, new_data.shape[-1])
                 df = pd.DataFrame(new_data)
                 if df.isnull().values.any():
                     print("WARNING: 发现NaN, 归一化前已自动填充0")
                     df = df.fillna(0)
-                if np.isinf(df.values).any():
+                if np.isinf(df.values.astype(float)).any():
                     print("WARNING: 发现inf, 归一化前已自动填充0")
                     df = df.replace([np.inf, -np.inf], 0)
                 self.scaler.fit(df)
@@ -264,9 +347,48 @@ class StockDataset():
     
     #获取归一化,窗口化后的x数据
     def get_normalized_windowed_x(self, raw_x):
-        self.get_scaler() if self.scaler is None else None  #如果还没有归一化参数,则先获取
+        """
+        支持:
+        - ndarray: 单通道旧逻辑 -> [样本, 时间步, 特征]
+        - list of ndarray: 多通道，每个元素 shape [N, 全列(含日期/y)] -> 归一化后窗口化，再在最后一维堆 channel
+        """
+        self.get_scaler() if self.scaler is None else None
+        if isinstance(raw_x, list): #多通道处理
+            ch_windows = []
+            for x in raw_x:
+                feat = self._feature_only(x)
+                norm = self.get_normalized_data(feat)
+                win = self.get_windowed_x_by_raw(norm)
+                ch_windows.append(win)
+            # 对齐最短长度
+            min_len = min(w.shape[0] for w in ch_windows)
+            ch_windows = [w[:min_len] for w in ch_windows]
+            x4d = np.stack(ch_windows, axis=-1)  # [样本, 时间步, 特征, channel]
+            return x4d
+        # 单通道保持原逻辑
         normalized_x = self.get_normalized_data(raw_x)
         return self.get_windowed_x_by_raw(normalized_x)
+    
+        if False:
+            if self.use_conv2_channel:
+                # raw_x: list，每个为(样本, features)
+                # 对每个通道分别归一化、窗口化
+                windowed_x = []
+                for x_i in raw_x:
+                    normed_x = self.get_normalized_data(x_i)
+                    win_x = self.get_windowed_x_by_raw(normed_x)
+                    windowed_x.append(win_x)
+                # 长度对齐
+                min_win = min([w.shape[0] for w in windowed_x])
+                windowed_x = [w[:min_win] for w in windowed_x]
+                x4d = np.stack(windowed_x, axis=-1)  # [样本, 时间步, feature, channel]
+                return x4d
+            else:
+                self.get_scaler() if self.scaler is None else None  #如果还没有归一化参数,则先获取
+                normalized_x = self.get_normalized_data(raw_x)
+                return self.get_windowed_x_by_raw(normalized_x)
+            
+        
 
     #获取某一天的模型输入数据(已归一化),以及对应的真实结果y
     def get_dataset_with_y_by_date(self, date):
@@ -280,10 +402,87 @@ class StockDataset():
     
     #获取某一天的模型输入数据(已归一化, 预测用),以及对应的收盘价
     def get_predictable_dataset_by_date(self, date):
+        if False:
+            # ==== 新增: 支持多通道conv2模式 ====
+            if self.use_conv2_channel:
+                # 1. 主股票 + 所有关联股票为channels
+                trades = [self.p_trade] + self.rel_trade_list
+                idx_raw_data_list = [t.raw_data_np for t in self.idx_trade_list] if self.if_has_index else []
+                x_windows = []
+                min_win_len = None
+
+                # 2. 遍历每个channel股票，找window并拼接指数
+                for trade in trades:
+                    #print(f"DEBUG: get_predictable_dataset_by_date() - processing trade: {trade.ts_code}")
+                    data, _ = self.get_trade_data(trade)
+                    date_val = type(data[0, 0])(date)
+                    idx_arr = np.where(data[:, 0] == date_val)[0]
+                    if idx_arr.size == 0 or idx_arr[0] + self.window_size > data.shape[0]:
+                        raise ValueError(f"conv2 channel: {trade.ts_code} 日期{date}不可用")
+                    idx0 = idx_arr[0]
+                    seq = data[idx0: idx0 + self.window_size, :]
+                    for idx_raw in idx_raw_data_list:
+                        seq = self.left_join_pd_with_move_last(seq, idx_raw, move_last_n_cols=self.y_cnt)
+                    seq_x, _ = self.get_dataset_xy(seq)
+                    x_windows.append(seq_x)
+                    if min_win_len is None or seq_x.shape[0] < min_win_len:
+                        min_win_len = seq_x.shape[0]
+                x_windows = [x[:min_win_len] for x in x_windows]
+                x_windows = [self.get_normalized_data(x) for x in x_windows]
+                x4d = np.stack(x_windows, axis=-1)      # [window, feature, channel]
+                x4d = np.expand_dims(x4d, axis=0)       # [1, window, feature, channel]
+                # 取主股票的close为基准价
+                closed_price = None
+                main_data, _ = self.get_trade_data(self.p_trade)
+                main_idx_arr = np.where(main_data[:, 0] == date_val)[0]
+                if main_idx_arr.size:
+                    closed_price = main_data[main_idx_arr[0], self.p_trade.col_close + 1]
+                #print(f"DEBUG: get_predictable_dataset_by_date() - date={date}, x4d.shape={x4d.shape}")
+                return x4d, closed_price
+            
+            # ==== 旧版: 单通道模式 ====
+            date = self.si.get_next_or_current_trade_date(date) #若输入日期为交易日,则返回该日期,否则返回后一个交易日
+            date = type(self.raw_data[0, 0])(date)
+            try:
+                idx = np.where(self.raw_data[:, 0] == date)[0][0]
+            except Exception as e:
+                logging.error(f"StockDataset.get_predictable_dataset_by_date() - Invalid date: {e}")
+                exit()
+            if idx + self.window_size > self.raw_data.shape[0]:
+                raise ValueError(f"Not enough data for window: idx={idx}, window_size={self.window_size}, data_len={self.raw_data.shape[0]}")
+            closed_price = self.raw_data[idx, self.p_trade.col_close + 1] #取出对应日期的收盘价, +1是因为raw_data含日期列
+            raw_x = self.raw_data[idx : idx + self.window_size, 1:]#取出对应日期及之后window_size天的数据
+            x = self.get_normalized_windowed_x(raw_x) #归一化,窗口化
+            #print(f"DEBUG: date={date}, idx={idx}, raw_x.shape={raw_x.shape}, x.shape={x.shape}, closed_price={closed_price}")
+            return x, closed_price
+        
         date = self.si.get_next_or_current_trade_date(date) #若输入日期为交易日,则返回该日期,否则返回后一个交易日
-        date = type(self.raw_data[0, 0])(date)
+        date_val = type(self.raw_data[0, 0])(date)
+
+        # 多通道：逐通道取窗口 -> 归一化 -> stack channel
+        if self.use_conv2_channel and getattr(self, "channel_raw_data_list", None):
+            x_list = []
+            main_close = None
+            for i, ch_raw in enumerate(self.channel_raw_data_list):
+                idx_arr = np.where(ch_raw[:, 0] == date_val)[0]
+                if idx_arr.size == 0 or idx_arr[0] + self.window_size > ch_raw.shape[0]:
+                    raise ValueError(f"conv2 channel: 日期{date}不可用或长度不足, channel={i}")
+                idx0 = idx_arr[0]
+                if i == 0:
+                    main_close = ch_raw[idx0, self.p_trade.col_close + 1]
+                seq = ch_raw[idx0: idx0 + self.window_size, :]
+                seq_feat = self._feature_only(seq)
+                norm = self.get_normalized_data(seq_feat)
+                x_list.append(norm)
+            min_len = min(w.shape[0] for w in x_list)
+            x_list = [w[:min_len] for w in x_list]
+            x4d = np.stack(x_list, axis=-1)  # [window, feature, channel]
+            x4d = np.expand_dims(x4d, axis=0)  # [1, window, feature, channel]
+            return x4d, main_close
+
+        # 单通道保持原逻辑
         try:
-            idx = np.where(self.raw_data[:, 0] == date)[0][0]
+            idx = np.where(self.raw_data[:, 0] == date_val)[0][0]
         except Exception as e:
             logging.error(f"StockDataset.get_predictable_dataset_by_date() - Invalid date: {e}")
             exit()
@@ -292,9 +491,9 @@ class StockDataset():
         closed_price = self.raw_data[idx, self.p_trade.col_close + 1] #取出对应日期的收盘价, +1是因为raw_data含日期列
         raw_x = self.raw_data[idx : idx + self.window_size, 1:]#取出对应日期及之后window_size天的数据
         x = self.get_normalized_windowed_x(raw_x) #归一化,窗口化
-        #print(f"DEBUG: date={date}, idx={idx}, raw_x.shape={raw_x.shape}, x.shape={x.shape}, closed_price={closed_price}")
         return x, closed_price
-    
+
+
     def left_join_pd_with_move_last(self, A, B, move_last_n_cols=0, if_debug=False):
         """
         用 pandas 实现 left join，并将A的倒数N列移至结果的倒数N列（可控）
@@ -443,7 +642,21 @@ class StockDataset():
         real_y = self.get_real_y_by_raw_y(raw_y)
         return real_y[0,0] if real_y.shape[1]==1 else real_y[0]
         
-    
+    # ---------- 工具：仅保留特征列、去掉日期和y ----------
+    def _feature_only(self, x):
+        return x[:, 1:-self.y_cnt] if self.y_cnt > 0 else x[:, 1:]
+
+    def _stack_features_for_scaler(self, raw_train_x):
+        """
+        保证传入 scaler 的都是纯特征:
+        - ndarray: 去掉日期、y
+        - list: 各通道去掉日期、y 后 vstack
+        """
+        if isinstance(raw_train_x, list):
+            feats = [self._feature_only(arr) for arr in raw_train_x]
+            return np.vstack(feats)
+        else:
+            return raw_train_x    
 
 if __name__ == "__main__":
     setup_logging()
@@ -470,7 +683,8 @@ if __name__ == "__main__":
         train_size=1,
         feature_type=FeatureType.BINARY_T1L10_F55,
         if_update_scaler=True,
-        predict_type=PredictType.BINARY_T1_L10
+        predict_type=PredictType.BINARY_T1_L10,
+        use_conv2_channel=True,
     )
 
     logging.info(f"ds.train_y shape: {ds.train_y.shape}, ds.test_y shape: {ds.test_y.shape}")

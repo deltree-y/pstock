@@ -103,6 +103,7 @@ class ModelType(Enum):
     RESIDUAL_TCN = 'ResTCN'
     TRANSFORMER = 'Transformer'
     CONV1D = 'Conv1D'
+    CONV2D = 'Conv2D'
     MINI = 'Mini'
 
     def __str__(self):

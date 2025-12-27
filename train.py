@@ -14,6 +14,7 @@ from model.residual_lstm import ResidualLSTMModel
 from model.residual_tcn import ResidualTCNModel
 from model.transformer import TransformerModel
 from model.conv1d import Conv1DResModel
+from model.conv2d import Conv2DResModel
 from model.utils import get_model_file_name
 from predicproc.show import print_predict_result
 from utils.tk import TOKEN
@@ -38,6 +39,8 @@ def train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_
         model = ResidualTCNModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
     elif model_type == ModelType.TRANSFORMER:
         model = TransformerModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
+    elif model_type == ModelType.CONV2D:
+        model = Conv2DResModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
     elif model_type == ModelType.CONV1D:
         model = Conv1DResModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
     else:
@@ -57,7 +60,7 @@ def auto_search():
     primary_stock_code = '600036.SH'
     index_code_list = IDX_CODE_LIST#BIG_IDX_CODE_LIST#IDX_CODE_LIST
     related_stock_list = BANK_CODE_LIST_10#CODE_LIST_TEMP#ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
-    t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].astype(str).tolist()
+    t_list = (si.get_trade_open_dates('20250901', '20250920'))['trade_date'].astype(str).tolist()
     t_start_date, t_end_date = '20050104', '20250101'
 
     # ---模型通用参数---
@@ -72,7 +75,7 @@ def auto_search():
     threshold = 0.5 # 二分类阈值
 
     # ===== 训练参数 =====
-    epochs = 120
+    epochs = 12
     batch_size = 256
     patience = 30
     train_size = 0.9
@@ -83,7 +86,8 @@ def auto_search():
     lstm_depth_list, base_units_list = [2], [128]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
     nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
     d_model_list, num_heads_list, ff_dim_list, num_layers_list = [32], [4], [128], [2] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
-    filters_list, kernel_size_list, conv1d_depth_list = [64], [4], [2]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
+    conv2d_filters_list, conv2d_kernel_size_list, conv2d_depth_list = [32], [(3,3)], [2]   # Conv2D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
+    conv1d_filters_list, conv1d_kernel_size_list, conv1d_depth_list = [64], [4], [2]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
 
     if model_type == ModelType.RESIDUAL_LSTM:# LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
         model_key_params = list(zip(lstm_depth_list, base_units_list, [None]*len(lstm_depth_list), [None]*len(lstm_depth_list)))
@@ -91,8 +95,10 @@ def auto_search():
         model_key_params = list(zip(nb_filters, kernel_size, nb_stacks, [None]*len(nb_filters)))
     elif model_type == ModelType.TRANSFORMER:# Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
         model_key_params = list(zip(d_model_list, num_heads_list, ff_dim_list, num_layers_list))
+    elif model_type == ModelType.CONV2D:# Conv2D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
+        model_key_params = list(zip(conv2d_filters_list, conv2d_kernel_size_list, conv2d_depth_list, [None]*len(conv2d_filters_list)))
     elif model_type == ModelType.CONV1D:# Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
-        model_key_params = list(zip(filters_list, kernel_size_list, conv1d_depth_list, [None]*len(filters_list)))
+        model_key_params = list(zip(conv1d_filters_list, conv1d_kernel_size_list, conv1d_depth_list, [None]*len(conv1d_filters_list)))
     else:
         raise ValueError("unknown model_type")
 
@@ -106,9 +112,17 @@ def auto_search():
                 for ft, pt in zip(feature_type_list, predict_type_list):
                     for l2_reg in l2_reg_list:
                         # ===== 数据集准备 =====
-                        ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, si=si,start_date=t_start_date, end_date=t_end_date,train_size=train_size,feature_type=ft,predict_type=pt)
-                        ds_pred = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=[], si=si, if_update_scaler=False, start_date='19930204', end_date='20251010', train_size=1, feature_type=ft, predict_type=pt)
+                        ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, 
+                                          si=si,start_date=t_start_date, end_date=t_end_date,train_size=train_size, 
+                                          feature_type=ft,predict_type=pt, use_conv2_channel=(model_type == ModelType.CONV2D))
+                        ds_pred = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list if model_type==ModelType.CONV2D else [], 
+                                               si=si, if_update_scaler=False, start_date='19930204', end_date='20251010', train_size=1, 
+                                               feature_type=ft, predict_type=pt, use_conv2_channel=(model_type == ModelType.CONV2D))
+                        #print(f"DEBUG: t_list:{t_list[:5]}... total {len(t_list)} dates")
+                        #print(f"ds_pred.raw_data[:5,0]:{ds_pred.raw_data[:5,0]}")
                         t_list = [d for d in t_list if ((idx_arr := np.where(ds_pred.raw_data[:, 0] == d)[0]).size > 0 and idx_arr[0] + ds_pred.window_size <= ds_pred.raw_data.shape[0])]
+                        #print(f"DEBUG: t_list:{t_list[:5]}... total {len(t_list)} dates")
+                        #exit()
                         tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
                         ty, vy = ty[:, 0], vy[:, 0]
                         # 数据增强
@@ -144,6 +158,9 @@ def auto_search():
                         elif model_type == ModelType.TRANSFORMER:
                             paras = f"{pt}_{ft}_{l2_reg}_{lr}_{p1}_{p2}_{p3}_{p4}_{cyc_sn}" 
                             model_params = dict(d_model=p1, num_heads=p2, ff_dim=p3, num_layers=p4, dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, predict_type=pt)
+                        elif model_type == ModelType.CONV2D:
+                            paras = f"{pt}_{ft}_{l2_reg}_{lr}_{p1}_{p2}_{p3}_{cyc_sn}" 
+                            model_params = dict(filters=p1, kernel_size=p2, depth=p3, dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, predict_type=pt)
                         elif model_type == ModelType.CONV1D:
                             paras = f"{pt}_{ft}_{l2_reg}_{lr}_{p1}_{p2}_{p3}_{cyc_sn}" 
                             model_params = dict(filters=p1, kernel_size=p2, depth=p3, dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, predict_type=pt)
