@@ -101,7 +101,6 @@ class ResidualTCNModel(BaseModel):    # 继承 BaseModel
         super().__init__(x=x, y=y, test_x=test_x, test_y=test_y,
                          loss_type=loss_type, class_weights=class_weights,
                          predict_type=predict_type)
-        logging.info(f"ResidualTCN input shape: {self.x.shape}, output shape: {self.y.shape}")
 
     def _build(self, input_shape):
         inputs = Input(shape=input_shape)

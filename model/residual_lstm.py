@@ -103,7 +103,6 @@ class ResidualLSTMModel(BaseModel):
             class_weights=class_weights,
             predict_type=predict_type,
         )
-        logging.info(f"ResidualLSTMModel: input shape={self.x.shape}, y shape={self.y.shape}")
 
     def _build(self, input_shape):
         inp = Input(shape=input_shape, name="input")

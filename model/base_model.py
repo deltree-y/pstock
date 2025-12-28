@@ -34,7 +34,7 @@ class BaseModel(ABC):
         self.y = y if y is not None else None
         self.test_x = test_x.astype("float32") if test_x is not None else None
         self.test_y = test_y if test_y is not None else None
-        print(f"x.shape:{self.x.shape if self.x is not None else None}, y.shape:{self.y.shape if self.y is not None else None}")
+        print(f"x.shape:{self.x.shape if self.x is not None else None}, y.shape:{self.y.shape if self.y is not None else None}, test_x.shape:{self.test_x.shape if self.test_x is not None else None}, test_y.shape:{self.test_y.shape if self.test_y is not None else None}")
 
         self.loss_type = loss_type
         self.class_weights = class_weights

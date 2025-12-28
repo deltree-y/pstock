@@ -79,7 +79,7 @@ def main():
                 raise ValueError(f"未知的预测类型: {predict_type}")
 
             # 是否输出真实结果对比  
-            idx = np.where(ds.date_list == int(date_str))[0]
+            idx = np.where(ds.datasets_date_list == int(date_str))[0]
             is_historical = len(idx) > 0 and idx[0] < len(ds.raw_y)
             if is_historical:
                 real_raw_y = ds.raw_y[idx[0]]

@@ -173,7 +173,6 @@ class TransformerModel(BaseModel):     # 继承 BaseModel
         super().__init__(x=x, y=y, test_x=test_x, test_y=test_y,
                          loss_type=loss_type, class_weights=class_weights,
                          predict_type=predict_type)
-        logging.info(f"Transformer input shape: {x.shape}, output shape: {y.shape}")
 
     def _build(self, shape):
         inputs = Input(shape=shape)

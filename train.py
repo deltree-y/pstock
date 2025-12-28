@@ -60,14 +60,14 @@ def auto_search():
     primary_stock_code = '600036.SH'
     index_code_list = IDX_CODE_LIST#BIG_IDX_CODE_LIST#IDX_CODE_LIST
     related_stock_list = BANK_CODE_LIST_10#CODE_LIST_TEMP#ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
-    t_list = (si.get_trade_open_dates('20250901', '20250920'))['trade_date'].astype(str).tolist()
-    t_start_date, t_end_date = '20050104', '20250101'
+    t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].astype(str).tolist()
+    t_start_date, t_end_date = '20080104', '20250101'
 
     # ---模型通用参数---
-    model_type = ModelType.RESIDUAL_LSTM
+    model_type = ModelType.CONV2D#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
     p = 2
     dropout_rate = 0.3#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
-    feature_type_list = [FeatureType.REGRESS_T1H_F50]#REGRESS_T2H_F50],BINARY_T2H10_F55
+    feature_type_list = [FeatureType.ALL]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50
     predict_type_list = [PredictType.REGRESS_T1H]#REGRESS_T2H],BINARY_T2_H10
     loss_type = 'robust_mse' #focal_loss,binary_crossentropy,mse,robust_mse,confidence_penalty_loss
     lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
@@ -75,18 +75,18 @@ def auto_search():
     threshold = 0.5 # 二分类阈值
 
     # ===== 训练参数 =====
-    epochs = 12
+    epochs = 120
     batch_size = 256
     patience = 30
     train_size = 0.9
-    cyc = 5    # 搜索轮数
+    cyc = 1    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
     lstm_depth_list, base_units_list = [2], [128]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
     nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
     d_model_list, num_heads_list, ff_dim_list, num_layers_list = [32], [4], [128], [2] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
-    conv2d_filters_list, conv2d_kernel_size_list, conv2d_depth_list = [32], [(3,3)], [2]   # Conv2D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
+    conv2d_filters_list, conv2d_kernel_size_list, conv2d_depth_list = [64], [(3,3)], [2]   # Conv2D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
     conv1d_filters_list, conv1d_kernel_size_list, conv1d_depth_list = [64], [4], [2]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
 
     if model_type == ModelType.RESIDUAL_LSTM:# LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
