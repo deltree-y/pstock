@@ -64,27 +64,27 @@ def auto_search():
     t_start_date, t_end_date = '20080104', '20250101'
 
     # ---模型通用参数---
-    model_type = ModelType.CONV2D#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
+    model_type = ModelType.RESIDUAL_LSTM#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
     p = 2
     dropout_rate = 0.3#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
-    feature_type_list = [FeatureType.ALL]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50
-    predict_type_list = [PredictType.REGRESS_T1H]#REGRESS_T2H],BINARY_T2_H10
-    loss_type = 'robust_mse' #focal_loss,binary_crossentropy,mse,robust_mse,confidence_penalty_loss
-    lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
-    l2_reg_list = [0.0005]#[0.00007]
+    feature_type_list = [FeatureType.REGRESS_T1L_F50]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50
+    predict_type_list = [PredictType.REGRESS_T1L]#REGRESS_T2H],BINARY_T2_H10, REGRESS_T1H
+    loss_type = 'robust_mse' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
+    lr_list = [0.00002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
+    l2_reg_list = [0.00001]#[0.00007], 0005
     threshold = 0.5 # 二分类阈值
 
     # ===== 训练参数 =====
     epochs = 120
-    batch_size = 256
+    batch_size = 512
     patience = 30
     train_size = 0.9
-    cyc = 1    # 搜索轮数
+    cyc = 3    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
-    lstm_depth_list, base_units_list = [2], [128]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
-    nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
+    lstm_depth_list, base_units_list = [1], [128]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
+    nb_filters, kernel_size, nb_stacks = [32], [4], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
     d_model_list, num_heads_list, ff_dim_list, num_layers_list = [32], [4], [128], [2] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     conv2d_filters_list, conv2d_kernel_size_list, conv2d_depth_list = [64], [(3,3)], [2]   # Conv2D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
     conv1d_filters_list, conv1d_kernel_size_list, conv1d_depth_list = [64], [4], [2]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
@@ -115,7 +115,8 @@ def auto_search():
                         ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, 
                                           si=si,start_date=t_start_date, end_date=t_end_date,train_size=train_size, 
                                           feature_type=ft,predict_type=pt, use_conv2_channel=(model_type == ModelType.CONV2D))
-                        ds_pred = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list if model_type==ModelType.CONV2D else [], 
+                        ds_pred = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, 
+                                               rel_code_list=related_stock_list if model_type==ModelType.CONV2D else [], 
                                                si=si, if_update_scaler=False, start_date='19930204', end_date='20251010', train_size=1, 
                                                feature_type=ft, predict_type=pt, use_conv2_channel=(model_type == ModelType.CONV2D))
                         #print(f"DEBUG: t_list:{t_list[:5]}... total {len(t_list)} dates")
@@ -150,7 +151,7 @@ def auto_search():
                             cls_weights = None
 
                         if model_type == ModelType.RESIDUAL_LSTM:
-                            paras = f"{pt}_{ft}_{l2_reg}_{lr}_{p1}_{p2}_{cyc_sn}" 
+                            paras = f"{pt}_{ft}_{l2_reg}_{lr}_{p1}_{p2}_{cyc_sn}"
                             model_params = dict(p=p, depth=p1, base_units=p2, dropout_rate=dropout_rate, class_weights=cls_weights, loss_type=loss_type, predict_type=pt)
                         elif model_type == ModelType.RESIDUAL_TCN:
                             paras = f"{pt}_{ft}_{l2_reg}_{lr}_{p1}_{p2}_{p3}_{cyc_sn}" 
@@ -169,7 +170,8 @@ def auto_search():
 
                         #训练参数配置
                         train_params = dict(epochs=epochs, batch_size=batch_size, learning_rate=lr, patience=patience)
-                        save_path = get_model_file_name(primary_stock_code, model_type, pt, ft, suffix=cyc_sn) if cyc>1 else get_model_file_name(primary_stock_code, model_type, pt, ft, suffix="")
+                        suf = cyc_sn if cyc>1 else ""
+                        save_path = get_model_file_name(primary_stock_code, model_type, pt, ft, suffix=suf, sub_dir=f"{model_type}_{pt}")
 
                         # ===== 训练前数据打印 =====
                         print(f"\n{'='*5} 开始训练处理: model={model_type} {'='*5}")

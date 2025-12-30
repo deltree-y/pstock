@@ -55,7 +55,12 @@ def build_ds_and_model(
         predict_type=predict_type,
         if_update_scaler=False,  # 回测时直接用已训练好的 scaler
     )
-    model = load_model_by_params(stock_code, model_type, predict_type, feature_type, suffix=model_suffix)
+    if model_suffix == "":
+        model_sub_dir = ""
+    else:
+        model_sub_dir = f"{model_type}_{predict_type}"
+        
+    model = load_model_by_params(stock_code, model_type, predict_type, feature_type, suffix=model_suffix, sub_dir=model_sub_dir)
     return si, ds, model
 
 
@@ -288,6 +293,7 @@ def simulate_trading(
                 label_t1l_buy, label_t2h_sell = None, None
                 if t1l_pred_type.is_binary():
                     t1l_pred_val, label_t1l_buy = _predict_binary_label(model_t1l, x_t1l, threshold=t1l_threshold)
+                    t1l_pred_val = t1l_pred_type.val if label_t1l_buy == 1 else 0.0
                 elif t1l_pred_type.is_regression():
                     t1l_pred_val = float(model_t1l.model.predict(x_t1l, verbose=0)[0,0])
                 elif t1l_pred_type.is_classify():
@@ -296,8 +302,8 @@ def simulate_trading(
                     raise ValueError(f"Unsupported PredictType for T1L buy: {t1l_pred_type}")
                 
                 if t2h_pred_type.is_binary():                    
-                    label_t2h_sell = 1 # T2H暂不参与买入决策# 总是有买入意
                     t2h_pred_val, label_t2h_sell = _predict_binary_label(model_t2h, x_t2h, threshold=t2h_threshold)
+                    t2h_pred_val = t2h_pred_type.val if label_t2h_sell == 1 else 0.0
                 elif t2h_pred_type.is_regression():
                     t2h_pred_val = float(model_t2h.model.predict(x_t2h, verbose=0)[0,0])
                 elif t2h_pred_type.is_classify():
@@ -482,8 +488,8 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     BUY_RATE, SELL_RATE = -1.0, 0.6
-    RAISE_THRESHOLD = 0.6   #[15.83%:0.6]
-    T1L_TEST_CYC, T1H_TEST_CYC = 1, 5
+    RAISE_THRESHOLD = 0.9   #[15.83%:0.6]
+    T1L_TEST_CYC, T1H_TEST_CYC = 3, 1
     #T1L_TEST_CYC, T1H_TEST_CYC = 1, 1
 
     #start_date, end_date = args.start_date, args.end_date
@@ -492,8 +498,8 @@ if __name__ == "__main__":
 
     # PredictType/FeatureType（各自独立）
     t1l_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t1l_buy_type = PredictType.REGRESS_T1L#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10)
-    t1l_buy_feature = FeatureType.REGRESS_T1L_F50#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55)
+    t1l_buy_type = PredictType.REGRESS_T1L#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10), REGRESS_T1L
+    t1l_buy_feature = FeatureType.REGRESS_T1L_F50#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55), REGRESS_T1L_F50
     t1l_th = 0
 
     t1h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
@@ -502,9 +508,9 @@ if __name__ == "__main__":
     t1h_th = 0
 
     t2h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t2h_sell_type = PredictType.BINARY_T2_H10#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
-    t2h_sell_feature = FeatureType.BINARY_T2H10_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
-    t2h_th = 0.498
+    t2h_sell_type = PredictType.BINARY_T2_H05#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
+    t2h_sell_feature = FeatureType.BINARY_T2H05_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
+    t2h_th = 0.588
 
     #end_date = args.end_date or datetime.now().strftime("%Y%m%d")
 

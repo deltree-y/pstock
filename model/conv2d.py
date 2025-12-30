@@ -1,6 +1,6 @@
 import tensorflow as tf
 from keras.models import Model
-from keras.layers import Input, Conv2D, BatchNormalization, Activation, Dropout, Add, GlobalAveragePooling2D, Dense, Multiply, Lambda, Flatten
+from keras.layers import Input, Conv2D, BatchNormalization, Activation, Dropout, Add, GlobalAveragePooling2D, Dense, Multiply, Lambda, Reshape
 from keras.regularizers import l2
 from utils.utils import PredictType
 from model.base_model import BaseModel
@@ -37,10 +37,21 @@ def residual_conv2d_block(x, filters, kernel_size=(3,3), dropout_rate=0.2, l2_re
     y = Activation('relu', name=f"out_relu_{block_id}")(y)
     return y
 
+def se_channel_fusion_2d(x, ratio=8, name_prefix="se_ch"):
+    ch = x.shape[-1]   # 通道数
+    if ch is None:
+        return x
+    se = GlobalAveragePooling2D(name=f"{name_prefix}_gap")(x)
+    se = Dense(max(ch // ratio, 1), activation='relu', name=f"{name_prefix}_fc1")(se)
+    se = Dense(ch, activation='sigmoid', name=f"{name_prefix}_fc2")(se)
+    se = Reshape([1, 1, ch], name=f"{name_prefix}_reshape")(se)
+    out = Multiply(name=f"{name_prefix}_scale")([x, se])
+    return out
+
 class Conv2DResModel(BaseModel):
     def __init__(self, x=None, y=None, test_x=None, test_y=None, fn=None, 
                  filters=32, kernel_size=(3,3), depth=3,
-                 dropout_rate=0.2, l2_reg=1e-5, use_se=True, se_ratio=8,
+                 dropout_rate=0.2, l2_reg=1e-5, use_se=False, se_ratio=8,
                  class_weights=None, loss_type=None, 
                  predict_type=PredictType.CLASSIFY,
                  ):
@@ -81,6 +92,7 @@ class Conv2DResModel(BaseModel):
                 se_ratio=self.se_ratio,
                 block_id=i,
             )
+        x = se_channel_fusion_2d(x, ratio=8, name_prefix="se_ch")   # 通道注意力机制
         # 聚合空间维：平均或flatten
         x = GlobalAveragePooling2D(name="gap")(x)
         x = Dense(128, activation='relu', kernel_regularizer=l2(self.l2_reg), name="fc1")(x)

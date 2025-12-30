@@ -14,7 +14,7 @@ from bins import BinManager
 from utils.tk import TOKEN
 from utils.utils import FeatureType, setup_logging
 from utils.utils import StockType, PredictType
-from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, MIN_TRADE_DATA_ROWS, T1L_SCALE, T2H_SCALE, ALL_CODE_LIST, IDX_CODE_LIST, CLIP_Y_PERCENT
+from utils.const_def import CONTINUOUS_DAYS, NUM_CLASSES, MIN_TRADE_DATA_ROWS, T1L_SCALE, T2H_SCALE, ALL_CODE_LIST, IDX_CODE_LIST, CLIP_Y_PERCENT, CODE_LIST_TEMP
 from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 
 # | 数据来源/阶段                 | 变量名                             | 说明                                                       | 数据格式            | 特点/备注                       |
@@ -284,12 +284,17 @@ class StockDataset():
 
     #将输入的二维x,按窗口大小处理成三维的数据
     # 输出x格式 - [样本, 时间步, 特征]
-    def get_windowed_x_by_raw(self, dataset_x=None):
+    def get_windowed_x_by_raw(self, dataset_x=None, reverse_time_to_ascending=True):
         x = []
         for i in range(len(dataset_x) - self.window_size + 1):
             x_window=[]
             for ii in range(self.window_size):
                 x_window.append(dataset_x[i + ii])
+
+            if reverse_time_to_ascending:
+                # 当前 raw 数据是“新->旧”，翻转后变“旧->新”
+                x_window = x_window[::-1]
+
             x.append(x_window)
         return np.array(x).astype(float)
     
@@ -327,7 +332,6 @@ class StockDataset():
     def get_predictable_dataset_by_date(self, date):
         date = self.si.get_next_or_current_trade_date(date) #若输入日期为交易日,则返回该日期,否则返回后一个交易日
         date_val = type(self.raw_data[0, 0])(date)
-
         # 多通道：逐通道取窗口 -> 归一化 -> stack channel
         if self.use_conv2_channel and getattr(self, "channel_raw_data_list", None):
             x_list = []
@@ -343,9 +347,9 @@ class StockDataset():
                 seq = ch_raw[idx0: idx0 + self.window_size, :]
                 seq_feat = self._feature_only(seq)
                 norm = self.get_normalized_data(seq_feat)
-                x_list.append(norm)
-            #min_len = min(w.shape[0] for w in x_list)
-            #x_list = [w[:min_len] for w in x_list]
+                win = self.get_windowed_x_by_raw(norm)
+                x_list.append(win[0])   #取出该窗口数据
+
             x4d = np.stack(x_list, axis=-1)  # [window, feature, channel]
             x4d = np.expand_dims(x4d, axis=0)  # [1, window, feature, channel]
             return x4d, main_close
@@ -554,17 +558,9 @@ class StockDataset():
 if __name__ == "__main__":
     setup_logging()
     si = StockInfo(TOKEN)
-    #download_list = si.get_filtered_stock_list(mmv=3000000)
     primary_stock_code = '600036.SH'
     idx_code_list = IDX_CODE_LIST
-    rel_code_list = ALL_CODE_LIST#ALL_CODE_LIST#BANK_CODE_LIST
-    #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='19910104', end_date='20250903', train_size=0.8)
-    #ds = StockDataset(primary_stock_code, idx_code_list, rel_code_list, si, start_date='20190104', end_date='20250903', 
-    #                  train_size=0.9, if_use_all_features=False, predict_type=PredictType.BINARY_T2_L10)
-
-    #ds = StockDataset(ts_code=primary_stock_code, idx_code_list=idx_code_list, rel_code_list=[], si=si, if_update_scaler=False,
-    #            start_date='19921203', end_date='20250930',
-    #            train_size=1, feature_type=FeatureType.T1L10_F55, predict_type=PredictType.BINARY_T1_L10)
+    rel_code_list = CODE_LIST_TEMP#ALL_CODE_LIST#BANK_CODE_LIST
 
     ds = StockDataset(
         ts_code=primary_stock_code,
@@ -580,11 +576,33 @@ if __name__ == "__main__":
         use_conv2_channel=True,
     )
 
-    logging.info(f"ds.train_y shape: {ds.train_y.shape}, ds.test_y shape: {ds.test_y.shape}")
-    pd.set_option('display.max_columns', None)
-    start_idx = 0
-    print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_data).iloc[start_idx:start_idx+3]}")
-    print(f"\nraw y sample: \n{pd.DataFrame(ds.raw_y).iloc[start_idx:start_idx+3]}")
+    from datasets.debug_checks import (
+        check_xy_alignment_conv2d,
+        calc_fill_ratio_raw_channels,
+        calc_fill_ratio_windowed_input,
+        inspect_window_monotonic,
+        inspect_window_monotonic_effective,
+    )
+
+    # (2) 对齐检查（训练集）
+    #check_xy_alignment_conv2d(ds, n_samples=10, seed=2025, use_train=True, show_channels=5)
+
+    # (2) 对齐检查（测试集）
+    # check_xy_alignment_conv2d(ds, n_samples=10, seed=2025, use_train=False, show_channels=5)
+
+    # (3) raw 通道里 -1 占比（建议 include_y_cols=False）
+    #calc_fill_ratio_raw_channels(ds, fill_val=-1.0, use_train=True, include_y_cols=False)
+
+    # (3) 实际输入张量里 -1 占比（可选）
+    #calc_fill_ratio_windowed_input(ds, fill_val=-1.0, use_train=True)
+
+    inspect_window_monotonic_effective(ds, use_train=True)
+
+    #logging.info(f"ds.train_y shape: {ds.train_y.shape}, ds.test_y shape: {ds.test_y.shape}")
+    #pd.set_option('display.max_columns', None)
+    #start_idx = 0
+    #print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_data).iloc[start_idx:start_idx+3]}")
+    #print(f"\nraw y sample: \n{pd.DataFrame(ds.raw_y).iloc[start_idx:start_idx+3]}")
     #print(f"feature names: {ds.get_feature_names()}")
     #data, bp = ds.get_predictable_dataset_by_date("20250829")
     #print(f"data shape: {data.shape}, bp: {bp}")

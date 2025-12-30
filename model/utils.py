@@ -106,16 +106,18 @@ def get_hard_samples(x, y, y_pred_raw, predict_type, threshold=0.5):
     hard_y = y[hard_mask]
     return hard_x, hard_y
 
-def get_model_file_name(stock_code, model_type, predict_type, feature_type,suffix=""):
+def get_model_file_name(stock_code, model_type, predict_type, feature_type, suffix="", sub_dir=""):
+
+    model_dir = os.path.join(MODEL_DIR, sub_dir) if sub_dir != "" else MODEL_DIR    # 临时模型存放在 tmp 子目录
     if suffix != "":
-        model_fn = os.path.join(BASE_DIR, MODEL_DIR, f"{stock_code}_{model_type}_{predict_type}_{feature_type.short_name}_{suffix}.h5")
+        model_fn = os.path.join(BASE_DIR, model_dir, f"{stock_code}_{model_type}_{predict_type}_{feature_type.short_name}_{suffix}.h5")
     else:
-        model_fn = os.path.join(BASE_DIR, MODEL_DIR, f"{stock_code}_{model_type}_{predict_type}_{feature_type.short_name}.h5")
+        model_fn = os.path.join(BASE_DIR, model_dir, f"{stock_code}_{model_type}_{predict_type}_{feature_type.short_name}.h5")
     return model_fn
 
 
-def load_model_by_params(stock_code, model_type, predict_type, feature_type, suffix=""):
-    model_fn = get_model_file_name(stock_code, model_type, predict_type, feature_type, suffix=suffix)
+def load_model_by_params(stock_code, model_type, predict_type, feature_type, suffix="", sub_dir=""):
+    model_fn = get_model_file_name(stock_code, model_type, predict_type, feature_type, suffix=suffix, sub_dir=sub_dir)
 
     from model.residual_lstm import ResidualLSTMModel
     from model.residual_tcn import ResidualTCNModel
