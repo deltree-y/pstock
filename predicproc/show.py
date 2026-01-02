@@ -44,7 +44,7 @@ def print_predict_result(t_list, ds:StockDataset, m, predict_type, threshold=0.5
         # 统计置信率
         prob_rate = None
         if pred.is_binary:
-            prob_rate = pred.prob if pred.pred_label == 1 else (1 - pred.prob)
+            prob_rate = pred.prob# if pred.pred_label == 1 else (1 - pred.prob)
         elif pred.is_classify:
             prob_rate = max(pred.predicted_data[0])
         # 回归类型不统计平均置信率

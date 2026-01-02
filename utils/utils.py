@@ -170,6 +170,8 @@ class FeatureType(Enum):
 
     REGRESS_T2H_F55 = auto()
     REGRESS_T2H_F50 = auto()
+    REGRESS_T2H_F30 = auto()
+    REGRESS_T2H_F20 = auto()
 
     CLASSIFY_F50 = 'classify_features_50'
     CLASSIFY_F30 = 'classify_features_30'

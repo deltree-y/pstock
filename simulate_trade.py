@@ -488,7 +488,7 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     BUY_RATE, SELL_RATE = -1.0, 0.6
-    RAISE_THRESHOLD = 0.9   #[15.83%:0.6]
+    RAISE_THRESHOLD = 0.6   #[15.83%:0.6]
     T1L_TEST_CYC, T1H_TEST_CYC = 3, 1
     #T1L_TEST_CYC, T1H_TEST_CYC = 1, 1
 
@@ -507,10 +507,10 @@ if __name__ == "__main__":
     t1h_sell_feature = FeatureType.REGRESS_T1H_F50#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
     t1h_th = 0
 
-    t2h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t2h_sell_type = PredictType.BINARY_T2_H05#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
-    t2h_sell_feature = FeatureType.BINARY_T2H05_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
-    t2h_th = 0.588
+    t2h_model_type = ModelType.TRANSFORMER#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    t2h_sell_type = PredictType.BINARY_T2_H10#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
+    t2h_sell_feature = FeatureType.BINARY_T2H10_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
+    t2h_th = 0.550
 
     #end_date = args.end_date or datetime.now().strftime("%Y%m%d")
 
@@ -537,32 +537,33 @@ if __name__ == "__main__":
         raise_threshold=RAISE_THRESHOLD,
     )
 
-    down_result = simulate_trading(
-        stock_code=args.stock_code,
-        t1l_model_type=t1l_model_type,
-        t2h_model_type=t2h_model_type,
-        t1h_model_type=t1h_model_type,
-        t1l_pred_type=t1l_buy_type,
-        t1l_feature_type=t1l_buy_feature,
-        t2h_pred_type=t2h_sell_type,
-        t2h_feature_type=t2h_sell_feature,
-        t1h_pred_type=t1h_sell_type,
-        t1h_feature_type=t1h_sell_feature,
-        start_date=start_date_down,
-        end_date=end_date_down,
-        init_capital=args.init_capital,
-        use_buy_max=not args.no_buy_max,  # 默认 buy_max
-        t1l_threshold=t1l_th,
-        t2h_threshold=t2h_th,
-        t1h_threshold=t1h_th,
-        t1l_test_cyc = T1L_TEST_CYC,
-        t1h_test_cyc = T1H_TEST_CYC,
-        raise_threshold=RAISE_THRESHOLD,
-    )
+    if False:
+        down_result = simulate_trading(
+            stock_code=args.stock_code,
+            t1l_model_type=t1l_model_type,
+            t2h_model_type=t2h_model_type,
+            t1h_model_type=t1h_model_type,
+            t1l_pred_type=t1l_buy_type,
+            t1l_feature_type=t1l_buy_feature,
+            t2h_pred_type=t2h_sell_type,
+            t2h_feature_type=t2h_sell_feature,
+            t1h_pred_type=t1h_sell_type,
+            t1h_feature_type=t1h_sell_feature,
+            start_date=start_date_down,
+            end_date=end_date_down,
+            init_capital=args.init_capital,
+            use_buy_max=not args.no_buy_max,  # 默认 buy_max
+            t1l_threshold=t1l_th,
+            t2h_threshold=t2h_th,
+            t1h_threshold=t1h_th,
+            t1l_test_cyc = T1L_TEST_CYC,
+            t1h_test_cyc = T1H_TEST_CYC,
+            raise_threshold=RAISE_THRESHOLD,
+        )
 
     for cyc_idx, ret in enumerate(normal_up_result["total_return_log"]):
         print(f"波动周期(总体上涨), 回测收益情况: {ret}")
 
-    for cyc_idx, ret in enumerate(down_result["total_return_log"]):
-        print(f"下降周期, 回测收益情况: {ret}")        
+    #for cyc_idx, ret in enumerate(down_result["total_return_log"]):
+    #    print(f"下降周期, 回测收益情况: {ret}")        
 

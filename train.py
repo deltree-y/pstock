@@ -7,6 +7,7 @@ import pandas as pd
 import torch
 from sklearn.utils import compute_class_weight
 from sklearn.metrics import f1_score, mean_absolute_error, r2_score
+from sklearn.metrics import average_precision_score, precision_recall_curve, auc
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
 from model.analyze import plot_l2_loss_curves, print_recall_score
@@ -61,18 +62,19 @@ def auto_search():
     index_code_list = IDX_CODE_LIST#BIG_IDX_CODE_LIST#IDX_CODE_LIST
     related_stock_list = BANK_CODE_LIST_10#CODE_LIST_TEMP#ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
     t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].astype(str).tolist()
-    t_start_date, t_end_date = '20080104', '20250101'
+    t_start_date, t_end_date = '20050104', '20250101'
 
     # ---模型通用参数---
-    model_type = ModelType.RESIDUAL_LSTM#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
-    p = 2
-    dropout_rate = 0.3#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
-    feature_type_list = [FeatureType.REGRESS_T1L_F50]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50
-    predict_type_list = [PredictType.REGRESS_T1L]#REGRESS_T2H],BINARY_T2_H10, REGRESS_T1H
-    loss_type = 'robust_mse' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
-    lr_list = [0.00002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]
-    l2_reg_list = [0.00001]#[0.00007], 0005
+    model_type = ModelType.TRANSFORMER#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
+    feature_type_list = [FeatureType.BINARY_T2H10_F55]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50
+    predict_type_list = [PredictType.BINARY_T2_H10]#REGRESS_T2H],BINARY_T2_H10, REGRESS_T1H
+    loss_type = 'binary_crossentropy' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
+    
+    dropout_rate = 0.4#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
+    lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]00002
+    l2_reg_list = [0.0001]#[0.00007], 0005, 00001
     threshold = 0.5 # 二分类阈值
+    p = 2
 
     # ===== 训练参数 =====
     epochs = 120
@@ -83,11 +85,11 @@ def auto_search():
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
-    lstm_depth_list, base_units_list = [1], [128]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
-    nb_filters, kernel_size, nb_stacks = [32], [4], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
-    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [32], [4], [128], [2] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
+    lstm_depth_list, base_units_list = [5], [128]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
+    nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
+    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [128], [16], [512], [8] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     conv2d_filters_list, conv2d_kernel_size_list, conv2d_depth_list = [64], [(3,3)], [2]   # Conv2D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
-    conv1d_filters_list, conv1d_kernel_size_list, conv1d_depth_list = [64], [4], [2]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
+    conv1d_filters_list, conv1d_kernel_size_list, conv1d_depth_list = [128], [8], [4]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
 
     if model_type == ModelType.RESIDUAL_LSTM:# LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
         model_key_params = list(zip(lstm_depth_list, base_units_list, [None]*len(lstm_depth_list), [None]*len(lstm_depth_list)))
@@ -144,9 +146,10 @@ def auto_search():
                             class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
                             cls_weights = dict(enumerate(class_weights))
                         elif pt.is_binary():
-                            classes = np.unique(ty)
-                            class_weights = compute_class_weight('balanced', classes=classes, y=ty)
-                            cls_weights = {int(c): w for c, w in zip(classes, class_weights)}
+                            #classes = np.unique(ty)
+                            #class_weights = compute_class_weight('balanced', classes=classes, y=ty)
+                            #cls_weights = {int(c): w for c, w in zip(classes, class_weights)}
+                            cls_weights = None
                         else:
                             cls_weights = None
 
@@ -208,6 +211,11 @@ def auto_search():
                                 f1 = f1_score(vy, pred, average='macro')
                                 if f1 > best_f1:
                                     best_f1, best_thr = f1, thr
+                            ap = average_precision_score(vy, scores)  # 常用作 PR-AUC
+                            prec, rec, thr = precision_recall_curve(vy, scores)
+                            pr_auc = auc(rec, prec)  # 另一种“几何面积”算法
+
+                            print(f"二分类AP (PR-AUC): {ap:.3f}, PR AUC: {pr_auc:.3f}, mean():{vx_pred_raw[:,0].mean():.3f}, std():{vx_pred_raw[:,0].std():.3f}")
                             print(f"二分类最优阈值: {best_thr:.3f}, 对应macro F1: {best_f1:.3f}")
                             history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall, 'best_thr': best_thr, 'early_stopping_epoch': early_stopping_epoch})
 

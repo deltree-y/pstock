@@ -291,9 +291,9 @@ class StockDataset():
             for ii in range(self.window_size):
                 x_window.append(dataset_x[i + ii])
 
-            if reverse_time_to_ascending:
-                # 当前 raw 数据是“新->旧”，翻转后变“旧->新”
-                x_window = x_window[::-1]
+            #if reverse_time_to_ascending:
+            #    # 当前 raw 数据是“新->旧”，翻转后变“旧->新”
+            #    x_window = x_window[::-1]
 
             x.append(x_window)
         return np.array(x).astype(float)
@@ -596,14 +596,14 @@ if __name__ == "__main__":
     # (3) 实际输入张量里 -1 占比（可选）
     #calc_fill_ratio_windowed_input(ds, fill_val=-1.0, use_train=True)
 
-    inspect_window_monotonic_effective(ds, use_train=True)
+    #inspect_window_monotonic_effective(ds, use_train=True)
 
-    #logging.info(f"ds.train_y shape: {ds.train_y.shape}, ds.test_y shape: {ds.test_y.shape}")
-    #pd.set_option('display.max_columns', None)
-    #start_idx = 0
-    #print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_data).iloc[start_idx:start_idx+3]}")
-    #print(f"\nraw y sample: \n{pd.DataFrame(ds.raw_y).iloc[start_idx:start_idx+3]}")
-    #print(f"feature names: {ds.get_feature_names()}")
+    logging.info(f"ds.train_y shape: {ds.train_y.shape}, ds.test_y shape: {ds.test_y.shape}")
+    pd.set_option('display.max_columns', None)
+    start_idx = 500
+    print(f"\nraw x sample: \n{pd.DataFrame(ds.raw_data).iloc[start_idx:start_idx+3]}")
+    print(f"\nraw y sample: \n{pd.DataFrame(ds.raw_y).iloc[start_idx:start_idx+3]}")
+    print(f"feature names: {ds.get_feature_names()}")
     #data, bp = ds.get_predictable_dataset_by_date("20250829")
     #print(f"data shape: {data.shape}, bp: {bp}")
     #print(f"{ds.p_trade.remain_list}")
