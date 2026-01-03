@@ -1,10 +1,10 @@
 #基于给定的日期list,使用给定的数据集和模型进行预测并打印结果
-from predicproc.predict import Predict
+from predicproc.predict import Predict, PredictType
 import numpy as np
 from dataset import StockDataset
 
 
-def print_predict_result(t_list, ds:StockDataset, m, predict_type, threshold=0.5):
+def print_predict_result(t_list, ds:StockDataset, m, predict_type:PredictType, threshold=0.5):
     print("-"*80)
     correct_cnt = 0
     predict_wrong_list_str = ""
@@ -16,7 +16,7 @@ def print_predict_result(t_list, ds:StockDataset, m, predict_type, threshold=0.5
 
     print(f"\n预测结果如下:")
     for t0 in t_list:
-        data, bp = ds.get_predictable_dataset_by_date(t0)
+        _, data, bp = ds.get_predictable_dataset_by_date(t0)
         real_y = ds.get_real_y_by_date(t0)
         #raw_y = ds.get_raw_y_by_date(t0)
         pred_scaled = m.model.predict(data, verbose=0)
@@ -27,9 +27,9 @@ def print_predict_result(t_list, ds:StockDataset, m, predict_type, threshold=0.5
         predict_wrong_list_str += f"{predict_wrong_str}\n" if predict_wrong_str!="" else ""
 
         if pred.is_binary:
-            is_correct = pred.pred_label == real_y
+            is_correct = (pred.pred_label == real_y)
         elif pred.is_classify:
-            is_correct = pred.y1r.get_label() == real_y
+            is_correct = (pred.y1r.get_label() == real_y)
         elif pred.is_regression:
             is_correct = (pred_dot == "o")
             residual.append(abs(pred.pred_value - real_y*100))

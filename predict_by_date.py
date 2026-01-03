@@ -62,7 +62,7 @@ def main():
             (ds_t1h, model_t1h, t1h_predict_type, t1h_th),
         ]:
             try:
-                x_input, base_price = ds.get_predictable_dataset_by_date(date_str)
+                _, x_input, base_price = ds.get_predictable_dataset_by_date(date_str)
             except Exception as e:
                 print(f"日期 {date_str} 数据不可用: {e}")
                 continue

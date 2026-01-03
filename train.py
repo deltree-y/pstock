@@ -66,8 +66,8 @@ def auto_search():
 
     # ---模型通用参数---
     model_type = ModelType.TRANSFORMER#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
-    feature_type_list = [FeatureType.BINARY_T1L10_F55]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50, BINARY_T1L10_F55
-    predict_type_list = [PredictType.BINARY_T1_L10]#REGRESS_T2H],BINARY_T2_H10, REGRESS_T1H, BINARY_T1_L10
+    feature_type_list = [FeatureType.BINARY_T2H10_F55]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50, BINARY_T1L10_F55
+    predict_type_list = [PredictType.BINARY_T2_H10]#REGRESS_T2H],BINARY_T2_H10, REGRESS_T1H, BINARY_T1_L10
     loss_type = 'binary_crossentropy' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
     
     dropout_rate = 0.4#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
@@ -121,11 +121,7 @@ def auto_search():
                                                rel_code_list=related_stock_list if model_type==ModelType.CONV2D else [], 
                                                si=si, if_update_scaler=False, start_date='19930204', end_date='20251010', train_size=1, 
                                                feature_type=ft, predict_type=pt, use_conv2_channel=(model_type == ModelType.CONV2D))
-                        #print(f"DEBUG: t_list:{t_list[:5]}... total {len(t_list)} dates")
-                        #print(f"ds_pred.raw_data[:5,0]:{ds_pred.raw_data[:5,0]}")
-                        t_list = [d for d in t_list if ((idx_arr := np.where(ds_pred.raw_data[:, 0] == d)[0]).size > 0 and idx_arr[0] + ds_pred.window_size <= ds_pred.raw_data.shape[0])]
-                        #print(f"DEBUG: t_list:{t_list[:5]}... total {len(t_list)} dates")
-                        #exit()
+                        #t_list = [d for d in t_list if ((idx_arr := np.where(ds_pred.raw_data[:, 0] == d)[0]).size > 0 and idx_arr[0] + ds_pred.window_size <= ds_pred.raw_data.shape[0])]
                         tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
                         ty, vy = ty[:, 0], vy[:, 0]
                         # 数据增强

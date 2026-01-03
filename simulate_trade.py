@@ -17,6 +17,8 @@ from utils.utils import FeatureType, ModelType, PredictType, StrategyType, setup
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
+def _fmt_price(v):
+    return "-----" if v is None else f"{float(v):.2f}"
 
 def _add_days(date_str, days):
     d = datetime.strptime(str(date_str), "%Y%m%d")
@@ -218,13 +220,14 @@ def simulate_trading(
                 predict_price, real_price = 0,0     # 当日挂单价 & 真实价
                 op_amount = 0                       # 当日操作数量  
                 qty = 0                             # 当日实际成交数量
+                label_t1l, label_t1h = 0,0
                 #print("\n回测日期:", d)
                 # ---- 针对 T0，在四个数据集上分别构造窗口 ----
                 # 若任一关键数据集当天窗口不可用，则直接跳过该日
                 try:
-                    x_t1l, t0_close_price   = ds_t1l.get_predictable_dataset_by_date(t0)
-                    x_t1h, _                = ds_t1h.get_predictable_dataset_by_date(t0)
-                    x_t2h, _                = ds_t2h.get_predictable_dataset_by_date(t0)
+                    _, x_t1l, t0_close_price   = ds_t1l.get_predictable_dataset_by_date(t0)
+                    _, x_t1h, _                = ds_t1h.get_predictable_dataset_by_date(t0)
+                    _, x_t2h, _                = ds_t2h.get_predictable_dataset_by_date(t0)
                 except Exception:
                     continue
 
@@ -307,9 +310,8 @@ def simulate_trading(
                     raise ValueError(f"Unsupported PredictType for T2H sell: {t2h_pred_type}")
 
                 has_buy_intent = (t2h_pred_val - t1l_pred_val) >= raise_threshold
-                has_buy_intent = 1 if has_buy_intent else 0
                 #print(f"t2h - t1l = {t2h_pred_val - t1l_pred_val:.2f} , t2h:{t2h_pred_val:.2f} , t1l:{t1l_pred_val:.2f}")
-                if has_buy_intent == 1: #有买入意向
+                if has_buy_intent: #有买入意向
                     if t1l_pred_type.is_binary():
                         buy_rate = t1l_pred_type.val / 100.0 
                     elif t1l_pred_type.is_regression():
@@ -318,7 +320,7 @@ def simulate_trading(
                         raise NotImplementedError("Classify type not implemented for T1L buy")
                     else:
                         raise ValueError(f"Unsupported PredictType for T1L buy: {t1l_pred_type}")
-                else:   
+                else:   #无买入意向，按默认买入底价买入
                     buy_rate = BUY_RATE / 100.0 #无买入意向，按底价买入
 
                 if has_buy_intent and f.get_stock_quantity() == 0 and op_strategy != StrategyType.SELL: # 当前无持仓，且当天未按卖出策略卖出
@@ -365,8 +367,9 @@ def simulate_trading(
                 str_base_price = f"{t0_close_price:.2f}"
                 str_op_strategy = f"{op_strategy}"
                 #str_buy_judge = f"({label_t1l_buy}/{label_t2h_sell})" if label_t1l_buy is not None and label_t2h_sell is not None else f"({(t2h_pred_val - t1l_pred_val): .1f})"
-                str_buy_judge = f"({(t2h_pred_val - t1l_pred_val): .1f})"
-                str_op_price = f"{predict_price:.2f}/({real_price:.2f})" if op_strategy != StrategyType.HOLD else "             "
+                str_buy_judge = f"({t2h_pred_val: .1f}/{t1l_pred_val: .1f})"
+                #str_buy_judge = f"({(t2h_pred_val - t1l_pred_val): .1f})"
+                str_op_price = f"{_fmt_price(predict_price)}/({_fmt_price(real_price)})" if op_strategy != StrategyType.HOLD else "             "
                 str_op_amount = f"{int(op_amount):5d}" if op_strategy != StrategyType.HOLD else "-----"
                 str_is_op_success = f"{' OK.' if is_op_success else 'NOK!'}" if op_strategy != StrategyType.HOLD else "    "
                 str_cur_qty = f"{int(f.get_stock_quantity()):5d}"
@@ -377,7 +380,7 @@ def simulate_trading(
             if f.get_stock_quantity() > 0 and len(equity_dates) > 0:
                 last_date = equity_dates[-1]
                 try:
-                    _, last_price = ds_t1l.get_predictable_dataset_by_date(last_date)
+                    _, _, last_price = ds_t1l.get_predictable_dataset_by_date(last_date)
                     last_price = float(last_price)
                 except Exception:
                     last_price = t0_close_price
@@ -389,8 +392,18 @@ def simulate_trading(
             total_return = (final_equity - init_capital) / init_capital * 100
             total_return_log.append(f"t1l cyc:{cyc_t1l} , t1h cyc:{cyc_t1h} , return:{total_return:.2f}") 
 
-            _, start_price = ds_t1l.get_predictable_dataset_by_date(date_list[-1])
-            _, end_price   = ds_t1l.get_predictable_dataset_by_date(date_list[0])
+            # --- 回测区间涨跌幅：直接用 raw_data 的 T0 close 计算，不走窗口接口 ---
+            start_date_bt = date_list[0]    # 回测起点(最早)
+            end_date_bt   = date_list[-1]   # 回测终点(最晚)
+
+            col_close = ds_t1l.p_trade.col_close + 1  # raw_data 第0列是日期
+
+            start_idx = _get_raw_index_by_date(ds_t1l, start_date_bt)
+            end_idx   = _get_raw_index_by_date(ds_t1l, end_date_bt)
+
+            start_price = float(ds_t1l.raw_data[start_idx, col_close])
+            end_price   = float(ds_t1l.raw_data[end_idx, col_close])
+            
             print("=" * 90)
             print(f"")
             print(f"回测股票: {stock_code}")
@@ -482,8 +495,8 @@ def parse_args():
 
 if __name__ == "__main__":
     args = parse_args()
-    BUY_RATE, SELL_RATE = -1.0, 0.6
-    RAISE_THRESHOLD = 0.6   #[15.83%:0.6]
+    BUY_RATE, SELL_RATE = -0.49, 0.49
+    RAISE_THRESHOLD = 1   #[15.83%:0.6]
     T1L_TEST_CYC, T1H_TEST_CYC = 1, 1
     #T1L_TEST_CYC, T1H_TEST_CYC = 1, 1
 
@@ -498,14 +511,14 @@ if __name__ == "__main__":
     t1l_th = 0.630
 
     t1h_model_type = ModelType.TRANSFORMER#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t1h_sell_type = PredictType.REGRESS_T1H#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
-    t1h_sell_feature = FeatureType.REGRESS_T1H_F50#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
-    t1h_th = 0
+    t1h_sell_type = PredictType.BINARY_T1_H10#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
+    t1h_sell_feature = FeatureType.BINARY_T1H10_F55#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
+    t1h_th = 0.575
 
-    t2h_model_type = ModelType.TRANSFORMER#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    t2h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
     t2h_sell_type = PredictType.BINARY_T2_H10#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
     t2h_sell_feature = FeatureType.BINARY_T2H10_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
-    t2h_th = 0.704
+    t2h_th = 0.624
 
     #end_date = args.end_date or datetime.now().strftime("%Y%m%d")
 
