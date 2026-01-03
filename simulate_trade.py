@@ -86,17 +86,12 @@ def _get_raw_index_by_date(ds: StockDataset, date_str: str) -> int:
 
 def _get_real_t1_prices(ds: StockDataset, date_str: str):
     """
-    给定 T0 日期，返回真实 T1L / T1H 价格（来自 raw_data 的下一行 low/high）：
-
-      - 在 raw_data 里找到 T0 所在行 i0；
-      - T1 即 i0+1 行；
-      - 真实 T1L = raw_data[i0+1, col_low+1]；
-      - 真实 T1H = raw_data[i0+1, col_high+1]。
-
-    若 i0+1 超出范围，说明没有 T1，返回 (None, None)。
+    升序(旧->新)下：
+      i0 = T0
+      i1 = i0 + 1 = T1
     """
     i0 = _get_raw_index_by_date(ds, date_str)
-    i1 = i0 - 1
+    i1 = i0 + 1
     if i1 >= ds.raw_data.shape[0]:
         return None, None
 
@@ -489,7 +484,7 @@ if __name__ == "__main__":
     args = parse_args()
     BUY_RATE, SELL_RATE = -1.0, 0.6
     RAISE_THRESHOLD = 0.6   #[15.83%:0.6]
-    T1L_TEST_CYC, T1H_TEST_CYC = 3, 1
+    T1L_TEST_CYC, T1H_TEST_CYC = 1, 1
     #T1L_TEST_CYC, T1H_TEST_CYC = 1, 1
 
     #start_date, end_date = args.start_date, args.end_date
@@ -497,12 +492,12 @@ if __name__ == "__main__":
     start_date_normal_up, end_date_normal_up = '20250101', '20251115'#波动周期(总体上涨)
 
     # PredictType/FeatureType（各自独立）
-    t1l_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t1l_buy_type = PredictType.REGRESS_T1L#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10), REGRESS_T1L
-    t1l_buy_feature = FeatureType.REGRESS_T1L_F50#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55), REGRESS_T1L_F50
-    t1l_th = 0
+    t1l_model_type = ModelType.TRANSFORMER#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    t1l_buy_type = PredictType.BINARY_T1_L10#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10), REGRESS_T1L
+    t1l_buy_feature = FeatureType.BINARY_T1L10_F55#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55), REGRESS_T1L_F50
+    t1l_th = 0.630
 
-    t1h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    t1h_model_type = ModelType.TRANSFORMER#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
     t1h_sell_type = PredictType.REGRESS_T1H#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
     t1h_sell_feature = FeatureType.REGRESS_T1H_F50#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
     t1h_th = 0
@@ -510,7 +505,7 @@ if __name__ == "__main__":
     t2h_model_type = ModelType.TRANSFORMER#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
     t2h_sell_type = PredictType.BINARY_T2_H10#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
     t2h_sell_feature = FeatureType.BINARY_T2H10_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
-    t2h_th = 0.550
+    t2h_th = 0.704
 
     #end_date = args.end_date or datetime.now().strftime("%Y%m%d")
 
@@ -537,33 +532,32 @@ if __name__ == "__main__":
         raise_threshold=RAISE_THRESHOLD,
     )
 
-    if False:
-        down_result = simulate_trading(
-            stock_code=args.stock_code,
-            t1l_model_type=t1l_model_type,
-            t2h_model_type=t2h_model_type,
-            t1h_model_type=t1h_model_type,
-            t1l_pred_type=t1l_buy_type,
-            t1l_feature_type=t1l_buy_feature,
-            t2h_pred_type=t2h_sell_type,
-            t2h_feature_type=t2h_sell_feature,
-            t1h_pred_type=t1h_sell_type,
-            t1h_feature_type=t1h_sell_feature,
-            start_date=start_date_down,
-            end_date=end_date_down,
-            init_capital=args.init_capital,
-            use_buy_max=not args.no_buy_max,  # 默认 buy_max
-            t1l_threshold=t1l_th,
-            t2h_threshold=t2h_th,
-            t1h_threshold=t1h_th,
-            t1l_test_cyc = T1L_TEST_CYC,
-            t1h_test_cyc = T1H_TEST_CYC,
-            raise_threshold=RAISE_THRESHOLD,
-        )
+    down_result = simulate_trading(
+        stock_code=args.stock_code,
+        t1l_model_type=t1l_model_type,
+        t2h_model_type=t2h_model_type,
+        t1h_model_type=t1h_model_type,
+        t1l_pred_type=t1l_buy_type,
+        t1l_feature_type=t1l_buy_feature,
+        t2h_pred_type=t2h_sell_type,
+        t2h_feature_type=t2h_sell_feature,
+        t1h_pred_type=t1h_sell_type,
+        t1h_feature_type=t1h_sell_feature,
+        start_date=start_date_down,
+        end_date=end_date_down,
+        init_capital=args.init_capital,
+        use_buy_max=not args.no_buy_max,  # 默认 buy_max
+        t1l_threshold=t1l_th,
+        t2h_threshold=t2h_th,
+        t1h_threshold=t1h_th,
+        t1l_test_cyc = T1L_TEST_CYC,
+        t1h_test_cyc = T1H_TEST_CYC,
+        raise_threshold=RAISE_THRESHOLD,
+    )
 
     for cyc_idx, ret in enumerate(normal_up_result["total_return_log"]):
         print(f"波动周期(总体上涨), 回测收益情况: {ret}")
 
-    #for cyc_idx, ret in enumerate(down_result["total_return_log"]):
-    #    print(f"下降周期, 回测收益情况: {ret}")        
+    for cyc_idx, ret in enumerate(down_result["total_return_log"]):
+        print(f"下降周期, 回测收益情况: {ret}")        
 

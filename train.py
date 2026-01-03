@@ -66,8 +66,8 @@ def auto_search():
 
     # ---模型通用参数---
     model_type = ModelType.TRANSFORMER#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
-    feature_type_list = [FeatureType.BINARY_T2H10_F55]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50
-    predict_type_list = [PredictType.BINARY_T2_H10]#REGRESS_T2H],BINARY_T2_H10, REGRESS_T1H
+    feature_type_list = [FeatureType.BINARY_T1L10_F55]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50, BINARY_T1L10_F55
+    predict_type_list = [PredictType.BINARY_T1_L10]#REGRESS_T2H],BINARY_T2_H10, REGRESS_T1H, BINARY_T1_L10
     loss_type = 'binary_crossentropy' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
     
     dropout_rate = 0.4#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3

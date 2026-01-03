@@ -308,11 +308,8 @@ class StockInfo():
         if ts_code is not None: #若ts_code不为空，则默认为取指定stock的数据
             spec_colunm = 'trade_date'
             drop_column = 'ts_code'
-            #data_basic = self.get_trade_open_dates(start_date=start_date, end_date=end_date)
-            #data_basic = self.get_daily(ts_code=ts_code, start_date=start_date, end_date=end_date)
             data_basic = self.get_tushare_data(api_name='daily', ts_code=ts_code, start_date=start_date, end_date=end_date)
             data_basic['industry_idx'] = self.get_industry_idx(ts_code) if asset == 'E' else -1
-            #data_basic['stock_idx'] = self.get_stock_idx(ts_code) if asset == 'E' else -1
             data_part0 = pd.DataFrame(columns=['trade_date'])
         elif spec_date is not None: #若spec_date不为空，则默认为取指定日期的所有stock数据
             spec_colunm = 'ts_code'
@@ -366,10 +363,11 @@ if __name__ == "__main__":
     setup_logging()
     ts_code1 = '600036.SH'
     si = StockInfo(TOKEN)
-    #si.get_top_n_code_group_by_industry(1)
     func_name = 'shibor'
-    df = si.get_tushare_data(api_name=func_name, start_date='19900101', end_date='20240101')
+    #df = si.get_tushare_data(api_name=func_name, start_date='19900101', end_date='20240101')
+    df = si.get_stock_detail(ts_code=ts_code1, start_date='20220101', end_date='20240101')
     #df = si.get_shibor(start_date='19900101', end_date='20240101')
     #df = si.get_pro_bar(ts_code=ts_code1)
     print(f"rows: {len(df)}")
+    print(f"sample data: \n{df.head(3)}")
     #print(f"colunms: {df.columns}")
