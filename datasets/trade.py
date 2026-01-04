@@ -267,11 +267,13 @@ class Trade():
             binary_t2h10_f45 = binary_t2h10_f55[:45]
             binary_t2h10_f35 = binary_t2h10_f55[:35]
             binary_t2h10_f25 = binary_t2h10_f55[:25]
+            binary_t2h10_f10 = []
 
             classify_features_50 = ['low', 'm1', 'y10', 'y20', 'close', 'amplitude', 'cmt', 'ADX_14', 'atr_14', 'dv_ratio', 'open', 'pb', 'w52_bd', 'w52_ce', 'natr_14', 'date_full', 'ltc', 'volatility_5d', 'return_5d', 'BBB_20_2.0', 'on', 'ltr_avg', 'y1', '1y', 'y30_us_trycr', 'vol', 'macd_signal', 'y30', 'y10_us_trycr', 'w4_ce', '1w', 'obv', 'volatility_10d', 'w4_bd', '6m', 'y5', 'pe', 'DMP_14', 'high', 'turnover_rate_f', 'stddev_10', 'w26_bd', 'macd_hist', 'total_mv', 'w26_ce', 'ps', 'close_vs_low', 'y5_us_trycr', 'close_to_high_20d', 'net_mf_vol']
             classify_features_30 = classify_features_50[:30]
 
-            advanced_features = ['industry_idx', 'date_full', 'vwap', 'supertrend', 'donchian_upper', 'donchian_lower', 'donchian_mid', 'high_20d_max', 'close_to_high_20d', 'is_new_high_20d', 'his_high_all', 'close_to_his_high', 'his_low_all', 'close_to_his_low', 'is_new_his_high']#, 'his_low', 'his_high', 'cost_5pct', 'cost_15pct', 'cost_50pct', 'cost_85pct', 'cost_95pct', 'weight_avg', 'winner_rate']
+            #advanced_features = ['industry_idx', 'date_full', 'vwap', 'supertrend', 'donchian_upper', 'donchian_lower', 'donchian_mid', 'high_20d_max', 'close_to_high_20d', 'is_new_high_20d', 'his_high_all', 'close_to_his_high', 'his_low_all', 'close_to_his_low', 'is_new_his_high']#, 'his_low', 'his_high', 'cost_5pct', 'cost_15pct', 'cost_50pct', 'cost_85pct', 'cost_95pct', 'weight_avg', 'winner_rate']
+            advanced_features = ['industry_idx', 'date_full', 'high_20d_max', 'close_to_high_20d', 'is_new_high_20d', 'his_high_all', 'close_to_his_high', 'his_low_all', 'close_to_his_low', 'is_new_his_high']
             
             remain_list = list(dict.fromkeys(chain(basic_features, locals()[self.feature_type.value], advanced_features))) if self.feature_type != FeatureType.ALL else self.trade_df.columns.to_list()
             self.col_low, self.col_high, self.col_close = remain_list.index('low')-2, remain_list.index('high')-2, remain_list.index('close')-2 #在raw_data_np中的列索引位置,需要-2(减去ts_code和trade_date两列)

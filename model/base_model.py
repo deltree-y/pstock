@@ -137,7 +137,7 @@ class BaseModel(ABC):
         )
         spend = datetime.now() - start_time
         early_stopping_epoch = callbacks[2].best_epoch + 1  # 修正 stopped_epoch 从0开始的问题
-        logging.info(f"\nTraining stopped at epoch {early_stopping_epoch}/{epochs}, learning rate status: {self.learning_rate_status}")
+        logging.info(f"\nTraining stopped at epoch {early_stopping_epoch}/{epochs}")#, learning rate status: {self.learning_rate_status}")
         return early_stopping_epoch
         #return "\n total spend:%.2f(h)/%.1f(m), %.1f(s)/epoc, %.2f(h)/10k" % (
         #    spend.seconds / 3600,

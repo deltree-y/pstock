@@ -379,7 +379,7 @@ class StockDataset():
         # ===== 单通道：取“历史窗口” =====
         idx_arr = np.where(self.raw_data[:, 0] == date_val)[0]
         if idx_arr.size == 0:
-            raise ValueError(f"StockDataset.get_predictable_dataset_by_date() - Invalid date: {date}")
+            raise ValueError(f"StockDataset.get_predictable_dataset_by_date() - Invalid date: {date}, last date in data: {self.raw_data[-1,0]}")
         idx = int(idx_arr[0])
         start = idx - self.window_size + 1
         end = idx + 1
@@ -595,7 +595,7 @@ if __name__ == "__main__":
         rel_code_list=rel_code_list,
         si=si,
         start_date='20150701',
-        end_date='20251201',
+        end_date='20251231',
         train_size=1,
         feature_type=FeatureType.BINARY_T1L10_F55,
         if_update_scaler=True,
@@ -609,7 +609,13 @@ if __name__ == "__main__":
         calc_fill_ratio_windowed_input,
         inspect_window_monotonic,
         inspect_window_monotonic_effective,
+        check_predictable_dataset_alignment_single,
+        check_predictable_dataset_shape_single,
+        check_train_window_basic_single,
     )
+    check_predictable_dataset_shape_single(ds, date="20201118")
+    check_predictable_dataset_alignment_single(ds, date="20201118", check_t2=True)
+    check_train_window_basic_single(ds, n_samples=10, use_train=True)
 
     # (2) 对齐检查（训练集）
     #check_xy_alignment_conv2d(ds, n_samples=10, seed=2025, use_train=True, show_channels=5)
@@ -625,11 +631,11 @@ if __name__ == "__main__":
 
     #inspect_window_monotonic_effective(ds, use_train=True)
 
-    logging.info(f"ds.train_y shape: {ds.train_y.shape}, ds.test_y shape: {ds.test_y.shape}")
-    pd.set_option('display.max_columns', None)
-    start_idx = 200
-    print(f"\nraw train x sample: \n{pd.DataFrame(ds.raw_windowed_train_x[start_idx])}")
-    print(f"\nraw train y sample: \n{pd.DataFrame(ds.raw_train_y[start_idx])}")
+    #logging.info(f"ds.train_y shape: {ds.train_y.shape}, ds.test_y shape: {ds.test_y.shape}")
+    #pd.set_option('display.max_columns', None)
+    #start_idx = 200
+    #print(f"\nraw train x sample: \n{pd.DataFrame(ds.raw_windowed_train_x[start_idx])}")
+    #print(f"\nraw train y sample: \n{pd.DataFrame(ds.raw_train_y[start_idx])}")
     #print(f"feature names: {ds.get_feature_names()}")
 
 

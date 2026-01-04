@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 import numpy as np
+import pandas as pd
 import logging
+
 
 def _safe_int(x):
     try:
@@ -213,3 +215,178 @@ def inspect_window_monotonic_effective(ds, sample_idx=0, use_train=True):
     print("model strictly increasing:", np.all(diffs_model > 0))
     print("model head:", model_window_dates[:3])
     print("model tail:", model_window_dates[-3:])
+
+    # =========================
+# Single-channel sanity checks (added 2026-01-03)
+# =========================
+import numpy as np
+
+
+def _require_single_channel(ds):
+    if getattr(ds, "use_conv2_channel", False):
+        raise ValueError("This sanity check only supports single-channel: set use_conv2_channel=False.")
+
+
+def _as_date_val_like(arr_date_col, date_str_or_int):
+    """Cast date into same dtype as arr_date_col elements."""
+    return type(arr_date_col[0])(date_str_or_int)
+
+
+def check_predictable_dataset_shape_single(ds, date, verbose=True):
+    """
+    单通道：仅检查 get_predictable_dataset_by_date(date) 输出形状是否符合约定：
+      returns (raw_x, x, close)
+      raw_x: [window, feat]
+      x:     [1, window, feat]
+    """
+    _require_single_channel(ds)
+    raw_x, x, close = ds.get_predictable_dataset_by_date(date)
+
+    if verbose:
+        print("=" * 90)
+        print(f"[SanityCheck][Single] check_predictable_dataset_shape_single(date={date})")
+        print(f"raw_x.shape={getattr(raw_x, 'shape', None)}, x.shape={getattr(x, 'shape', None)}, close={float(close):.3f}")
+
+    assert raw_x.ndim == 2, f"raw_x must be 2D [window, feat], got ndim={raw_x.ndim}"
+    assert x.ndim == 3, f"x must be 3D [1, window, feat], got ndim={x.ndim}"
+    assert raw_x.shape[0] == ds.window_size, f"raw_x rows must be window_size={ds.window_size}, got {raw_x.shape[0]}"
+    assert x.shape[0] == 1 and x.shape[1] == ds.window_size, f"x must be (1, {ds.window_size}, feat), got {x.shape}"
+
+    if verbose:
+        print("[OK] shape check passed.")
+        print("=" * 90)
+
+
+def check_predictable_dataset_alignment_single(ds, date, check_t2=True, verbose=True):
+    """
+    单通道强校验（deterministic）：
+    1) 验证 get_predictable_dataset_by_date(date) 返回的 close 是 T0 close
+    2) 验证 raw_x[-1, close_col] == close
+    3) 严格复算 ds.raw_y 对应 date 的 t1l/t1h/t2l/t2h 是否与 raw_data 一致（off-by-one 检测核心）
+
+    依赖：
+    - ds.raw_data 第0列=日期, 后续列=特征
+    - ds.datasets_date_list 与 ds.raw_y 对齐（datasets是 combine_data_np，含y；raw_y来自datasets最后4列）
+    - Trade.update_t1_change_rate / update_t2_change_rate 的定义（升序 old->new）
+    """
+    _require_single_channel(ds)
+
+    # ---- 1) 调用接口，获取窗口与 close ----
+    raw_x, x, close = ds.get_predictable_dataset_by_date(date)
+    close = float(close)
+
+    # ---- 2) 定位 T0 在 raw_data 中的 idx ----
+    # 注意：get_predictable_dataset_by_date 内部会先做 si.get_next_or_current_trade_date
+    t0 = ds.si.get_next_or_current_trade_date(date)
+    t0_val = _as_date_val_like(ds.raw_data[:, 0], t0)
+
+    idx_arr = np.where(ds.raw_data[:, 0] == t0_val)[0]
+    assert idx_arr.size > 0, f"T0 {t0} not found in ds.raw_data"
+    i0 = int(idx_arr[0])
+
+    # ---- 3) 校验 close 一致性 ----
+    col_close_raw_data = ds.p_trade.col_close + 1  # raw_data 第0列是日期，所以 +1
+    close_from_raw_data = float(ds.raw_data[i0, col_close_raw_data])
+
+    # raw_x 不含日期列，所以 close 在 raw_x 内的列索引是 ds.p_trade.col_close
+    close_from_raw_x = float(raw_x[-1, ds.p_trade.col_close])
+
+    if verbose:
+        print("=" * 90)
+        print(f"[SanityCheck][Single] check_predictable_dataset_alignment_single(date={date} -> T0={t0})")
+        print(f"T0 idx in raw_data: {i0}")
+        print(f"close (returned)      : {close:.6f}")
+        print(f"close (raw_data[i0])  : {close_from_raw_data:.6f}  (col={col_close_raw_data})")
+        print(f"close (raw_x[-1])     : {close_from_raw_x:.6f}  (col={ds.p_trade.col_close})")
+        print(f"raw_x.shape={raw_x.shape}, x.shape={x.shape}")
+
+    assert abs(close - close_from_raw_data) < 1e-8, "Returned close != raw_data T0 close (possible wrong index/+1 bug)"
+    assert abs(close - close_from_raw_x) < 1e-8, "Returned close != raw_x last-step close (window last day not T0?)"
+
+    # ---- 4) 复算 t1/t2 change rate，并对比 ds.raw_y 的同日标签 ----
+    # ds.raw_y 是从 datasets(combine_data_np) 抽出最后4列，且 datasets_date_list 是 datasets 的日期列
+    # 因此用 datasets_date_list 定位 raw_y 行
+    t0_val_ds = _as_date_val_like(ds.datasets_date_list, t0)
+    idxy_arr = np.where(ds.datasets_date_list == t0_val_ds)[0]
+    assert idxy_arr.size > 0, f"T0 {t0} not found in ds.datasets_date_list (cannot locate ds.raw_y row)"
+    iy = int(idxy_arr[0])
+
+    y_ds = ds.raw_y[iy].astype(float)  # [t1l, t1h, t2l, t2h] (small decimals)
+    ds_t1l, ds_t1h, ds_t2l, ds_t2h = map(float, y_ds.tolist())
+
+    # raw_data: i1=i0+1, i2=i0+2
+    i1 = i0 + 1
+    assert i1 < ds.raw_data.shape[0], f"Not enough data for T1 at T0={t0} (i0={i0})"
+
+    col_low_raw_data = ds.p_trade.col_low + 1
+    col_high_raw_data = ds.p_trade.col_high + 1
+    t1_low = float(ds.raw_data[i1, col_low_raw_data])
+    t1_high = float(ds.raw_data[i1, col_high_raw_data])
+
+    calc_t1l = (t1_low - close_from_raw_data) / close_from_raw_data
+    calc_t1h = (t1_high - close_from_raw_data) / close_from_raw_data
+
+    if verbose:
+        print("-" * 90)
+        print(f"ds.raw_y(T0)    : t1l={ds_t1l:.10f}, t1h={ds_t1h:.10f}, t2l={ds_t2l:.10f}, t2h={ds_t2h:.10f}")
+        print(f"calc from prices: t1l={calc_t1l:.10f}, t1h={calc_t1h:.10f}")
+
+    assert abs(ds_t1l - calc_t1l) < 1e-8, "T1L mismatch (likely off-by-one in label alignment)"
+    assert abs(ds_t1h - calc_t1h) < 1e-8, "T1H mismatch (likely off-by-one in label alignment)"
+
+    if check_t2:
+        i2 = i0 + 2
+        assert i2 < ds.raw_data.shape[0], f"Not enough data for T2 at T0={t0} (i0={i0})"
+        t2_low = float(ds.raw_data[i2, col_low_raw_data])
+        t2_high = float(ds.raw_data[i2, col_high_raw_data])
+        calc_t2l = (t2_low - close_from_raw_data) / close_from_raw_data
+        calc_t2h = (t2_high - close_from_raw_data) / close_from_raw_data
+
+        if verbose:
+            print(f"calc from prices: t2l={calc_t2l:.10f}, t2h={calc_t2h:.10f}")
+
+        assert abs(ds_t2l - calc_t2l) < 1e-8, "T2L mismatch (likely off-by-one in label alignment)"
+        assert abs(ds_t2h - calc_t2h) < 1e-8, "T2H mismatch (likely off-by-one in label alignment)"
+
+    if verbose:
+        print("[OK] alignment check passed (T0 close + T1/T2 rates).")
+        print("=" * 90)
+
+
+def check_train_window_basic_single(ds, n_samples=10, seed=2025, use_train=True):
+    """
+    单通道弱校验（抽样）：
+    - 检查 windowed X 与 y 是否存在 NaN/inf
+    - 打印若干样本的 last close、raw_y、binned/binary y（便于肉眼看有没有明显异常）
+    不做“日期精确对齐”验证（因为训练窗口不带日期列）。
+    """
+    _require_single_channel(ds)
+    rng = np.random.default_rng(seed)
+
+    wx = ds.raw_windowed_train_x if use_train else ds.raw_windowed_test_x
+    y = ds.train_y if use_train else ds.test_y
+    raw_y = ds.raw_train_y if use_train else ds.raw_test_y
+    tag = "TRAIN" if use_train else "TEST"
+
+    if wx is None or y is None or raw_y is None:
+        raise ValueError(f"{tag}: data is None (note: test_x only exists when train_size < 1)")
+
+    n = wx.shape[0]
+    if n == 0:
+        raise ValueError(f"{tag}: empty windowed x")
+
+    pick = rng.choice(n, size=min(n_samples, n), replace=False)
+
+    # NaN/inf quick scan
+    nan_cnt = int(np.isnan(wx).sum()) + int(np.isnan(y).sum()) + int(np.isnan(raw_y).sum())
+    inf_cnt = int(np.isinf(wx).sum()) + int(np.isinf(y).sum()) + int(np.isinf(raw_y).sum())
+    print("=" * 90)
+    print(f"[SanityCheck][Single][{tag}] check_train_window_basic_single samples={len(pick)}, window={ds.window_size}")
+    print(f"NaN count total={nan_cnt}, Inf count total={inf_cnt}")
+    print("-" * 90)
+
+    for i in pick:
+        last_close = float(wx[i, -1, ds.p_trade.col_close])
+        print(f"[{tag}] idx={i:6d} last_close={last_close:.3f} y={y[i]} raw_y(t1l,t1h,t2l,t2h)={raw_y[i]}")
+
+    print("=" * 90)

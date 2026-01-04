@@ -156,6 +156,7 @@ class FeatureType(Enum):
     BINARY_T2H07_F55 = auto() #TODO:待添加真实特征
     BINARY_T2H08_F55 = auto() #TODO:待添加真实特征
 
+    BINARY_T2H10_F10 = auto()
     BINARY_T2H10_F25 = auto()
     BINARY_T2H10_F35 = auto()
     BINARY_T2H10_F45 = auto()

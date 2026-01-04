@@ -53,7 +53,8 @@ class Predict():
             else:
                 symbol = ['>=', '< ']
             label = f"{symbol[0]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})" if self.pred_label==1 else f"{symbol[1]} {self.predict_type.val:.1f}%({self.bp*(1+self.predict_type.val/100):.2f})"
-            prob_rate = self.prob*100 #if self.pred_label==1 else (1-self.prob)*100
+            #prob_rate = self.prob*100 #if self.pred_label==1 else (1-self.prob)*100
+            prob_rate = abs(self.prob-0.5)*2*100
             print(f"{desc}RAW<{self.prob:<.3f}>, T0价格[{self.bp:.2f}], {self.predict_type.label} {label}, 置信率:[{prob_rate:.2f}%]")
         elif self.is_regression:
             print(f"{desc}回归预测涨跌幅: {self.pred_value:.2f}, 预测价格: {self.bp * (1 + self.pred_value):.2f}")

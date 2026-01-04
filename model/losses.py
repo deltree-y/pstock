@@ -73,19 +73,53 @@ def focal_loss(gamma=2.0, alpha=0.25):
         return tf.reduce_mean(focal_factor * cross_entropy)
     return loss
 
-def binary_focal_loss(gamma=2.0, alpha=0.25):
+def binary_focal_loss(gamma=2.0, alpha=0.25, from_logits=False):
+    """
+    标准 Binary Focal Loss（支持按类 alpha_t）:
+      alpha_t = alpha      if y=1
+              = 1 - alpha  if y=0
+
+    pt = p        if y=1
+       = 1 - p    if y=0
+
+    loss = - alpha_t * (1 - pt)^gamma * log(pt)
+
+    说明：
+    - 你当前版本把 alpha 统一乘在所有样本上，会导致 alpha 调参意义失真。
+    - 这个实现会让 alpha 真正变成“正类权重”，更可控。
+    """
     def loss(y_true, y_pred):
-        # flatten
         y_true = tf.cast(y_true, tf.float32)
-        y_pred = tf.cast(y_pred, tf.float32)
-        # 防止数值不稳定
-        epsilon = tf.keras.backend.epsilon()
-        y_pred = tf.clip_by_value(y_pred, epsilon, 1. - epsilon)
-        # focal loss公式
-        pt = tf.where(tf.equal(y_true, 1), y_pred, 1 - y_pred)
-        focal_factor = alpha * tf.pow(1. - pt, gamma)
-        ce = -tf.math.log(pt)
-        return tf.reduce_mean(focal_factor * ce)
+
+        # shape 兼容 (batch, 1) / (batch,)
+        if len(y_true.shape) == 2 and y_true.shape[-1] == 1:
+            y_true = tf.squeeze(y_true, axis=-1)
+        if len(y_pred.shape) == 2 and y_pred.shape[-1] == 1:
+            y_pred = tf.squeeze(y_pred, axis=-1)
+
+        # logits/prob 兼容
+        if from_logits:
+            # 直接用 sigmoid 得到 prob
+            p = tf.nn.sigmoid(y_pred)
+        else:
+            p = y_pred
+
+        eps = tf.keras.backend.epsilon()
+        p = tf.clip_by_value(p, eps, 1.0 - eps)
+
+        # pt: 预测为真实类别的概率
+        pt = tf.where(tf.equal(y_true, 1.0), p, 1.0 - p)
+
+        # alpha_t: 按类加权
+        alpha_t = tf.where(tf.equal(y_true, 1.0), alpha, 1.0 - alpha)
+
+        # focal factor
+        focal_factor = tf.pow(1.0 - pt, gamma)
+
+        # focal loss
+        loss_val = -alpha_t * focal_factor * tf.math.log(pt)
+        return tf.reduce_mean(loss_val)
+
     return loss
 
 def confidence_penalty_loss(base_loss_fn, lam=0.2):
@@ -101,7 +135,7 @@ def confidence_penalty_loss(base_loss_fn, lam=0.2):
         # Encourage correct/high confidence, penalize wrong/high confidence
         penalty = lam * tf.reduce_mean((1 - correct) * conf)
         reward  = lam * tf.reduce_mean(correct * (1 - conf))
-        return base + penalty + reward
+        return base + penalty - reward
     return loss
 
 
@@ -117,9 +151,8 @@ def get_loss(loss_type, predict_type:PredictType):
         if predict_type.is_classify():
             loss_fn = focal_loss(gamma=2.0, alpha=0.25)
         elif predict_type.is_binary():
-            loss_fn = binary_focal_loss(gamma=6.0, alpha=0.75)#(gamma=2.0, alpha=0.25)
-        else:
-            raise ValueError("Unsupported predict_type for focal_loss.")
+            loss_fn = binary_focal_loss(gamma=2.0, alpha=0.25)
+            #raise ValueError("Unsupported predict_type for focal_loss.")
     elif loss_type == 'confidence_penalty_loss':
         if predict_type.is_binary():
             base_loss = tf.keras.losses.BinaryCrossentropy()

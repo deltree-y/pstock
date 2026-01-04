@@ -60,34 +60,34 @@ def auto_search():
     si = StockInfo(TOKEN)
     primary_stock_code = '600036.SH'
     index_code_list = IDX_CODE_LIST#BIG_IDX_CODE_LIST#IDX_CODE_LIST
-    related_stock_list = BANK_CODE_LIST_10#CODE_LIST_TEMP#ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
-    t_list = (si.get_trade_open_dates('20250101', '20250920'))['trade_date'].astype(str).tolist()
-    t_start_date, t_end_date = '20050104', '20250101'
+    related_stock_list = []#BANK_CODE_LIST_10#CODE_LIST_TEMP#ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
+    t_list = (si.get_trade_open_dates('20250701', '20251230'))['trade_date'].astype(str).tolist()
+    t_start_date, t_end_date = '20050104', '20250630'
 
     # ---模型通用参数---
-    model_type = ModelType.TRANSFORMER#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
-    feature_type_list = [FeatureType.BINARY_T2H10_F55]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50, BINARY_T1L10_F55
+    model_type = ModelType.RESIDUAL_LSTM#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
+    feature_type_list = [FeatureType.BINARY_T2H10_F25]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50, BINARY_T1L10_F55
     predict_type_list = [PredictType.BINARY_T2_H10]#REGRESS_T2H],BINARY_T2_H10, REGRESS_T1H, BINARY_T1_L10
-    loss_type = 'binary_crossentropy' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
+    loss_type = 'confidence_penalty_loss' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
     
-    dropout_rate = 0.4#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
+    dropout_rate = 0.25#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
     lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]00002
-    l2_reg_list = [0.0001]#[0.00007], 0005, 00001
-    threshold = 0.5 # 二分类阈值
+    l2_reg_list = [0.001]#[0.00007], 0005, 00001
+    threshold = 0.34 # 二分类阈值
     p = 2
 
     # ===== 训练参数 =====
     epochs = 120
     batch_size = 512
-    patience = 30
-    train_size = 0.9
-    cyc = 3    # 搜索轮数
+    patience = 500
+    train_size = 0.95
+    cyc = 5    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
-    lstm_depth_list, base_units_list = [5], [128]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
+    lstm_depth_list, base_units_list = [6], [64]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
     nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
-    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [128], [16], [512], [8] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
+    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [64], [8], [256], [4] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     conv2d_filters_list, conv2d_kernel_size_list, conv2d_depth_list = [64], [(3,3)], [2]   # Conv2D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
     conv1d_filters_list, conv1d_kernel_size_list, conv1d_depth_list = [128], [8], [4]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
 
@@ -201,6 +201,8 @@ def auto_search():
                             macro_recall = print_recall_score(vx_pred_raw, vy, pt, threshold=threshold)
 
                             scores = vx_pred_raw[:, 0]
+                            print(f"np.quantile:{np.quantile(scores, [0.01, 0.05, 0.5, 0.95, 0.99])}")
+                            print(f"scores[vy==1].mean(): {scores[vy==1].mean():.3f}, scores[vy==0].mean(): {scores[vy==0].mean():.3f}")
                             best_thr, best_f1 = 0.5, 0
                             for thr in np.linspace(0.2, 0.8, 600):   # 举例：0.3~0.7 扫一遍
                                 pred = (scores > thr).astype(int)
