@@ -4,7 +4,7 @@ STOCK_DIR, INDEX_DIR, MODEL_DIR, SCALER_DIR, BIN_DIR, GLOBAL_DIR, TMP_DIR = 'sto
 FIRST_TRADE_DATE = '19900101'  # 1990年1月1日是A股的第一个交易日
 CONTINUOUS_DAYS = 30
 NUM_CLASSES = 4  # 减少类别数量以改善类别平衡
-MIN_TRADE_DATA_ROWS = 100   # 最少交易数据行数要求
+MIN_TRADE_DATA_ROWS = 60   # 最少交易数据行数要求
 ACCU_RATE_THRESHOLD = 0.2   # 回归任务的准确率阈值，预测值与真实值的差值在该阈值内则认为预测正确
 CLIP_Y_PERCENT = 5.0        # 回归标签裁剪/损失加权的最大百分点（5%）
 
@@ -55,7 +55,7 @@ FINANCE_REAL_ESTATE_TOP10 = [
     '600649.SH', '600639.SH', '600641.SH', '600094.SH', '600604.SH',
 ]
 
-ALL_CODE_LIST = list(set(BANK_CODE_LIST_10) |# set(FINANCE_REAL_ESTATE_TOP10) |
+ALL_CODE_LIST = list(set(BANK_CODE_LIST_10) | set(FINANCE_REAL_ESTATE_TOP10) |
                      set(INSURANCE_CODE_LIST) | set(SECURITIES_CODE_LIST))# | 
                      #set(NATIONAL_REALESTATE_CODE_LIST) | set(REGIONAL_REALESTATE_CODE_LIST) | 
                      #set(OIL_CODE_LIST) | set(COAL_CODE_LIST) | set(COPPER_CODE_LIST) | set(ALUMINUM_CODE_LIST))

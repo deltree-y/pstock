@@ -393,8 +393,8 @@ def simulate_trading(
             total_return_log.append(f"t1l cyc:{cyc_t1l} , t1h cyc:{cyc_t1h} , return:{total_return:.2f}") 
 
             # --- 回测区间涨跌幅：直接用 raw_data 的 T0 close 计算，不走窗口接口 ---
-            start_date_bt = date_list[0]    # 回测起点(最早)
-            end_date_bt   = date_list[-1]   # 回测终点(最晚)
+            start_date_bt = date_list[-1]    # 回测起点(最早)
+            end_date_bt   = date_list[0]   # 回测终点(最晚)
 
             col_close = ds_t1l.p_trade.col_close + 1  # raw_data 第0列是日期
 
@@ -412,7 +412,7 @@ def simulate_trading(
             print(f"T2H_sell: {t2h_pred_type} / {t2h_feature_type}")
             print(f"T1H_sell: {t1h_pred_type} / {t1h_feature_type}")
             print(f"数据起点(内部实际使用): {ds_t1l.stock.start_date}")
-            print(f"回测区间(实际遍历)/实际涨跌幅: [{backtest_start}] - [{backtest_end}]/{100*(end_price-start_price)/start_price:.2f}%")
+            print(f"回测区间(实际遍历)/实际涨跌幅: [{backtest_start}/({start_price})] - [{backtest_end}/({end_price})]/{100*(end_price-start_price)/start_price:.2f}%")
             print(f"初始资金: {init_capital:.2f}")
             print(f"结束资金: {final_equity:.2f}")
             print(f"总收益率: {total_return:.2f}%")
@@ -496,29 +496,29 @@ def parse_args():
 if __name__ == "__main__":
     args = parse_args()
     BUY_RATE, SELL_RATE = -0.49, 0.49
-    RAISE_THRESHOLD = 1   #[15.83%:0.6]
+    RAISE_THRESHOLD = 2   #[15.83%:0.6]
     T1L_TEST_CYC, T1H_TEST_CYC = 1, 1
     #T1L_TEST_CYC, T1H_TEST_CYC = 1, 1
 
     #start_date, end_date = args.start_date, args.end_date
-    start_date_down, end_date_down = '20250625', '20250825'#下降周期
-    start_date_normal_up, end_date_normal_up = '20250101', '20251115'#波动周期(总体上涨)
+    start_date_down, end_date_down = '20250701', '20250825'#下降周期
+    start_date_normal_up, end_date_normal_up = '20250715', '20251229'#波动周期(总体上涨)
 
     # PredictType/FeatureType（各自独立）
-    t1l_model_type = ModelType.TRANSFORMER#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    t1l_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
     t1l_buy_type = PredictType.BINARY_T1_L10#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10), REGRESS_T1L
     t1l_buy_feature = FeatureType.BINARY_T1L10_F55#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55), REGRESS_T1L_F50
-    t1l_th = 0.630
+    t1l_th = 0.477
 
-    t1h_model_type = ModelType.TRANSFORMER#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
+    t1h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
     t1h_sell_type = PredictType.BINARY_T1_H10#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
     t1h_sell_feature = FeatureType.BINARY_T1H10_F55#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
-    t1h_th = 0.575
+    t1h_th = 0.624
 
     t2h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
     t2h_sell_type = PredictType.BINARY_T2_H10#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
-    t2h_sell_feature = FeatureType.BINARY_T2H10_F55#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
-    t2h_th = 0.624
+    t2h_sell_feature = FeatureType.BINARY_T2H10_F25#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
+    t2h_th = 0.436
 
     #end_date = args.end_date or datetime.now().strftime("%Y%m%d")
 

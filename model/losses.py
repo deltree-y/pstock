@@ -135,7 +135,7 @@ def confidence_penalty_loss(base_loss_fn, lam=0.2):
         # Encourage correct/high confidence, penalize wrong/high confidence
         penalty = lam * tf.reduce_mean((1 - correct) * conf)
         reward  = lam * tf.reduce_mean(correct * (1 - conf))
-        return base + penalty - reward
+        return base + penalty + reward
     return loss
 
 
