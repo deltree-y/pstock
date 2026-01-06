@@ -51,7 +51,7 @@ def rolling_kurtosis(arr, window):
     return result
 
 def print_ratio(lst, label=""):
-    print(f"{label} 数据分布统计(min: {lst.min()}, max: {lst.max()}):", end="")
+    print(f"{label} 数据分布统计(min: {lst.min()}, max: {lst.max()})/total:{len(lst)}:", end="")
     counter, total = Counter(lst), len(lst)
     for num, count in sorted(counter.items()):
         percent = count / total
@@ -198,35 +198,35 @@ class FeatureType(Enum):
                 raise "需要增加对应处理"#TODO
     
 class PredictType(Enum):
-    BINARY_T1_L03 = ("BINARY_T1_L03", -0.3, "BIN_T1L")
-    BINARY_T1_L04 = ("BINARY_T1_L04", -0.4, "BIN_T1L")
-    BINARY_T1_L05 = ("BINARY_T1_L05", -0.5, "BIN_T1L")
-    BINARY_T1_L06 = ("BINARY_T1_L06", -0.6, "BIN_T1L")
-    BINARY_T1_L07 = ("BINARY_T1_L07", -0.7, "BIN_T1L")
-    BINARY_T1_L08 = ("BINARY_T1_L08", -0.8, "BIN_T1L")
-    BINARY_T1_L10 = ("BINARY_T1_L10", -1.0, "BIN_T1L")
-    BINARY_T1_L15 = ("BINARY_T1_L15", -1.5, "BIN_T1L") 
+    BINARY_T1L03 = ("BINARY_T1_L03", -0.3, "BIN_T1L")
+    BINARY_T1L04 = ("BINARY_T1_L04", -0.4, "BIN_T1L")
+    BINARY_T1L05 = ("BINARY_T1_L05", -0.5, "BIN_T1L")
+    BINARY_T1L06 = ("BINARY_T1_L06", -0.6, "BIN_T1L")
+    BINARY_T1L07 = ("BINARY_T1_L07", -0.7, "BIN_T1L")
+    BINARY_T1L08 = ("BINARY_T1_L08", -0.8, "BIN_T1L")
+    BINARY_T1L10 = ("BINARY_T1_L10", -1.0, "BIN_T1L")
+    BINARY_T1L15 = ("BINARY_T1_L15", -1.5, "BIN_T1L") 
 
-    BINARY_T1_H05 = ("BINARY_T1_H05", 0.5, "BIN_T1H")
-    BINARY_T1_H06 = ("BINARY_T1_H06", 0.6, "BIN_T1H")
-    BINARY_T1_H07 = ("BINARY_T1_H07", 0.7, "BIN_T1H")
-    BINARY_T1_H08 = ("BINARY_T1_H08", 0.8, "BIN_T1H")
-    BINARY_T1_H10 = ("BINARY_T1_H10", 1.0, "BIN_T1H")
-    BINARY_T1_H15 = ("BINARY_T1_H15", 1.5, "BIN_T1H")
+    BINARY_T1H05 = ("BINARY_T1_H05", 0.5, "BIN_T1H")
+    BINARY_T1H06 = ("BINARY_T1_H06", 0.6, "BIN_T1H")
+    BINARY_T1H07 = ("BINARY_T1_H07", 0.7, "BIN_T1H")
+    BINARY_T1H08 = ("BINARY_T1_H08", 0.8, "BIN_T1H")
+    BINARY_T1H10 = ("BINARY_T1_H10", 1.0, "BIN_T1H")
+    BINARY_T1H15 = ("BINARY_T1_H15", 1.5, "BIN_T1H")
 
-    BINARY_T2_L05 = ("BINARY_T2_L05", -0.5, "BIN_T2L")
-    BINARY_T2_L08 = ("BINARY_T2_L08", -0.8, "BIN_T2L")
-    BINARY_T2_L10 = ("BINARY_T2_L10", -1.0, "BIN_T2L")
-    BINARY_T2_L15 = ("BINARY_T2_L15", -1.5, "BIN_T2L")
+    BINARY_T2L05 = ("BINARY_T2_L05", -0.5, "BIN_T2L")
+    BINARY_T2L08 = ("BINARY_T2_L08", -0.8, "BIN_T2L")
+    BINARY_T2L10 = ("BINARY_T2_L10", -1.0, "BIN_T2L")
+    BINARY_T2L15 = ("BINARY_T2_L15", -1.5, "BIN_T2L")
 
-    BINARY_T2_H03 = ("BINARY_T2_H03", 0.3, "BIN_T2H")
-    BINARY_T2_H04 = ("BINARY_T2_H04", 0.4, "BIN_T2H")
-    BINARY_T2_H05 = ("BINARY_T2_H05", 0.5, "BIN_T2H")
-    BINARY_T2_H06 = ("BINARY_T2_H06", 0.6, "BIN_T2H")
-    BINARY_T2_H07 = ("BINARY_T2_H07", 0.7, "BIN_T2H")
-    BINARY_T2_H08 = ("BINARY_T2_H08", 0.8, "BIN_T2H")
-    BINARY_T2_H10 = ("BINARY_T2_H10", 1.0, "BIN_T2H")
-    BINARY_T2_H15 = ("BINARY_T2_H15", 1.5, "BIN_T2H")
+    BINARY_T2H03 = ("BINARY_T2_H03", 0.3, "BIN_T2H")
+    BINARY_T2H04 = ("BINARY_T2_H04", 0.4, "BIN_T2H")
+    BINARY_T2H05 = ("BINARY_T2_H05", 0.5, "BIN_T2H")
+    BINARY_T2H06 = ("BINARY_T2_H06", 0.6, "BIN_T2H")
+    BINARY_T2H07 = ("BINARY_T2_H07", 0.7, "BIN_T2H")
+    BINARY_T2H08 = ("BINARY_T2_H08", 0.8, "BIN_T2H")
+    BINARY_T2H10 = ("BINARY_T2_H10", 1.0, "BIN_T2H")
+    BINARY_T2H15 = ("BINARY_T2_H15", 1.5, "BIN_T2H")
 
     REGRESS_T1L =  ("REGRESS_T1L",  1100.0, "REG_T1L")
     REGRESS_T1H =  ("REGRESS_T1H",  1200.0, "REG_T1H")
@@ -239,6 +239,33 @@ class PredictType(Enum):
     
     def __repr__(self):
         return self.value[2]
+    
+    def get_type_from_feature_type(ft:FeatureType):
+        name = ft.name
+        if name.startswith("BINARY"):
+            if "T1L" in name:
+                return PredictType["BINARY_T1L" + name.split("_")[1][-3:]]
+            elif "T1H" in name:
+                return PredictType["BINARY_T1H" + name.split("_")[1][-3:]]
+            elif "T2L" in name:
+                return PredictType["BINARY_T2L" + name.split("_")[1][-3:]]
+            elif "T2H" in name:
+                return PredictType["BINARY_T2H" + name.split("_")[1][-3:]]
+            else:
+                raise ValueError(f"无法从特征类型 {ft} 推断出对应的预测类型")
+        elif name.startswith("REGRESS"):
+            if "T1L" in name:
+                return PredictType.REGRESS_T1L
+            elif "T1H" in name:
+                return PredictType.REGRESS_T1H
+            elif "T2H" in name:
+                return PredictType.REGRESS_T2H
+            else:
+                raise ValueError(f"无法从特征类型 {ft} 推断出对应的预测类型")
+        elif name.startswith("CLASSIFY"):
+            return PredictType.CLASSIFY
+        else:
+            raise ValueError(f"无法从特征类型 {ft} 推断出对应的预测类型")
 
     @property
     def val(self):

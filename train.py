@@ -6,7 +6,7 @@ import tensorflow as tf
 import pandas as pd
 import torch
 from sklearn.utils import compute_class_weight
-from sklearn.metrics import f1_score, mean_absolute_error, r2_score
+from sklearn.metrics import f1_score, mean_absolute_error, r2_score, recall_score, accuracy_score
 from sklearn.metrics import average_precision_score, precision_recall_curve, auc
 from datasets.stockinfo import StockInfo
 from dataset import StockDataset
@@ -24,33 +24,6 @@ from utils.utils import FeatureType, PredictType, ModelType, setup_logging, prin
 
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
 
-def set_seed(seed=42):
-    random.seed(seed)
-    np.random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed_all(seed)
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-    tf.random.set_seed(seed)
-
-def train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params):
-    if model_type == ModelType.RESIDUAL_LSTM:
-        model = ResidualLSTMModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
-    elif model_type == ModelType.RESIDUAL_TCN:
-        model = ResidualTCNModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
-    elif model_type == ModelType.TRANSFORMER:
-        model = TransformerModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
-    elif model_type == ModelType.CONV2D:
-        model = Conv2DResModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
-    elif model_type == ModelType.CONV1D:
-        model = Conv1DResModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
-    else:
-        raise ValueError(f"Unknown model_type: {model_type}")
-    print(f"[INFO] Start training:")# l2_reg={l2_reg}")
-    early_stopping_epoch = model.train(tx=tx, ty=ty, **train_params)
-    val_losses = model.history.val_losses
-    return val_losses, model, early_stopping_epoch
-
 def auto_search():
     setup_logging()
     #set_seed(42)
@@ -66,28 +39,27 @@ def auto_search():
 
     # ---模型通用参数---
     model_type = ModelType.RESIDUAL_LSTM#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
-    feature_type_list = [FeatureType.BINARY_T1H10_F55]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50, BINARY_T1L10_F55
-    predict_type_list = [PredictType.BINARY_T1_H10]#REGRESS_T2H],BINARY_T2_H10, REGRESS_T1H, BINARY_T1_L10
-    loss_type = 'confidence_penalty_loss' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
+    feature_type_list = [FeatureType.REGRESS_T1L_F50]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50, BINARY_T1L10_F55
+    loss_type = 'robust_mse' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
     
-    dropout_rate = 0.25#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
+    dropout_rate = 0.2#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
     lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]00002
     l2_reg_list = [0.001]#[0.00007], 0005, 00001
-    threshold = 0.34 # 二分类阈值
+    threshold = 0.5 # 二分类阈值
     p = 2
 
     # ===== 训练参数 =====
-    epochs = 150
+    epochs = 100
     batch_size = 512
-    patience = 500
+    patience = 500#int(0.3*epochs)
     train_size = 0.95
-    cyc = 3    # 搜索轮数
+    cyc = 1    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
-    lstm_depth_list, base_units_list = [6], [64]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
-    nb_filters, kernel_size, nb_stacks = [64], [4], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
-    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [64], [8], [256], [4] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
+    lstm_depth_list, base_units_list = [4], [96]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
+    nb_filters, kernel_size, nb_stacks = [96], [6], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
+    d_model_list, num_heads_list, ff_dim_list, num_layers_list = [128], [12], [512], [4] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     conv2d_filters_list, conv2d_kernel_size_list, conv2d_depth_list = [64], [(3,3)], [2]   # Conv2D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
     conv1d_filters_list, conv1d_kernel_size_list, conv1d_depth_list = [128], [8], [4]   # Conv1D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
 
@@ -111,8 +83,9 @@ def auto_search():
         print(f"\n ====================================== 搜索轮次: {cyc_sn+1} / {cyc} ======================================")
         for p1,p2,p3,p4 in model_key_params:
             for lr in lr_list:
-                for ft, pt in zip(feature_type_list, predict_type_list):
+                for ft in feature_type_list:
                     for l2_reg in l2_reg_list:
+                        pt = PredictType.get_type_from_feature_type(ft)
                         # ===== 数据集准备 =====
                         ds = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, rel_code_list=related_stock_list, 
                                           si=si,start_date=t_start_date, end_date=t_end_date,train_size=train_size, 
@@ -125,7 +98,7 @@ def auto_search():
                         tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
                         ty, vy = ty[:, 0], vy[:, 0]
                         # 数据增强
-                        tx, ty = ds.time_series_augmentation_multiple(tx, ty, multiple=multiple_cnt, noise_level=0.01)
+                        tx, ty = ds.time_series_augmentation_multiple(tx, ty, multiple=multiple_cnt, noise_level=0.01) if multiple_cnt>1 else (tx, ty)
                         tx = np.nan_to_num(tx, nan=-1, posinf=-1, neginf=-1)
 
                         # 检查数据
@@ -167,12 +140,12 @@ def auto_search():
                         else:
                             raise ValueError("unknown model_type")
 
-                        #训练参数配置
+                        # 训练参数配置
                         train_params = dict(epochs=epochs, batch_size=batch_size, learning_rate=lr, patience=patience)
                         suf = cyc_sn if cyc>1 else ""
                         save_path = get_model_file_name(primary_stock_code, model_type, pt, ft, suffix=suf, sub_dir=f"{model_type}_{pt}")
 
-                        # ===== 训练前数据打印 =====
+                        # 训练前数据打印 
                         print(f"\n{'='*5} 开始训练处理: model={model_type} {'='*5}")
                         print(f"{'='*5} 训练参数: epochs={epochs}, batch_size={batch_size}, patience={patience}, train_size={train_size} {'='*5}")
                         print(f"{'='*5} 模型参数: feature={ft}, model_params={model_params} {'='*5}\n")
@@ -180,60 +153,176 @@ def auto_search():
                             print_ratio(ty, "训练集(ty)")
                             print_ratio(vy, "验证集(vy)")
                         
-                        #开始训练
+                        # ========================== 开始训练 ==========================
                         val_losses, model, early_stopping_epoch = train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params)
                         history_dict[paras] = {'val_loss': val_losses}
                         min_val = np.min(val_losses)
                         print(f"\n[INFO] paras={paras}, min val_loss={min_val:.4f}")
                         if min_val < best_val:
                             best_paras, best_val, best_model = paras, min_val, model
+                        # ========================== 训练结束 ==========================
 
-                        correct_rate, correct_mean_prob, wrong_mean_prob, residual, pred_std = print_predict_result(t_list, ds_pred, model, pt, threshold=threshold)
-                        if pt.is_regression():
-                            vx_pred_raw = model.model.predict(vx)
-                            mae = mean_absolute_error(vy, vx_pred_raw.reshape(-1))
-                            r2 = r2_score(vy, vx_pred_raw.reshape(-1))
-                            acc_at1pct = np.mean(np.abs(vx_pred_raw.reshape(-1) - vy) <= ACCU_RATE_THRESHOLD)
-                            print(f"[回归] 验证MAE: {mae:.4f}, R2: {r2:.4f}, Accuracy%: {acc_at1pct:.2%}")
-                            history_correction.append({'para': paras, 'val_loss': min_val, 'mae': mae, 'acc':acc_at1pct, 'correct_rate': correct_rate, 'residual': residual, 'pred_std': pred_std, 'early_stopping_epoch': early_stopping_epoch })
-                        else:
-                            vx_pred_raw = model.model.predict(vx)
-                            macro_recall = print_recall_score(vx_pred_raw, vy, pt, threshold=threshold)
-
+                        if pt.is_binary():
+                            vx_pred_raw = model.model.predict(vx, verbose=0)
                             scores = vx_pred_raw[:, 0]
-                            print(f"np.quantile:{np.quantile(scores, [0.01, 0.05, 0.5, 0.95, 0.99])}")
+                            best_thr, best_f1, ap, pr_auc = find_best_threshold_by_macro_f1(vy, scores)
+
+                            # 用 best_thr 评估 t_list 的“预测正确率/置信率”
+                            correct_rate, correct_mean_prob, wrong_mean_prob, residual, pred_std = print_predict_result(
+                                t_list, ds_pred, model, pt, threshold=best_thr
+                            )
+
+                            # 用 best_thr 打印验证集 recall/f1/acc（取代原先 threshold=0.34）
+                            macro_recall = print_recall_score(vx_pred_raw, vy, pt, threshold=best_thr)
+                            q01, q05, q50, q95, q99 = np.quantile(scores, [0.01, 0.05, 0.50, 0.95, 0.99])
+                            mean_all, std_all = float(scores.mean()), float(scores.std())
+
+                            print(f"二分类AP (PR-AUC): {ap:.3f}, PR AUC: {pr_auc:.3f}")
+                            print(f"二分类最优阈值(best_thr, from vx/vy): {best_thr:.3f}, 对应macro F1(best_f1): {best_f1:.3f}")
+                            print(f"Scores(all): mean={mean_all:.4f} std={std_all:.4f} | q01={q01:.4f} q05={q05:.4f} q50={q50:.4f} q95={q95:.4f} q99={q99:.4f}")
                             print(f"scores[vy==1].mean(): {scores[vy==1].mean():.3f}, scores[vy==0].mean(): {scores[vy==0].mean():.3f}")
-                            best_thr, best_f1 = 0.5, 0
-                            for thr in np.linspace(0.2, 0.8, 600):   # 举例：0.3~0.7 扫一遍
-                                pred = (scores > thr).astype(int)
-                                f1 = f1_score(vy, pred, average='macro')
-                                if f1 > best_f1:
-                                    best_f1, best_thr = f1, thr
-                            ap = average_precision_score(vy, scores)  # 常用作 PR-AUC
-                            prec, rec, thr = precision_recall_curve(vy, scores)
-                            pr_auc = auc(rec, prec)  # 另一种“几何面积”算法
+                            history_correction.append({
+                                'para': paras,
+                                'val_loss': min_val,
+                                'correct_rate': correct_rate,
+                                'correct_mean_prob': correct_mean_prob,
+                                'wrong_mean_prob': wrong_mean_prob,
+                                'macro_recall': macro_recall,
+                                'best_thr': best_thr,
+                                'best_f1': best_f1,
+                                'ap': ap,
+                                'pr_auc': pr_auc,
+                                'early_stopping_epoch': early_stopping_epoch
+                            })
 
-                            print(f"二分类AP (PR-AUC): {ap:.3f}, PR AUC: {pr_auc:.3f}, mean():{vx_pred_raw[:,0].mean():.3f}, std():{vx_pred_raw[:,0].std():.3f}")
-                            print(f"二分类最优阈值: {best_thr:.3f}, 对应macro F1: {best_f1:.3f}")
-                            history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall, 'best_thr': best_thr, 'early_stopping_epoch': early_stopping_epoch})
-
+                        else:
+                            # ===== 原逻辑：回归/多分类不变 =====
+                            correct_rate, correct_mean_prob, wrong_mean_prob, residual, pred_std = print_predict_result(
+                                t_list, ds_pred, model, pt, threshold=threshold
+                            )
+                            if pt.is_regression():
+                                vx_pred_raw = model.model.predict(vx)
+                                mae = mean_absolute_error(vy, vx_pred_raw.reshape(-1))
+                                r2 = r2_score(vy, vx_pred_raw.reshape(-1))
+                                acc_at1pct = np.mean(np.abs(vx_pred_raw.reshape(-1) - vy) <= ACCU_RATE_THRESHOLD)
+                                print(f"[回归] 验证MAE: {mae:.4f}, R2: {r2:.4f}, Accuracy%: {acc_at1pct:.2%}")
+                                history_correction.append({'para': paras, 'val_loss': min_val, 'mae': mae, 'acc':acc_at1pct, 'correct_rate': correct_rate, 'residual': residual, 'pred_std': pred_std, 'early_stopping_epoch': early_stopping_epoch })
+                            else:
+                                vx_pred_raw = model.model.predict(vx)
+                                macro_recall = print_recall_score(vx_pred_raw, vy, pt, threshold=threshold)
+                                history_correction.append({'para': paras, 'val_loss': min_val, 'correct_rate': correct_rate, 'correct_mean_prob': correct_mean_prob, 'wrong_mean_prob': wrong_mean_prob, 'macro_recall': macro_recall, 'best_thr': None, 'early_stopping_epoch': early_stopping_epoch})
+                        
+                        # 保存模型文件
                         best_model.save(f"{save_path}")
 
+                        # 打印每轮训练结果数据
                         for record in history_correction:
                             if pt.is_regression():
                                 print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}({record['early_stopping_epoch']:3d}), MAE:{record['mae']:.4f}, Acc v/t:{record['acc']:.2%}/{record['correct_rate']:.2%}, 差均值/标准差:{record['residual']:.2f}/{record['pred_std']:.2f}")
+                            elif pt.is_binary():
+                                print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}({record['early_stopping_epoch']:3d}), 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%), PR-AUC:{record.get('pr_auc',-1):.3f}, f1:{record.get('best_f1',-1):.3f}")
                             else:
-                                print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}({record['early_stopping_epoch']:3d}), 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
+                                #TODO:多分类未处理
+                                raise NotImplementedError("多分类结果打印未实现")
 
     print(f"\n[RESULT] Best : {best_paras}, min val_loss: {best_val:.4f}")
-    #for record in history_correction:
-    #    if predict_type_list[0].is_regression():
-    #        print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, MAE:{record['mae']:.4f}, Acc t/v:{record['acc']:.2%}/{record['correct_rate']:.2%}, 差均值/标准差:{record['residual']:.2f}/{record['pred_std']:.2f}")
-    #    else:
-    #        print(f"[R] p:{model_type}_{record['para']}, vl:{record['val_loss']:.4f}, 最优阈值:{record['best_thr']:.3f}, 正确率/召回率:{record['correct_rate']:.2%}/{record['macro_recall']:.2%}, 正确/错误置信率:{record['correct_mean_prob']:.2f}%/{record['wrong_mean_prob']:.2f}%({record['correct_mean_prob']-record['wrong_mean_prob']:.2f}%)")
-    #best_model.save(save_path)
     #plot_l2_loss_curves(history_dict, epochs)
-    
+
+def find_best_threshold_by_macro_f1(y_true, scores, thr_min=0.2, thr_max=0.8, steps=600):
+    """
+    在验证集上扫描阈值，返回 best_thr, best_f1, ap, pr_auc
+    """
+    best_thr, best_f1 = 0.5, -1.0
+    for thr in np.linspace(thr_min, thr_max, steps):
+        pred = (scores > thr).astype(int)
+        f1 = f1_score(y_true, pred, average='macro')
+        if f1 > best_f1:
+            best_f1, best_thr = float(f1), float(thr)
+
+    ap = float(average_precision_score(y_true, scores))
+    prec, rec, _ = precision_recall_curve(y_true, scores)
+    pr_auc = float(auc(rec, prec))
+    return best_thr, best_f1, ap, pr_auc
+
+
+def pretty_print_binary_eval(y_true, scores, best_thr, best_f1, ap=None, pr_auc=None, title="VAL(binary)"):
+    """
+    把二分类验证集输出整理成一块更易读的打印。
+    """
+    y_true = np.asarray(y_true).astype(int).reshape(-1)
+    scores = np.asarray(scores).astype(float).reshape(-1)
+
+    pred = (scores > best_thr).astype(int)
+
+    # confusion matrix
+    tp = int(np.sum((pred == 1) & (y_true == 1)))
+    tn = int(np.sum((pred == 0) & (y_true == 0)))
+    fp = int(np.sum((pred == 1) & (y_true == 0)))
+    fn = int(np.sum((pred == 0) & (y_true == 1)))
+
+    # per-class recall/f1
+    recalls = recall_score(y_true, pred, average=None)
+    f1s = f1_score(y_true, pred, average=None)
+    acc = accuracy_score(y_true, pred)
+
+    # score distribution summary
+    q01, q05, q50, q95, q99 = np.quantile(scores, [0.01, 0.05, 0.50, 0.95, 0.99])
+    mean_all, std_all = float(scores.mean()), float(scores.std())
+
+    # pos/neg separation
+    pos = scores[y_true == 1]
+    neg = scores[y_true == 0]
+    pos_mean = float(pos.mean()) if pos.size else float("nan")
+    neg_mean = float(neg.mean()) if neg.size else float("nan")
+    pos_q50 = float(np.median(pos)) if pos.size else float("nan")
+    neg_q50 = float(np.median(neg)) if neg.size else float("nan")
+
+    # printing
+    print("\n" + "=" * 88)
+    print(f"[{title}] n={len(scores)} | pos={int(np.sum(y_true==1))} neg={int(np.sum(y_true==0))}")
+    if ap is not None or pr_auc is not None:
+        print(f"PR: AP={ap:.4f} | PR-AUC={pr_auc:.4f}")
+
+    print(f"best_thr={best_thr:.3f} | macro_f1(best)={best_f1:.4f} | acc@thr={acc:.4f}")
+    print(f"Confusion: TP={tp} FP={fp} | TN={tn} FN={fn}")
+    print(f"Recall:  r0={recalls[0]:.4f} r1={recalls[1]:.4f} | mean={(recalls[0]+recalls[1])/2:.4f}")
+    print(f"F1:      f0={f1s[0]:.4f} f1={f1s[1]:.4f} | mean={(f1s[0]+f1s[1])/2:.4f}")
+
+    print(f"Scores(all): mean={mean_all:.4f} std={std_all:.4f} | "
+          f"q01={q01:.4f} q05={q05:.4f} q50={q50:.4f} q95={q95:.4f} q99={q99:.4f}")
+    print(f"Scores(pos/neg): pos_mean={pos_mean:.4f} pos_med={pos_q50:.4f} | "
+          f"neg_mean={neg_mean:.4f} neg_med={neg_q50:.4f} | gap(mean)={pos_mean-neg_mean:.4f}")
+    print("=" * 88 + "\n")
+
+def set_seed(seed=42):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed_all(seed)
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = False
+    tf.random.set_seed(seed)
+
+def train_and_record_l2(model_type, l2_reg, tx, ty, vx, vy, model_params, train_params):
+    if model_type == ModelType.RESIDUAL_LSTM:
+        model = ResidualLSTMModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
+    elif model_type == ModelType.RESIDUAL_TCN:
+        model = ResidualTCNModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
+    elif model_type == ModelType.TRANSFORMER:
+        model = TransformerModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
+    elif model_type == ModelType.CONV2D:
+        model = Conv2DResModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
+    elif model_type == ModelType.CONV1D:
+        model = Conv1DResModel(x=tx, y=ty, test_x=vx, test_y=vy, l2_reg=l2_reg, **model_params)
+    else:
+        raise ValueError(f"Unknown model_type: {model_type}")
+    print(f"[INFO] Start training:")# l2_reg={l2_reg}")
+    early_stopping_epoch = model.train(tx=tx, ty=ty, **train_params)
+    val_losses = model.history.val_losses
+    return val_losses, model, early_stopping_epoch
+
+
+
 if __name__ == "__main__":
     # 允许显存按需增长，避免一次性占满
     gpus = tf. config.experimental.list_physical_devices('GPU')

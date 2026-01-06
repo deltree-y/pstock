@@ -25,10 +25,10 @@ def main():
     setup_logging()
 
     t1l_model_type, t2h_model_type, t1h_model_type = ModelType.TRANSFORMER, ModelType.TRANSFORMER, ModelType.TRANSFORMER
-    t1l_predict_type, t2h_predict_type, t1h_predict_type = PredictType.BINARY_T1_L05, PredictType.BINARY_T2_H10, PredictType.BINARY_T1_H10
-    t1l_feature_type, t2h_feature_type, t1h_feature_type = FeatureType.T1L05_F55, FeatureType.T2H10_F55, FeatureType.T1H10_F55
+    t1l_feature_type, t2h_feature_type, t1h_feature_type = FeatureType.BINARY_T1L05_F55, FeatureType.BINARY_T2H10_F55, FeatureType.BINARY_T1H10_F55
     t1l_th, t2h_th, t1h_th = 0.5, 0.5, 0.5
 
+    t1l_predict_type, t2h_predict_type, t1h_predict_type = PredictType.get_type_from_feature_type(t1l_feature_type), PredictType.get_type_from_feature_type(t2h_feature_type), PredictType.get_type_from_feature_type(t1h_feature_type)
     if args.from_date is None and args.dates is None:
         print("错误: 必须指定 --dates 或 --from_date")
         sys.exit(1)

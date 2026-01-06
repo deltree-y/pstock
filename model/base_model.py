@@ -1,4 +1,5 @@
 import logging
+import tensorflow as tf
 from abc import ABC, abstractmethod
 from datetime import datetime
 
@@ -76,7 +77,17 @@ class BaseModel(ABC):
     # ---------- 训练/编译通用逻辑 ----------
     def _compile(self, learning_rate):
         loss_fn = get_loss(self.loss_type, self.predict_type)
-        metrics = {"output": ["mae", "mse"]} if self.predict_type.is_regression() else {"output": "accuracy"}
+        
+        #metrics = {"output": ["mae", "mse"]} if self.predict_type.is_regression() else {"output": "accuracy"}
+        if self.predict_type.is_regression():
+            metrics = {"output": ["mae", "mse"]}
+        elif self.predict_type.is_binary():
+            # 二分类：增加 PR-AUC
+            metrics = {"output": ["accuracy", tf.keras.metrics.AUC(curve="PR", name="pr_auc")]}
+        else:
+            # 多分类：保持原样（你也可以以后加 one-vs-rest PR-AUC，但那是另一个话题）
+            metrics = {"output": "accuracy"}
+
         self.model.compile(
             optimizer=Adam(learning_rate=learning_rate, clipnorm=0.5),
             loss={"output": loss_fn},
@@ -85,7 +96,18 @@ class BaseModel(ABC):
 
     def _callbacks(self, epochs, patience, learning_rate):
         warmup_steps, hold_steps = int(0.1 * epochs), int(0.1 * epochs) # 预热和保持各10%的训练周期
-        monitor_metric = "val_mae" if self.predict_type.is_regression() else "val_loss"    # 回归监控验证 MAE，分类监控验证 Loss
+        
+        #monitor_metric = "val_mae" if self.predict_type.is_regression() else "val_loss"    # 回归监控验证 MAE，分类监控验证 Loss
+        # === 修改 monitor 逻辑 ===
+        if self.predict_type.is_regression():
+            monitor_metric = "val_mae"
+            monitor_mode = "min"
+        elif self.predict_type.is_binary():
+            monitor_metric = "val_pr_auc"
+            monitor_mode = "max"
+        else:
+            monitor_metric = "val_loss"
+            monitor_mode = "min"
 
         lr_scheduler = WarmUpCosineDecayScheduler(
             learning_rate_base=learning_rate,
@@ -95,10 +117,12 @@ class BaseModel(ABC):
         )
         early_stopping = EarlyStopping(
             monitor=monitor_metric,
+            mode=monitor_mode,             # <-- ADD
             patience=patience,
             restore_best_weights=True,
             verbose=1,
         )
+        #print(f"DEBUG: in base_model - Using EarlyStopping monitor: {monitor_metric}, patience: {patience}, restore_best_weights: {early_stopping.restore_best_weights}")
         return [self.history, lr_scheduler, early_stopping]
 
     def train(
@@ -138,6 +162,8 @@ class BaseModel(ABC):
         spend = datetime.now() - start_time
         early_stopping_epoch = callbacks[2].best_epoch + 1  # 修正 stopped_epoch 从0开始的问题
         logging.info(f"\nTraining stopped at epoch {early_stopping_epoch}/{epochs}")#, learning rate status: {self.learning_rate_status}")
+        logging.info(f"EarlyStopping best_epoch={callbacks[2].best_epoch+1}, stopped_epoch={callbacks[2].stopped_epoch+1}, best={callbacks[2].best}")
+
         return early_stopping_epoch
         #return "\n total spend:%.2f(h)/%.1f(m), %.1f(s)/epoc, %.2f(h)/10k" % (
         #    spend.seconds / 3600,

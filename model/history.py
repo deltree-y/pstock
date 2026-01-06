@@ -25,6 +25,9 @@ class LossHistory(Callback):
         cur_val_loss = logs.get('val_loss') if not self.predict_type.is_regression() else logs.get('val_mae')
         cur_acc = logs.get('accuracy')
         cur_val_acc = logs.get('val_accuracy')
+        # ADD: PR-AUC（只在二分类时才会有）
+        cur_pr_auc = logs.get('pr_auc')
+        cur_val_pr_auc = logs.get('val_pr_auc')
 
         self.losses.append(cur_loss)
         self.val_losses.append(cur_val_loss)
@@ -57,9 +60,13 @@ class LossHistory(Callback):
 
         # 只输出回归损失
         if logs:
+            pr_auc_str = ""
+            if cur_val_pr_auc is not None:
+                pr_auc_str = f"pr_auc t/v:{cur_pr_auc:.4f}/{cur_val_pr_auc:.4f}"
             print(f"\n{epoch + 1}/{self.epoch}: "
                   f"t:[{cur_loss:.4f}/{acc_str}], "
                   f"v:[{cur_val_loss:.4f}/{val_acc_str}]({loss_diff_ratio:+.2f}%),",
+                  f"{pr_auc_str},",
                   f"lr({self.model.learning_rate_status}):{tf.keras.backend.get_value(self.model.optimizer.lr):.6f}",
                   f"{speed:.1f}s/ep, ed:{finished_time}({min_remaining/60:.1f}h)", 
                   end="", flush=True)

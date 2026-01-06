@@ -599,7 +599,7 @@ if __name__ == "__main__":
         train_size=1,
         feature_type=FeatureType.BINARY_T1L10_F55,
         if_update_scaler=True,
-        predict_type=PredictType.BINARY_T1_L10,
+        predict_type=PredictType.BINARY_T1L10,
         use_conv2_channel=False,
     )
 

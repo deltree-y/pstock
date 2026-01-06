@@ -506,20 +506,20 @@ if __name__ == "__main__":
 
     # PredictType/FeatureType（各自独立）
     t1l_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t1l_buy_type = PredictType.BINARY_T1_L10#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10), REGRESS_T1L
     t1l_buy_feature = FeatureType.BINARY_T1L10_F55#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55), REGRESS_T1L_F50
-    t1l_th = 0.477
+    t1l_th = 0.502
 
     t1h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t1h_sell_type = PredictType.BINARY_T1_H10#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
     t1h_sell_feature = FeatureType.BINARY_T1H10_F55#getattr(FeatureType, args.t1h_sell_feature.upper(), FeatureType.T1H10_F55)
     t1h_th = 0.624
 
     t2h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t2h_sell_type = PredictType.BINARY_T2_H10#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
     t2h_sell_feature = FeatureType.BINARY_T2H10_F25#getattr(FeatureType, args.t2h_sell_feature.upper(), FeatureType.T2H10_F55)
     t2h_th = 0.436
 
+    t1l_buy_type = PredictType.get_type_from_feature_type(t1l_buy_feature)#getattr(PredictType, args.t1l_buy_type, PredictType.BINARY_T1_L10), REGRESS_T1L
+    t1h_sell_type = PredictType.get_type_from_feature_type(t1h_sell_feature)#getattr(PredictType, args.t1h_sell_type, PredictType.BINARY_T1_H10)
+    t2h_sell_type = PredictType.get_type_from_feature_type(t2h_sell_feature)#REGRESS_T2H#getattr(PredictType, args.t2h_sell_type, PredictType.BINARY_T2_H10)
     #end_date = args.end_date or datetime.now().strftime("%Y%m%d")
 
     normal_up_result = simulate_trading(
