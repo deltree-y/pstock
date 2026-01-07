@@ -100,14 +100,11 @@ def print_predict_result_soft_gated_t1l10(t_list, ds_gate:StockDataset, m_gate, 
         - y_hat: 融合后的预测值，百分点单位
         - real_y: 真实值为倍率（例如 -0.005 表示 -0.5%），需乘以100转为百分点
     """
-    from utils.const_def import ACCU_RATE_THRESHOLD
-    
     print("-"*80)
     correct_cnt = 0
     predict_wrong_list_str = ""
     residual = []
     pred_values = []
-    low_high_symbol = "跌"  # T1L 预测跌幅
     
     # 使用回归数据集的 PredictType 来构造 Predict 对象
     predict_type = ds_reg.predict_type
