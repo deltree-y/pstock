@@ -124,6 +124,10 @@ def print_predict_result_soft_gated_t1l10(t_list, ds_gate:StockDataset, m_gate, 
             
             # 使用回归数据集的基准价（通常两个数据集的bp应该一致）
             bp = bp_reg
+            # 验证两个数据集的基准价是否一致
+            if abs(bp_gate - bp_reg) > 0.01:  # 允许0.01的浮点误差
+                import warnings
+                warnings.warn(f"日期{t0}: 门控bp={bp_gate:.2f} 与回归bp={bp_reg:.2f} 不一致", UserWarning)
             
             # 3. 软门控融合
             p_g = p ** gamma

@@ -59,6 +59,13 @@ def main():
     if args.from_date is None and args.dates is None:
         print("错误: 必须指定 --dates 或 --from_date")
         sys.exit(1)
+    elif args.from_date is not None and args.dates is not None:
+        print("警告: 同时指定了 --from_date 和 --dates，将优先使用 --from_date")
+        today = int(datetime.now().strftime('%Y%m%d'))
+        si = StockInfo(TOKEN)
+        trade_dates_df = si.get_trade_open_dates(int(args.from_date), today)
+        args.dates = trade_dates_df['trade_date'].astype(int).tolist()
+        print(f"预测从 {args.from_date} 到今天的所有交易日，共 {len(args.dates)} 天")
     elif args.from_date is not None:
         today = int(datetime.now().strftime('%Y%m%d'))
         si = StockInfo(TOKEN)
