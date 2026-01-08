@@ -16,7 +16,7 @@ class LossHistory(Callback):
 
     def on_train_begin(self, logs={}):
         self.losses = []
-        self.val_losses = []
+        self.val_losses, self.val_pr_auc = [], []
         self.t1_accu, self.t2_accu = [], []
         self.val_accu, self.val_t1_accu, self.val_t2_accu = [], [], []
 
@@ -31,6 +31,7 @@ class LossHistory(Callback):
 
         self.losses.append(cur_loss)
         self.val_losses.append(cur_val_loss)
+        self.val_pr_auc.append(cur_val_pr_auc)
 
         if self.predict_type.is_regression():# 回归任务
             if self.test_x is not None and self.test_y is not None:
@@ -51,6 +52,7 @@ class LossHistory(Callback):
 
         #计算损失变化率
         loss_diff_ratio = 100*(self.val_losses[-1] - self.val_losses[-2]) / self.val_losses[-2] if epoch > 0 else 0
+        pr_diff_ratio = 100*(self.val_pr_auc[-1] - self.val_pr_auc[-2]) / self.val_pr_auc[-2] if epoch > 0 else 0
         
         #计算每轮时间和预计完成时间
         spend_time = datetime.now() - self.start_time
@@ -61,24 +63,28 @@ class LossHistory(Callback):
         # 只输出回归损失
         if logs:
             pr_auc_str = ""
-            if cur_val_pr_auc is not None:
-                pr_auc_str = f"pr_auc t/v:{cur_pr_auc:.4f}/{cur_val_pr_auc:.4f}"
+            if self.predict_type.is_binary():
+                if cur_val_pr_auc is not None:
+                    pr_auc_str = f"pr_auc t/v:{cur_pr_auc:.4f}/{cur_val_pr_auc:.4f}({pr_diff_ratio:+.2f}%),"
             print(f"\n{epoch + 1}/{self.epoch}: "
                   f"t:[{cur_loss:.4f}/{acc_str}], "
                   f"v:[{cur_val_loss:.4f}/{val_acc_str}]({loss_diff_ratio:+.2f}%),",
-                  f"{pr_auc_str},",
+                  f"{pr_auc_str}",
                   f"lr({self.model.learning_rate_status}):{tf.keras.backend.get_value(self.model.optimizer.lr):.6f}",
                   f"{speed:.1f}s/ep, ed:{finished_time}({min_remaining/60:.1f}h)", 
                   end="", flush=True)
-                    
+            
             loss_improve_str, val_improve_str = None, None
+            if epoch > 0:
+                max_val = max(self.val_accu[:-1]) if not self.predict_type.is_binary() else max(self.val_pr_auc[:-1])
+            val_accu = val_accu if not self.predict_type.is_binary() else cur_val_pr_auc
             if epoch > 0 and cur_val_loss < min(self.val_losses[:-1]):  #val_loss更小时增加打印项目
                 loss_improve_str = f"[{min(self.val_losses[:-1])-cur_val_loss:.5f}]"
                 loss_improve_ratio_str = f"[{100*(min(self.val_losses[:-1])-cur_val_loss)/min(self.val_losses[:-1]):.2f}%]"
-            if epoch > 0 and val_accu > max(self.val_accu[:-1]):    #val_accuracy更大时增加打印项目
-                val_improve_str = f"[{(val_accu-max(self.val_accu[:-1]))*100:.2f}]"
+            if epoch > 0 and val_accu > max_val:    #val_accuracy更大时增加打印项目
+                val_improve_str = f"[{(val_accu - max_val)*100:.2f}]"
             if loss_improve_str is not None or val_improve_str is not None:
-                print("  <-- ", end="")
+                print(" <- ", end="")
                 if loss_improve_str is not None:
                     print(f"l{loss_improve_ratio_str}", end=" ")
                 if val_improve_str is not None:

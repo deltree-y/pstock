@@ -34,49 +34,29 @@ def main():
     
     parser = argparse.ArgumentParser(description="测试软门控预测功能")
     parser.add_argument("--stock_code", default="600036.SH", help="股票代码")
-    parser.add_argument("--dates", nargs="+", required=False, help="预测日期列表，格式: YYYYMMDD")
-    parser.add_argument("--from_date", default=None, help="如果设置，预测从此日期到今天的所有交易日")
-    parser.add_argument("--start_date", default="20190104", help="数据起始日期")
-    parser.add_argument("--end_date", default=None, help="数据结束日期")
+    parser.add_argument("--start_date", default="20240701", help="数据起始日期")
+    parser.add_argument("--end_date", default='20251231', help="数据结束日期")
     parser.add_argument("--y_base", type=float, default=-0.2, help="基础回归值（百分点），默认 -0.2")
     parser.add_argument("--gamma", type=float, default=1.0, help="锐化参数，默认 1.0")
-    parser.add_argument("--model_type", default="TRANSFORMER", choices=["RESIDUAL_LSTM", "RESIDUAL_TCN", "TRANSFORMER", "CONV1D"],
+    parser.add_argument("--model_type", default="RESIDUAL_TCN", choices=["RESIDUAL_LSTM", "RESIDUAL_TCN", "TRANSFORMER", "CONV1D"],
                         help="模型类型")
     
     args = parser.parse_args()
     
     setup_logging()
+    # 初始化 StockInfo
+    si = StockInfo(TOKEN)
     
     # 设置模型类型和特征类型
-    model_type = ModelType[args.model_type]
-    gate_feature_type = FeatureType.BINARY_T1L10_F55  # 二分类门控模型
+    model_type = ModelType.RESIDUAL_LSTM
+    gate_feature_type = FeatureType.BINARY_T1L05_F55  # 二分类门控模型
     reg_feature_type = FeatureType.REGRESS_T1L_F55    # 回归模型
     
     gate_predict_type = PredictType.get_type_from_feature_type(gate_feature_type)
     reg_predict_type = PredictType.get_type_from_feature_type(reg_feature_type)
     
-    # 确定预测日期列表
-    if args.from_date is None and args.dates is None:
-        print("错误: 必须指定 --dates 或 --from_date")
-        sys.exit(1)
-    elif args.from_date is not None and args.dates is not None:
-        print("警告: 同时指定了 --from_date 和 --dates，将优先使用 --from_date")
-        today = int(datetime.now().strftime('%Y%m%d'))
-        si = StockInfo(TOKEN)
-        trade_dates_df = si.get_trade_open_dates(int(args.from_date), today)
-        args.dates = trade_dates_df['trade_date'].astype(int).tolist()
-        print(f"预测从 {args.from_date} 到今天的所有交易日，共 {len(args.dates)} 天")
-    elif args.from_date is not None:
-        today = int(datetime.now().strftime('%Y%m%d'))
-        si = StockInfo(TOKEN)
-        trade_dates_df = si.get_trade_open_dates(int(args.from_date), today)
-        args.dates = trade_dates_df['trade_date'].astype(int).tolist()
-        print(f"预测从 {args.from_date} 到今天的所有交易日，共 {len(args.dates)} 天")
-    else:
-        print(f"预测指定的日期: {args.dates}")
-    
-    # 初始化 StockInfo
-    si = StockInfo(TOKEN)
+    t_list = (si.get_trade_open_dates('20250701', '20251229'))['trade_date'].astype(str).tolist()    
+
     
     print("\n正在加载数据集...")
     # 创建门控数据集 (BINARY_T1L10)
@@ -131,7 +111,7 @@ def main():
     # 执行软门控预测
     try:
         accuracy, _, _, mae, std = print_predict_result_soft_gated_t1l10(
-            t_list=args.dates,
+            t_list=t_list,
             ds_gate=ds_gate,
             m_gate=m_gate,
             ds_reg=ds_reg,

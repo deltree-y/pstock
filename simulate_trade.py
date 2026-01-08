@@ -506,7 +506,7 @@ if __name__ == "__main__":
 
     # PredictType/FeatureType（各自独立）
     t1l_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)
-    t1l_buy_feature = FeatureType.BINARY_T1L10_F55#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55), REGRESS_T1L_F50
+    t1l_buy_feature = FeatureType.BINARY_T1L05_F55#getattr(FeatureType, args.t1l_buy_feature.upper(), FeatureType.T1L10_F55), REGRESS_T1L_F50
     t1l_th = 0.502
 
     t1h_model_type = ModelType.RESIDUAL_LSTM#getattr(ModelType, args.model_type.upper(), ModelType.TRANSFORMER)

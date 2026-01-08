@@ -128,26 +128,15 @@ class FeatureType(Enum):
     BINARY_T1L07_F55 = auto()
     BINARY_T1L08_F55 = auto()
     BINARY_T1L08_F30 = auto()
-
-    BINARY_T1L10_F15 = auto()
-    BINARY_T1L10_F35 = auto()
-    BINARY_T1L10_F55 = auto()
-
-    BINARY_T1L15_F35 = auto()
-    BINARY_T1L15_F55 = auto()
-    BINARY_T1L15_F75 = auto()
+    BINARY_T1L10_F15, BINARY_T1L10_F35, BINARY_T1L10_F55 = auto(), auto(), auto()
+    BINARY_T1L15_F35, BINARY_T1L15_F55, BINARY_T1L15_F75 = auto(), auto(), auto()
+    BINARY_T1L20_F55 = auto()
+    BINARY_T1L30_F55 = auto()
 
     BINARY_T1H05_F55 = auto()
-
     BINARY_T1H08_F18 = auto()
-
-    BINARY_T1H10_F35 = auto()
-    BINARY_T1H10_F55 = auto()
-    BINARY_T1H10_F75 = auto()
-
-    BINARY_T1H15_F35 = auto() #TODO: 是否应为t1h15_features_35？
-    BINARY_T1H15_F55 = auto() #TODO: 是否应为t1h15_features_55？
-    BINARY_T1H15_F75 = auto() #TODO: 是否应为t1h15_features_75？
+    BINARY_T1H10_F35, BINARY_T1H10_F55, BINARY_T1H10_F75 = auto(), auto(), auto()
+    BINARY_T1H15_F35, BINARY_T1H15_F55, BINARY_T1H15_F75 = auto(), auto(), auto()
 
     BINARY_T2H03_F55 = auto() #TODO:待添加真实特征
     BINARY_T2H04_F55 = auto() #TODO:待添加真实特征
@@ -155,24 +144,11 @@ class FeatureType(Enum):
     BINARY_T2H06_F55 = auto() #TODO:待添加真实特征
     BINARY_T2H07_F55 = auto() #TODO:待添加真实特征
     BINARY_T2H08_F55 = auto() #TODO:待添加真实特征
-
-    BINARY_T2H10_F10 = auto()
-    BINARY_T2H10_F25 = auto()
-    BINARY_T2H10_F35 = auto()
-    BINARY_T2H10_F45 = auto()
-    BINARY_T2H10_F55 = auto()
-
-    REGRESS_T1L_F55 = auto()
-    REGRESS_T1L_F50 = auto()
-
-    REGRESS_T1H_F72 = auto()
-    REGRESS_T1H_F55 = auto()
-    REGRESS_T1H_F50 = auto()
-
-    REGRESS_T2H_F55 = auto()
-    REGRESS_T2H_F50 = auto()
-    REGRESS_T2H_F30 = auto()
-    REGRESS_T2H_F20 = auto()
+    BINARY_T2H10_F10, BINARY_T2H10_F25, BINARY_T2H10_F35, BINARY_T2H10_F45, BINARY_T2H10_F55 = auto(), auto(), auto(), auto(), auto()
+    
+    REGRESS_T1L_F55, REGRESS_T1L_F50 = auto(), auto()
+    REGRESS_T1H_F72, REGRESS_T1H_F55, REGRESS_T1H_F50 = auto(), auto(), auto()
+    REGRESS_T2H_F55, REGRESS_T2H_F50, REGRESS_T2H_F30, REGRESS_T2H_F20 = auto(), auto(), auto(), auto()
 
     CLASSIFY_F50 = 'classify_features_50'
     CLASSIFY_F30 = 'classify_features_30'
@@ -206,6 +182,8 @@ class PredictType(Enum):
     BINARY_T1L08 = ("BINARY_T1_L08", -0.8, "BIN_T1L")
     BINARY_T1L10 = ("BINARY_T1_L10", -1.0, "BIN_T1L")
     BINARY_T1L15 = ("BINARY_T1_L15", -1.5, "BIN_T1L") 
+    BINARY_T1L20 = ("BINARY_T1_L20", -2.0, "BIN_T1L") 
+    BINARY_T1L30 = ("BINARY_T1_L30", -3.0, "BIN_T1L") 
 
     BINARY_T1H05 = ("BINARY_T1_H05", 0.5, "BIN_T1H")
     BINARY_T1H06 = ("BINARY_T1_H06", 0.6, "BIN_T1H")
@@ -244,13 +222,13 @@ class PredictType(Enum):
         name = ft.name
         if name.startswith("BINARY"):
             if "T1L" in name:
-                return PredictType["BINARY_T1L" + name.split("_")[1][-3:]]
+                return PredictType["BINARY_T1L" + name.split("_")[1][-2:]]
             elif "T1H" in name:
-                return PredictType["BINARY_T1H" + name.split("_")[1][-3:]]
+                return PredictType["BINARY_T1H" + name.split("_")[1][-2:]]
             elif "T2L" in name:
-                return PredictType["BINARY_T2L" + name.split("_")[1][-3:]]
+                return PredictType["BINARY_T2L" + name.split("_")[1][-2:]]
             elif "T2H" in name:
-                return PredictType["BINARY_T2H" + name.split("_")[1][-3:]]
+                return PredictType["BINARY_T2H" + name.split("_")[1][-2:]]
             else:
                 raise ValueError(f"无法从特征类型 {ft} 推断出对应的预测类型")
         elif name.startswith("REGRESS"):

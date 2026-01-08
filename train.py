@@ -35,14 +35,14 @@ def auto_search():
     index_code_list = IDX_CODE_LIST#BIG_IDX_CODE_LIST#IDX_CODE_LIST
     related_stock_list = ALL_CODE_LIST#BANK_CODE_LIST_10#CODE_LIST_TEMP#ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
     t_list = (si.get_trade_open_dates('20250701', '20251229'))['trade_date'].astype(str).tolist()
-    t_start_date, t_end_date = '20050104', '20250630'
+    t_start_date, t_end_date = '20050204', '20250630'
 
     # ---模型通用参数---
     model_type = ModelType.RESIDUAL_LSTM#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
-    feature_type_list = [FeatureType.REGRESS_T1L_F50]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50, BINARY_T1L10_F55
-    loss_type = 'robust_mse' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
+    feature_type_list = [FeatureType.BINARY_T1L05_F55]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50, BINARY_T1L10_F55
+    loss_type = 'confidence_penalty_loss' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
     
-    dropout_rate = 0.2#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
+    dropout_rate = 0.25#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
     lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]00002
     l2_reg_list = [0.001]#[0.00007], 0005, 00001
     threshold = 0.5 # 二分类阈值
@@ -51,7 +51,7 @@ def auto_search():
     # ===== 训练参数 =====
     epochs = 100
     batch_size = 512
-    patience = 500#int(0.3*epochs)
+    patience = int(0.3*epochs)
     train_size = 0.95
     cyc = 1    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
@@ -92,7 +92,7 @@ def auto_search():
                                           feature_type=ft,predict_type=pt, use_conv2_channel=(model_type == ModelType.CONV2D))
                         ds_pred = StockDataset(ts_code=primary_stock_code, idx_code_list=index_code_list, 
                                                rel_code_list=related_stock_list if model_type==ModelType.CONV2D else [], 
-                                               si=si, if_update_scaler=False, start_date='19940204', end_date='20251231', train_size=1, 
+                                               si=si, if_update_scaler=False, start_date=t_start_date, end_date='20251231', train_size=1, 
                                                feature_type=ft, predict_type=pt, use_conv2_channel=(model_type == ModelType.CONV2D))
                         #t_list = [d for d in t_list if ((idx_arr := np.where(ds_pred.raw_data[:, 0] == d)[0]).size > 0 and idx_arr[0] + ds_pred.window_size <= ds_pred.raw_data.shape[0])]
                         tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
@@ -115,10 +115,10 @@ def auto_search():
                             class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
                             cls_weights = dict(enumerate(class_weights))
                         elif pt.is_binary():
-                            #classes = np.unique(ty)
-                            #class_weights = compute_class_weight('balanced', classes=classes, y=ty)
-                            #cls_weights = {int(c): w for c, w in zip(classes, class_weights)}
-                            cls_weights = None
+                            classes = np.unique(ty)
+                            class_weights = compute_class_weight('balanced', classes=classes, y=ty)
+                            cls_weights = {int(c): w for c, w in zip(classes, class_weights)}
+                            #cls_weights = None
                         else:
                             cls_weights = None
 
