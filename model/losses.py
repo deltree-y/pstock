@@ -135,7 +135,7 @@ def confidence_penalty_loss(base_loss_fn, lam=0.2):
         # Encourage correct/high confidence, penalize wrong/high confidence
         penalty = lam * tf.reduce_mean((1 - correct) * conf)
         reward  = lam * tf.reduce_mean(correct * (1 - conf))
-        return base + penalty + reward
+        return base + penalty + 0.5*reward
     return loss
 
 
@@ -151,7 +151,7 @@ def get_loss(loss_type, predict_type:PredictType):
         if predict_type.is_classify():
             loss_fn = focal_loss(gamma=2.0, alpha=0.25)
         elif predict_type.is_binary():
-            loss_fn = binary_focal_loss(gamma=2.0, alpha=0.25)
+            loss_fn = binary_focal_loss(gamma=5.0, alpha=0.25)
             #raise ValueError("Unsupported predict_type for focal_loss.")
     elif loss_type == 'confidence_penalty_loss':
         if predict_type.is_binary():

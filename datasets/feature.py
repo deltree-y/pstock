@@ -1,10 +1,12 @@
 import warnings
 import numpy as np
 import pandas as pd
+from tqdm import tqdm
 from sklearn.feature_selection import mutual_info_classif, mutual_info_regression
 from scipy.stats import pearsonr
 from sklearn.ensemble import RandomForestRegressor, RandomForestClassifier
 from scipy.stats import pearsonr
+from datasets.dataset import StockDataset
 
 def binary_class_feature_selection(x_train, y_train, feature_names):
     mask = np.isin(y_train, [0, 5])
@@ -203,3 +205,51 @@ def select_features_by_tree_importance(feature_data, target, feature_names, impo
             print(f"{fname}: {score:.4f}")
         print("随机森林强相关特征:", selected)
     return selected, importances
+
+
+def rank_features_on_dataset(ds, use_rf=True):
+    feature_names = ds.get_feature_names()  # 注意：需要你已修好 idx 前缀化后，这个才严格对齐
+    X = ds.raw_train_x[-len(ds.train_y):]
+    y = ds.train_y[:, 0].astype(float)
+
+    X = np.nan_to_num(X, nan=0, posinf=0, neginf=0)
+    y = np.nan_to_num(y, nan=0, posinf=0, neginf=0)
+
+    # -------- 1) pearson (加进度条) --------
+    pearson_scores = []
+    for i in tqdm(range(X.shape[1]), desc="Pearson", ncols=100):
+        try:
+            corr, _ = pearsonr(X[:, i], y)
+            pearson_scores.append(abs(corr) if np.isfinite(corr) else 0.0)
+        except Exception:
+            pearson_scores.append(0.0)
+
+    # -------- 2) MI --------
+    # MI 没有逐列循环，不太好显示细粒度进度；这里给一个阶段提示即可
+    print("[MI] computing mutual information ...")
+    mi_scores = mutual_info_regression(X, y)
+
+    # -------- 3) RF importance --------
+    if use_rf:
+        print("[RF] training random forest for feature importance ... (this can be slow)")
+        selected_rf, rf_scores = select_features_by_tree_importance(
+            X, y, feature_names, importance_threshold=0.0, print_detail=False
+        )
+    else:
+        rf_scores = np.zeros(X.shape[1], dtype=float)
+
+    df = pd.DataFrame({
+        "feature": feature_names[:X.shape[1]],
+        "pearson": pearson_scores[:X.shape[1]],
+        "mi": mi_scores[:X.shape[1]],
+        "rf": rf_scores[:X.shape[1]],
+    })
+
+    # 归一化后平均（避免量纲差异）
+    for col in ["pearson", "mi", "rf"]:
+        mx = float(df[col].max())
+        df[col] = df[col] / mx if mx > 1e-12 else df[col]
+
+    df["score"] = df[["pearson", "mi", "rf"]].mean(axis=1)
+    df = df.sort_values("score", ascending=False).reset_index(drop=True)
+    return df

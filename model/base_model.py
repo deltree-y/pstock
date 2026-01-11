@@ -95,7 +95,7 @@ class BaseModel(ABC):
         )
 
     def _callbacks(self, epochs, patience, learning_rate):
-        warmup_steps, hold_steps = int(0.1 * epochs), int(0.1 * epochs) # 预热和保持各10%的训练周期
+        warmup_steps, hold_steps = int(0.1 * epochs), int(0.05 * epochs) # 预热和保持各10%的训练周期
         
         #monitor_metric = "val_mae" if self.predict_type.is_regression() else "val_loss"    # 回归监控验证 MAE，分类监控验证 Loss
         # === 修改 monitor 逻辑 ===

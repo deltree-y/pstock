@@ -28,36 +28,35 @@ def auto_search():
     setup_logging()
     #set_seed(42)
 
-    os.environ['TF_CPP_MIN_LOG_LEVEL'] = '3'
     # ===== 数据准备 =====
     si = StockInfo(TOKEN)
     primary_stock_code = '600036.SH'
-    index_code_list = IDX_CODE_LIST#BIG_IDX_CODE_LIST#IDX_CODE_LIST
+    index_code_list = []#IDX_CODE_LIST#BIG_IDX_CODE_LIST#IDX_CODE_LIST
     related_stock_list = ALL_CODE_LIST#BANK_CODE_LIST_10#CODE_LIST_TEMP#ALL_CODE_LIST#BANK_CODE_LIST_10#[]#ALL_CODE_LIST
     t_list = (si.get_trade_open_dates('20250701', '20251229'))['trade_date'].astype(str).tolist()
     t_start_date, t_end_date = '20050204', '20250630'
 
     # ---模型通用参数---
-    model_type = ModelType.RESIDUAL_LSTM#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
+    model_type = ModelType.TRANSFORMER#RESIDUAL_TCN#TRANSFORMER#CONV2D#CONV1D#RESIDUAL_LSTM#
     feature_type_list = [FeatureType.BINARY_T1L05_F55]#REGRESS_T2H_F50, BINARY_T2H10_F55, REGRESS_T1H_F50, BINARY_T1L10_F55
     loss_type = 'confidence_penalty_loss' #focal_loss, binary_crossentropy, mse, robust_mse, confidence_penalty_loss
     
-    dropout_rate = 0.25#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
-    lr_list = [0.0002]#0.0002, 0.0001, 0.0005, 0.001, 0.005]00002
-    l2_reg_list = [0.001]#[0.00007], 0005, 00001
+    dropout_rate = 0.3#0.28->0.275->0.29->0.26->0.225->0.35->0.4->0.38->0.35->0.325->0.3
+    lr_list = [0.005]#0.0002, 0.0001, 0.0005, 0.001, 0.005]00002
+    l2_reg_list = [0.0002]#[0.00007], 0005, 00001
     threshold = 0.5 # 二分类阈值
     p = 2
 
     # ===== 训练参数 =====
     epochs = 100
     batch_size = 512
-    patience = int(0.3*epochs)
+    patience = 500#int(0.3*epochs)
     train_size = 0.95
-    cyc = 1    # 搜索轮数
+    cyc = 2    # 搜索轮数
     multiple_cnt = 1    # 数据增强倍数,1表示不增强,4表示增强4倍,最大支持4倍
 
     # ----- 模型相关参数 ----
-    lstm_depth_list, base_units_list = [4], [96]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
+    lstm_depth_list, base_units_list = [6], [96]#[6],[64]   # LSTM模型参数 - depth-增大会增加模型深度, base_units-增大每层LSTM单元数
     nb_filters, kernel_size, nb_stacks = [96], [6], [2] # TCN模型参数 - nb_filters-有多少组专家分别提取不同类型的特征, kernel_size-每个专家一次能看到多长时间的历史窗口, nb_stacks-增大会整体重复残差结构，直接增加模型深度, 
     d_model_list, num_heads_list, ff_dim_list, num_layers_list = [128], [12], [512], [4] # Transformer模型参数 - d_model-增大每个时间步的特征维度, num_heads-增大多头注意力机制的头数, ff_dim-增大前馈神经网络的隐藏层维度, num_layers-增大会增加模型深度
     conv2d_filters_list, conv2d_kernel_size_list, conv2d_depth_list = [64], [(3,3)], [2]   # Conv2D模型参数 - filters-增大每个卷积层的滤波器数量, kernel_size-增大卷积核大小, depth-增大会增加模型深度
@@ -94,6 +93,7 @@ def auto_search():
                                                rel_code_list=related_stock_list if model_type==ModelType.CONV2D else [], 
                                                si=si, if_update_scaler=False, start_date=t_start_date, end_date='20251231', train_size=1, 
                                                feature_type=ft, predict_type=pt, use_conv2_channel=(model_type == ModelType.CONV2D))
+                        print(f"feature name: {ds.get_feature_names()}")
                         #t_list = [d for d in t_list if ((idx_arr := np.where(ds_pred.raw_data[:, 0] == d)[0]).size > 0 and idx_arr[0] + ds_pred.window_size <= ds_pred.raw_data.shape[0])]
                         tx, ty, vx, vy = ds.normalized_windowed_train_x, ds.train_y, ds.normalized_windowed_test_x, ds.test_y
                         ty, vy = ty[:, 0], vy[:, 0]
@@ -115,10 +115,10 @@ def auto_search():
                             class_weights = compute_class_weight('balanced', classes=np.arange(NUM_CLASSES), y=ty)
                             cls_weights = dict(enumerate(class_weights))
                         elif pt.is_binary():
-                            classes = np.unique(ty)
-                            class_weights = compute_class_weight('balanced', classes=classes, y=ty)
-                            cls_weights = {int(c): w for c, w in zip(classes, class_weights)}
-                            #cls_weights = None
+                            #classes = np.unique(ty)
+                            #class_weights = compute_class_weight('balanced', classes=classes, y=ty)
+                            #cls_weights = {int(c): w for c, w in zip(classes, class_weights)}
+                            cls_weights = None
                         else:
                             cls_weights = None
 

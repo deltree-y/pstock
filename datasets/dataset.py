@@ -2,11 +2,8 @@
 import sys,os,time,logging,joblib
 import numpy as np
 import pandas as pd
-#from pathlib import Path
 from sklearn.preprocessing import MinMaxScaler, StandardScaler, RobustScaler
-#o_path = os.getcwd()
-#sys.path.append(o_path)
-#sys.path.append(str(Path(__file__).resolve().parents[0]))
+from typing import Optional, List   # <<< ADD
 from stockinfo import StockInfo
 from trade import Trade
 from cat import RateCat
@@ -32,12 +29,27 @@ from utils.const_def import BASE_DIR, SCALER_DIR, BIN_DIR
 # |                             | self.normalized_windowed_test_x   | 归一化, 窗口化后的测试集x, 三维数组                             | numpy.array        |                                  |
 class StockDataset():
     def __init__(self, ts_code, idx_code_list, rel_code_list, si:StockInfo, start_date=None, end_date=None, train_size=0.8, if_update_scaler=True, 
-                 feature_type:FeatureType=FeatureType.ALL, predict_type:PredictType=PredictType.CLASSIFY, use_conv2_channel=False):
-        self.p_trade = Trade(ts_code, si, start_date=start_date, end_date=end_date, feature_type=feature_type)
-        self.idx_trade_list = [Trade(idx_code, si, stock_type=StockType.INDEX, start_date=start_date, end_date=end_date, feature_type=feature_type) for idx_code in idx_code_list]
+                 feature_type:FeatureType=FeatureType.ALL, predict_type:PredictType=PredictType.CLASSIFY, use_conv2_channel=False,
+                 custom_feature_list: Optional[List[str]] = None,   # <<< ADD
+                ):
+        self.p_trade = Trade(ts_code, si,
+                             start_date=start_date, end_date=end_date, 
+                             feature_type=feature_type,
+                             custom_feature_list=custom_feature_list,        # <<< ADD
+                            )
+        self.idx_trade_list = [
+            Trade(idx_code, si, stock_type=StockType.INDEX, start_date=start_date, end_date=end_date, feature_type=feature_type) 
+            for idx_code in idx_code_list
+            ]
         self.rel_trade_list = []
         for rel_code in rel_code_list:
-            t = Trade(rel_code, si, stock_type=StockType.RELATED, start_date=start_date, end_date=end_date, feature_type=feature_type)
+            t = Trade(
+                rel_code, si,
+                stock_type=StockType.RELATED,
+                start_date=start_date, end_date=end_date,
+                feature_type=feature_type,
+                custom_feature_list=custom_feature_list,    # <<< ADD：保证 rel 与主股输入维度一致
+            )
             self.rel_trade_list.append(t) if t.trade_count >= MIN_TRADE_DATA_ROWS else None #剔除数据过少的关联股票
         self.if_has_index, self.if_has_related = len(self.idx_trade_list) > 0, len(self.rel_trade_list) > 0
         self.si = si
@@ -64,10 +76,18 @@ class StockDataset():
         #处理指数数据(将指数数据并接到主股票及关联股票数据(raw_data)上)
         self.idx_datasets_list, self.idx_raw_data_list = zip(*[self.get_trade_data(idx_trade) for idx_trade in self.idx_trade_list]) if self.if_has_index else ([], [])
         if self.if_has_index:
-            for idx_raw_data in self.idx_raw_data_list: #逐个将指数数据并接到主股票及关联股票数据(raw_data)上, 如果批量处理的话, 会打乱已有的raw_data顺序
-                self.raw_data = self.left_join_pd_with_move_last(self.raw_data, idx_raw_data, if_debug=False) if self.if_has_index else self.raw_data    #已包括主股票及关联股票及指数数据
-
-        self._print_channel_lengths() if len(rel_code_list)>0 else None  # Debug: 打印各通道长度 & 最短通道 ts_code
+            #for idx_raw_data in self.idx_raw_data_list: #逐个将指数数据并接到主股票及关联股票数据(raw_data)上, 如果批量处理的话, 会打乱已有的raw_data顺序
+            #    self.raw_data = self.left_join_pd_with_move_last(self.raw_data, idx_raw_data, if_debug=False) if self.if_has_index else self.raw_data    #已包括主股票及关联股票及指数数据
+            for idx_trade, idx_raw_data in zip(self.idx_trade_list, self.idx_raw_data_list):
+                self.raw_data = self._left_join_idx_with_prefix(
+                    A_np=self.raw_data,
+                    B_np=idx_raw_data,
+                    idx_ts_code=idx_trade.ts_code,
+                    B_trade_df_cols=list(idx_trade.trade_df.columns),  # ['ts_code','trade_date',...features...]
+                    move_last_n_cols=0,  # raw_data_np 不含 y，所以不需要 move_last
+                    if_debug=False
+                )
+        #self._print_channel_lengths() if len(rel_code_list)>0 else None  # Debug: 打印各通道长度 & 最短通道 ts_code
 
         # 2. 合并主股票与相关联股票的原始数据(如果是多通道数据,则再进行一次按日期对齐处理,确保各通道数据日期与主股票一致)
         datasets_list = [self.datasets] + list(self.rel_datasets_list) if self.if_has_related  else [self.datasets]
@@ -173,8 +193,17 @@ class StockDataset():
         for datasets in datasets_list:  #逐只股票处理. 若为多通道处理,则需要进行日期对齐处理
             datasets_with_idx = datasets
             if self.if_has_index:   #并接指数数据
-                for idx_raw_data in self.idx_raw_data_list:
-                    datasets_with_idx = self.left_join_pd_with_move_last(datasets_with_idx, idx_raw_data, move_last_n_cols=self.y_cnt) if self.if_has_index else datasets    #并接指数数据
+                #for idx_raw_data in self.idx_raw_data_list:
+                #    datasets_with_idx = self.left_join_pd_with_move_last(datasets_with_idx, idx_raw_data, move_last_n_cols=self.y_cnt) if self.if_has_index else datasets    #并接指数数据
+                for idx_trade, idx_raw_data in zip(self.idx_trade_list, self.idx_raw_data_list):
+                    datasets_with_idx = self._left_join_idx_with_prefix(
+                        A_np=datasets_with_idx,
+                        B_np=idx_raw_data,
+                        idx_ts_code=idx_trade.ts_code,
+                        B_trade_df_cols=list(idx_trade.trade_df.columns),
+                        move_last_n_cols=self.y_cnt,
+                        if_debug=False
+                    )
             if self.use_conv2_channel:                      #for conv2d add
                 aligned_raw_list.append(datasets_with_idx)  #for conv2d add #aligned_raw_list有什么用???
             dataset_x, raw_y = self.get_dataset_xy(datasets_with_idx)   #raw_y为原始y涨跌幅数据,float类型
@@ -394,6 +423,74 @@ class StockDataset():
         x = self.get_normalized_windowed_x(raw_x)
         return raw_x, x, closed_price
 
+    def _left_join_idx_with_prefix(self, A_np, B_np, idx_ts_code: str, B_trade_df_cols, move_last_n_cols=0, if_debug=False):
+        """
+        将指数/外部序列 B left join 到 A 上，按 trade_date 对齐，并对 B 的特征列加前缀:
+            idx_{ts_code}__{col}
+
+        输入约定：
+        - A_np: shape [n, mA]，第0列为 trade_date（string/int均可），其余为数值（含特征、可选y）
+        - B_np: shape [k, mB]，第0列为 trade_date（string/int均可），其余为数值（只应是特征；idx 本身没有 y）
+        - B_trade_df_cols: 对应 Trade.trade_df.columns（含 ts_code/trade_date/...）
+                          用它恢复 B_np 的列名（但 B_np 本身不含 ts_code，因此我们会 drop 掉 ts_code）
+        - move_last_n_cols: 若 A 的末尾有 y 列（如 datasets_with_idx），传 y_cnt 用于把 y 移回最后
+
+        返回：
+        - np.ndarray: shape [n, mA + (mB-1)] （按 trade_date 合并，B 不重复加入 trade_date）
+        """
+        if not (isinstance(A_np, np.ndarray) and A_np.ndim == 2):
+            raise ValueError(f"A_np must be 2D np.ndarray, got {type(A_np)}, shape={getattr(A_np,'shape',None)}")
+        if not (isinstance(B_np, np.ndarray) and B_np.ndim == 2):
+            raise ValueError(f"B_np must be 2D np.ndarray, got {type(B_np)}, shape={getattr(B_np,'shape',None)}")
+
+        # ---- build df_a ----
+        df_a = pd.DataFrame(A_np).copy()
+
+        # ---- build df_b with names ----
+        # B_np 结构是: [trade_date] + feature...
+        # idx_trade.trade_df.columns 结构是: ['ts_code','trade_date', feature...]
+        # 所以我们要 drop ts_code 后得到: ['trade_date', feature...]
+        b_cols = [c for c in B_trade_df_cols if c != 'ts_code']
+        if len(b_cols) != B_np.shape[1]:
+            raise ValueError(
+                f"idx cols mismatch for {idx_ts_code}: "
+                f"len(b_cols)={len(b_cols)} vs B_np.shape[1]={B_np.shape[1]}. "
+                f"b_cols(head)={b_cols[:5]}"
+            )
+
+        df_b = pd.DataFrame(B_np, columns=b_cols).copy()
+
+        # ---- normalize key dtype ----
+        df_a[0] = pd.to_datetime(df_a[0]).dt.strftime('%Y%m%d')
+        df_b['trade_date'] = pd.to_datetime(df_b['trade_date']).dt.strftime('%Y%m%d')
+
+        # ---- prefix B feature columns (exclude key) ----
+        pref = f"idx_{idx_ts_code}__"
+        rename_map = {c: (pref + c) for c in df_b.columns if c != 'trade_date'}
+        df_b.rename(columns=rename_map, inplace=True)
+
+        if if_debug:
+            print(f"[DEBUG] idx join: idx_ts_code={idx_ts_code}, renamed cols sample: {list(rename_map.items())[:5]}")
+
+        # ---- merge (left join on trade_date) ----
+        # df_a 的 key 是第0列（整数列名），df_b 的 key 是 'trade_date'
+        df_merged = pd.merge(df_a, df_b, left_on=0, right_on='trade_date', how='left')
+
+        # 删除 df_b 的 trade_date（避免重复）
+        df_merged.drop(columns=['trade_date'], inplace=True)
+
+        # ---- move last N cols (keep y at end) ----
+        if move_last_n_cols and move_last_n_cols > 0:
+            orig_cols = df_a.shape[1]
+            total_cols = df_merged.shape[1]
+
+            idx_move = list(range(orig_cols - move_last_n_cols, orig_cols))
+            idx_keep = list(range(0, orig_cols - move_last_n_cols))
+            idx_rest = list(range(orig_cols, total_cols))
+            new_idx = idx_keep + idx_rest + idx_move
+            df_merged = df_merged.iloc[:, new_idx]
+
+        return df_merged.values
 
     def left_join_pd_with_move_last(self, A, B, move_last_n_cols=0, if_debug=False):
         """
@@ -444,12 +541,18 @@ class StockDataset():
     
     def get_feature_names(self):
         """
-        返回主股票和指数合并后的特征名列表（不包含日期、ts_code）。
+        返回最终输入模型的特征名列表（不包含日期、ts_code、y）。
+        注意：related 股票在 use_conv2_channel=False 时是 vstack 到样本维，不会新增列名；
+              idx 股票是拼到列维，因此会新增带前缀的列。
         """
         feature_names = []
         feature_names += list(self.p_trade.trade_df.columns.drop(['ts_code','trade_date'], errors='ignore'))
+
         for idx_trade in getattr(self, 'idx_trade_list', []):
-            feature_names += list(idx_trade.trade_df.columns.drop(['ts_code','trade_date'], errors='ignore'))
+            pref = f"idx_{idx_trade.ts_code}__"
+            idx_cols = list(idx_trade.trade_df.columns.drop(['ts_code','trade_date'], errors='ignore'))
+            feature_names += [pref + c for c in idx_cols]
+
         return feature_names
 
     def time_series_augmentation_multiple(self, X, y, multiple=4, noise_level=0.005):
